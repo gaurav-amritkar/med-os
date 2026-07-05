@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MedOS v3.0 - Product Requirements Document (PRD)</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #18181b;
+      --surface2: #27272a;
+      --text: #e4e4e7;
+      --text-muted: #a1a1aa;
+      --border: #3f3f46;
+      --primary: #3b82f6;
+      --accent: #22d3ee;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --font-mono: 'Consolas', 'JetBrains Mono', 'Courier New', monospace;
+      --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+    
+    body { font-family: var(--font-sans); background: var(--bg); color: var(--text); line-height: 1.6; max-width: 1200px; margin: 0 auto; padding: 40px; font-size: 14px; }
+    
+    .sys-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--primary); padding-bottom: 20px; margin-bottom: 40px; }
+    .sys-title { font-family: var(--font-mono); font-size: 2.5em; font-weight: 900; color: var(--primary); margin: 0; text-transform: uppercase; letter-spacing: -1px; }
+    .sys-meta { font-family: var(--font-mono); font-size: 0.85em; color: var(--accent); text-align: right; }
+    
+    h2 { font-family: var(--font-mono); color: var(--accent); font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-top: 40px; text-transform: uppercase; }
+    h3 { font-size: 1.1em; color: #fff; margin-top: 30px; }
+    
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; font-family: var(--font-mono); font-size: 0.9em; background: var(--surface); border: 1px solid var(--border); }
+    th { background: var(--surface2); color: #fff; text-align: left; padding: 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+    tr:last-child td { border-bottom: none; }
+    
+    code { font-family: var(--font-mono); background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: #fff; font-size: 0.9em; border: 1px solid var(--border); }
+    pre { background: var(--surface); padding: 16px; border-radius: 6px; border: 1px solid var(--border); overflow-x: auto; color: var(--accent); font-size: 0.85em; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    
+    .type-string { color: #86efac; }
+    .type-int { color: #fca5a5; }
+    .type-bool { color: #93c5fd; }
+    .type-fk { color: #fde047; }
+    .type-pk { color: #c084fc; font-weight: bold; }
+    
+    .badge { display: inline-block; padding: 2px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-size: 0.8em; margin-right: 6px; }
+    .badge-GET { color: var(--success); }
+    .badge-POST { color: var(--primary); }
+    .badge-PUT { color: #f59e0b; }
+    .badge-PATCH { color: #f59e0b; }
+    .badge-DELETE { color: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <div class="sys-header">
+    <div>
+      <h1 class="sys-title">MEDOS_PRD_V3.0::SYSTEM_MANIFEST</h1>
+      <div style="font-family: var(--font-mono); color: var(--text-muted); margin-top: 10px;">TARGET_AUDIENCE: DEVELOPER_NUCLEUS | STATUS: VERIFIED_DEPLOYMENT</div>
+    </div>
+    <div class="sys-meta">
+      TIMESTAMP: 2026-04-18T04:00:00Z<br>
+      ENGINE: NODE.JS_EXPRESS_REACT_VITE<br>
+      PERSISTENCE: SQLITE3_KNEX_SINGLEFILE<br>
+      AUTH: JWT_STATELESS_BCRYPT
+    </div>
+  </div>
+
+  <h2>1.0 DATABASE_SCHEMA_MAPPINGS</h2>
+  <p>Defines the persistent graph structure across exactly 19 connected entities. UUID v4 acts as primary index allocation logic across all tables.</p>
+
+  <div class="grid-2">
+    <div>
+      <h3>ENTITY::patients</h3>
+      <table>
+        <tr><th>FIELD</th><th>TYPE</th><th>CONSTRAINTS / NOTES</th></tr>
+        <tr><td>id</td><td><span class="type-pk">UUID</span></td><td>PRIMARY_KEY</td></tr>
+        <tr><td>uhid</td><td><span class="type-string">VARCHAR</span></td><td>UNIQUE, AUTO-INCREMENT VIA MAX()</td></tr>
+        <tr><td>name</td><td><span class="type-string">VARCHAR</span></td><td>NOT_NULL</td></tr>
+        <tr><td>age</td><td><span class="type-int">INT</span></td><td>VALIDATE: 0-150</td></tr>
+        <tr><td>dpdp_consent</td><td><span class="type-bool">BOOLEAN</span></td><td>1/0 INT IN SQLITE</td></tr>
+        <tr><td>outstanding</td><td><span class="type-int">DECIMAL</span></td><td>AUTO_SYCNED_REDUX [Balance = Billed-Paid]</td></tr>
+      </table>
+    </div>
+    
+    <div>
+      <h3>ENTITY::encounters</h3>
+      <table>
+        <tr><th>FIELD</th><th>TYPE</th><th>CONSTRAINTS / NOTES</th></tr>
+        <tr><td>id</td><td><span class="type-pk">UUID</span></td><td>PRIMARY_KEY</td></tr>
+        <tr><td>patient_id</td><td><span class="type-fk">FK_UUID</span></td><td>REF: patients.id</td></tr>
+        <tr><td>doctor_id</td><td><span class="type-fk">FK_UUID</span></td><td>REF: users.id</td></tr>
+        <tr><td>status</td><td><span class="type-string">ENUM</span></td><td>[open, signed, cancelled]</td></tr>
+        <tr><td>vitals_json</td><td><span class="type-string">TEXT</span></td><td>JSON_PAYLOAD</td></tr>
+        <tr><td>ai_note</td><td><span class="type-string">TEXT</span></td><td>MUTABLE_UNTIL_SIGNED</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <h3>ENTITY::admissions</h3>
+      <table>
+        <tr><th>FIELD</th><th>TYPE</th><th>CONSTRAINTS / NOTES</th></tr>
+        <tr><td>id</td><td><span class="type-pk">UUID</span></td><td>PRIMARY_KEY</td></tr>
+        <tr><td>patient_id</td><td><span class="type-fk">FK_UUID</span></td><td>REF: patients.id</td></tr>
+        <tr><td>room_id</td><td><span class="type-fk">FK_UUID</span></td><td>REF: rooms.id</td></tr>
+        <tr><td>status</td><td><span class="type-string">ENUM</span></td><td>[admitted, discharged, transferred]</td></tr>
+        <tr><td>room_charges</td><td><span class="type-int">DECIMAL</span></td><td>days_admitted * rooms.daily_rate</td></tr>
+      </table>
+    </div>
+    
+    <div>
+      <h3>ENTITY::medicine_catalog & stock_transactions</h3>
+      <table>
+        <tr><th>FIELD</th><th>TYPE</th><th>CONSTRAINTS / NOTES</th></tr>
+        <tr><td>medicine_id</td><td><span class="type-pk">UUID</span></td><td>REF: catalog.id</td></tr>
+        <tr><td>transaction_type</td><td><span class="type-string">ENUM</span></td><td>[in, out, adjustment, return]</td></tr>
+        <tr><td>quantity</td><td><span class="type-int">INT</span></td><td>NEGATIVE IF type=='out'</td></tr>
+        <tr><td>batch_no / expiry</td><td><span class="type-string">VARCHAR</span></td><td>FEFO ALGORITHM SORT KEY</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>2.0 API_ROUTER_TOPOLOGY</h2>
+  <p>Express.js routing endpoints. Protected strictly by <code>auth</code> and <code>can(...)</code> RBAC middlewares.</p>
+  
+  <table>
+    <tr><th>ENDPOINT</th><th>PAYLOAD EXPECTATION</th><th>MIDDLEWARE / ROLES</th><th>EXECUTION_LOGIC</th></tr>
+    <tr>
+      <td><span class="badge badge-POST">POST</span> <code>/api/auth/login</code></td>
+      <td><code>{ username, password }</code></td>
+      <td>RateLimit(15m/5), None</td>
+      <td>Bcrypt.compare(p, hash) -> Issue 10h JWT payload.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-POST">POST</span> <code>/api/encounters/:id/suggest-medicines</code></td>
+      <td><code>{ disease_description }</code></td>
+      <td>auth, can('doctor','admin')</td>
+      <td>Trigger Anthropic API. Match against <code>diseaseMedicineMap</code>. Join matching hits with <code>medicine_catalog</code>. Return structured array.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-POST">POST</span> <code>/api/pharmacy/dispense</code></td>
+      <td><code>{ patient_id, medicine_id, qty }</code></td>
+      <td>auth, can('pharmacist','admin')</td>
+      <td>1) Select all unexpired batches. 2) Deduct quantity based on FEFO. 3) Write to <code>stock_transactions</code>. 4) Post line-item charge to <code>charges</code> table.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-PUT">PUT</span> <code>/api/admissions/:id/discharge</code></td>
+      <td><code>{ discharge_diagnosis }</code></td>
+      <td>auth, can('doctor','admin')</td>
+      <td>Set status to 'discharged'. Calculate `days = today - admission_date`. Multiply by `room.daily_rate`. Update `room_charges`. Free the room in frontend map.</td>
+    </tr>
+  </table>
+
+  <h2>3.0 UI_RENDER_TREE (REACT.JS / VITE)</h2>
+  <p>Component hierarchy relying on precise route isolation and Context API based toast notifications.</p>
+
+  <pre>
+  &lt;App&gt;
+    &lt;BrowserRouter&gt;
+      ├─ &lt;Route path="/login" component={Login} /&gt;   // Stateless UI, triggers AuthStore state mutation
+      ├─ &lt;Guard&gt;
+      │   ├─ &lt;Layout&gt;  // Providers: ToastContext. Contains Sidebar, Header
+      │   │   ├─ &lt;Sidebar&gt;   // Navigation filtered map against user?.role
+      │   │   │   └─ &lt;ClockWidget /&gt;  // Isolated re-render loop via React.memo interval
+      │   │   ├─ &lt;Header&gt;    // Route metadata injector
+      │   │   └─ &lt;Outlet&gt;
+      │   │       ├─ &lt;Dashboard&gt;    // Uses stats payload to render metrics and KPI trends.
+      │   │       ├─ &lt;OPD&gt;          // Encounter list navigation + Detail tabs (Vitals, Prescriptions, AI Engine).
+      │   │       ├─ &lt;IPD&gt;          // Room matrix loop mapped against current admissions.
+      │   │       ├─ &lt;Pharmacy&gt;     // Data grid with expandable rows to `transaction_history`.
+      │   │       ├─ &lt;Billing&gt;      // Multi-ledger aggregation (Charges -> Invoices -> Payments).
+      │   │       └─ &lt;Reports&gt;      // Read-only analytic charts using Recharts mapped array.
+  </pre>
+
+  <h2>4.0 GLOBAL_STATE_MANAGEMENT</h2>
+  <p>Zustand acts as the client-side memory volatile store representing the JWT session.</p>
+  
+  <pre>
+  const useAuthStore = create((set) => ({
+    user: null,    // Hydrated from decoded JWT payload
+    token: null,   // Active Bearer token
+    login: (token, user) => { localStorage.setItem('token', token); set({ token, user }); },
+    logout: () => { localStorage.removeItem('token'); set({ token: null, user: null }); },
+  }))
+  </pre>
+
+  <h2>5.0 CRITICAL_LOGIC_FUNCTIONS</h2>
+  
+  <h3>5.1 PATIENT_LEDGER_SYNC</h3>
+  <p>Financial integrity requires auto-synchronization on any insert/update mutation associated with billing objects.</p>
+  <code>function syncPatientBalance(patient_id)</code> executes:
+  <ul>
+    <li><code>total_billed</code> = SUM(invoices.total_amount) where patient_id = X</li>
+    <li><code>total_paid</code> = SUM(payments.amount) where patient_id = X and status = 'success'</li>
+    <li><code>outstanding</code> = total_billed - total_paid</li>
+    <li>Updates <code>patients</code> record instantly.</li>
+  </ul>
+
+  <h3>5.2 FEFO_INVENTORY_ALGORITHM</h3>
+  <p>Medicine dispensing utilizes a First-Expired-First-Out cascading subtraction matrix.</p>
+  <pre>
+  const batches = DB.select('id', 'remaining_qty', 'expiry_date').orderBy('expiry_date', 'ASC')
+  let required = payload.quantity;
+  for (let b of batches) {
+    if (required <= 0) break;
+    let ded = Math.min(required, b.remaining_qty);
+    b.remaining_qty -= ded;
+    required -= ded;
+    SQL.update({ remaining_qty: b.remaining_qty });
+  }
+  if (required > 0) throw "INSUFFICIENT_STOCK_EXCEPTION";
+  </pre>
+
+  <h2>6.0 CSS_DESIGN_SYSTEM (UI_TOKENS)</h2>
+  <p>The UI is completely constrained by root variables in <code>index.css</code>. No hardcoded hex values are permitted in React inline styles.</p>
+
+  <div class="grid-2">
+    <div>
+      <pre>
+:root {
+  --bg-deep: #06060b;
+  --surface: rgba(20, 20, 34, 0.7);
+  --surface-2: rgba(30, 30, 50, 0.8);
+  --border: rgba(255, 255, 255, 0.08);
+  --text-white: #ffffff;
+  --text: #e2e8f0;
+  --primary: #6366f1;
+  --success: #10b981;
+}
+/* Glassmorphism definition */
+.card, .modal {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+      </pre>
+    </div>
+    <div>
+      <p style="margin-top:0;"><strong>Interaction Constants:</strong> Buttons utilize <code>transform: translateY(-1px)</code> and <code>filter: brightness(1.1)</code> on hover to simulate tactile floating feedback. Empty states necessitate a centralized layout flexbox paradigm.</p>
+      <p><strong>Z-Index Heirarchy:</strong></p>
+      <ul>
+        <li><code>--z-sidebar</code>: 40</li>
+        <li><code>--z-header</code>: 30</li>
+        <li><code>--z-modal-overlay</code>: 100</li>
+        <li><code>--z-toast</code>: 200</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>7.0 DEPLOYMENT_TOPOLOGY & SECURITY_PARAMETERS</h2>
+  <p>The system is verified to run entirely stateless on the Node.js boundary, leveraging a localized SQLite file <code>backend/medos.db</code> acting as the primary single source of truth. Security mechanisms integrated include:</p>
+  <ul>
+    <li>Strict parameterized execution via Knex to nullify all vector SQL injections.</li>
+    <li>Input boundary assertions executing on POST/PUT requests prior to query construction.</li>
+    <li>Express Rate Limiter applied against identity interfaces to mitigate brute forcing.</li>
+  </ul>
+
+</body>
+</html>

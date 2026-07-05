@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MedOS v3.0 - Business Requirements Document</title>
+  <style>
+    body { font-family: 'Arial', sans-serif; color: #202124; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+    .header-box { text-align: center; padding: 40px 0; border-bottom: 4px solid #4285F4; margin-bottom: 40px; }
+    h1 { color: #4285F4; font-size: 3.2em; margin: 0; font-weight: 800; letter-spacing: -1px; }
+    h2.title { color: #5F6368; font-size: 1.8em; margin: 10px 0; font-weight: 400; }
+    .badge { display: inline-block; padding: 6px 16px; background-color: #E8F0FE; color: #1A73E8; border-radius: 20px; font-weight: bold; margin-top: 15px; font-size: 0.9em; letter-spacing: 0.5px; text-transform: uppercase; }
+    
+    h2.section { margin-top: 50px; padding-bottom: 8px; font-size: 1.6em; }
+    .s-red { color: #EA4335; border-bottom: 2px solid #FCE8E6; }
+    .s-yellow { color: #F9AB00; border-bottom: 2px solid #FEF7E0; }
+    .s-green { color: #34A853; border-bottom: 2px solid #E6F4EA; }
+    .s-blue { color: #4285F4; border-bottom: 2px solid #E8F0FE; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.95em; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    th, td { padding: 14px; text-align: left; }
+    
+    .t-yellow { border: 1px solid #FDE293; }
+    .t-yellow td { border-bottom: 1px solid #FDE293; }
+    .bg-yellow { background-color: #FFF8E1; }
+    
+    .t-red { border: 1px solid #FAD2CF; }
+    .t-red th { background-color: #FCE8E6; color: #C5221F; border-bottom: 2px solid #FAD2CF; }
+    .t-red td { border-bottom: 1px solid #FAD2CF; }
+    
+    .t-green { border: 1px solid #CEEAD6; }
+    .t-green th { background-color: #E6F4EA; color: #137333; border-bottom: 2px solid #CEEAD6; }
+    .t-green td { border-bottom: 1px solid #CEEAD6; }
+    
+    .flow-box { background-color: #F8F9FA; padding: 25px; border-radius: 12px; border: 1px solid #E8EAED; margin-top: 15px; }
+    .flow-step { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #DADCE0; }
+    
+    .crit-assump { border-left: 5px solid #F9AB00; padding: 20px; background: #FEF7E0; border-radius: 0 8px 8px 0; margin-top: 15px; }
+    
+    ul { padding-left: 20px; }
+    li { margin-bottom: 10px; }
+    
+    .pill { font-size: 0.6em; background: #EA4335; color: white; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 10px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+
+  <div class="header-box">
+    <h1>Business Requirements Document</h1>
+    <h2 class="title">Product: MedOS HMS v3.0</h2>
+    <div class="badge">Highly Confidential</div>
+  </div>
+
+  <h2 class="section s-red">1. Executive Summary</h2>
+  <p><strong>Purpose of the Product:</strong> MedOS v3.0 is an ultra-premium, role-based Hospital Management System (HMS) designed to digitize, streamline, and intelligently assist end-to-end hospital workflows ranging from patient registration and clinical documentation to pharmacy dispensing and financial reconciliation.</p>
+  <p><strong>Core Problem It Solves:</strong> Fragmented patient data, revenue leakage through unbilled services, out-of-stock pharmacy incidents, and high cognitive load on doctors. It centralizes disparate health facility operations into a single cohesive, high-performance web platform.</p>
+  <p><strong>Business Impact:</strong> Prevents revenue leakage via auto-billing integration across all clinical modules, reduces prescription errors via AI-assisted advisory, and minimizes operational overhead by enforcing strict role-based access control and inventory FEFO (First-Expired-First-Out) logic.</p>
+
+  <h2 class="section s-yellow">2. Strategic Context</h2>
+  <table class="t-yellow">
+    <tr class="bg-yellow">
+      <td style="font-weight: bold; width: 30%;">Market Positioning</td>
+      <td>Premium, mid-market HMS focusing on modern aesthetics, speed, and AI-augmentation, tailored for high-volume urban clinics and multi-specialty hospitals.</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Competitors</td>
+      <td>Practo Ray, KareXpert, Bajaj Finserv Health, Legacy local desktop HMS softawres.</td>
+    </tr>
+    <tr class="bg-yellow">
+      <td style="font-weight: bold;">Differentiation</td>
+      <td>Ultra-modern "Dark Luxury" glassmorphism UI, integrated LLM-based clinical decision support (Claude AI), strict DPDP (Digital Personal Data Protection) compliance tracking out-of-the-box.</td>
+    </tr>
+  </table>
+
+  <h2 class="section s-green">3. Problem Definition</h2>
+  <ul>
+    <li><strong>Cognitive Overload for Doctors:</strong> Existing HMS UIs are bloated spreadsheets. MedOS solves this via modularized encounter views and AI-based drug suggestions.</li>
+    <li><strong>Inventory Spoilage:</strong> Traditional pharmacy modules lack strict algorithmic enforcement. MedOS strictly enforces FEFO dispensing to minimize expired stock wastage.</li>
+    <li><strong>Disjointed Billing:</strong> Nurses and doctors often forget to log charges for consumables. MedOS auto-posts charges whenever pharmacy dispenses or orders are created.</li>
+  </ul>
+
+  <h2 class="section s-blue">4. Solution Architecture (High-Level)</h2>
+  <p><strong>System Flow:</strong> Client (Browser) ➔ RESTful API ➔ Node.js/Express Backend ➔ SQLite Database.</p>
+  <ul>
+    <li><strong>UI Layer (Frontend):</strong> React.js, Vite, Context-based State Management, Custom CSS variables (Dark mode).</li>
+    <li><strong>Auth/Security Layer:</strong> JWT-based Stateless Authentication, BCrypt Hash cryptography, strict API role-guards (`can()` middleware).</li>
+    <li><strong>Business/Data Layer:</strong> Node.js Controllers, Knex.js Query Builder, SQLite single-file persistence.</li>
+    <li><strong>Intelligence Layer:</strong> Anthropic Claude AI integration over external HTTP requests for semantic clinical parsing.</li>
+  </ul>
+
+  <h2 class="section s-red">5. Functional Requirements <span class="pill">CRITICAL</span></h2>
+  <table class="t-red">
+    <tr>
+      <th>Module</th>
+      <th>Core Features</th>
+      <th>Input / Output Logic</th>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Front Office & Admin</td>
+      <td>Patient Registration, DPDP Consent, Audit Logging, Role Management</td>
+      <td><strong>IN:</strong> Demographics, Consent <br> <strong>OUT:</strong> Generated auto-increment UHID, Patient Profile</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">OPD & AI Engine</td>
+      <td>Encounter Notes, Vitals capture, AI Medicine Advisor, Orders</td>
+      <td><strong>IN:</strong> Disease narrative <br> <strong>OUT:</strong> Keyword/LLM mapped medicine suggestions from active hospital catalog</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">IPD (Wards)</td>
+      <td>Bed Allocation, Visual Occupancy Map, Discharge Summary</td>
+      <td><strong>IN:</strong> Patient ID, Room Select <br> <strong>OUT:</strong> Updated Room State, Auto-calculated bed charges upon discharge</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Pharmacy Vault</td>
+      <td>Stock IN (Purchase), Stock OUT (FEFO Dispense), Ledger Drilldown</td>
+      <td><strong>IN:</strong> Batch Expiry, Quantity <br> <strong>OUT:</strong> Deducted inventory, auto-generated billing charge item</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Financial Billing</td>
+      <td>Charge generation, Invoice mapping, Unified patient ledger tracking</td>
+      <td><strong>IN:</strong> Clinical events <br> <strong>OUT:</strong> GST-compliant Invoices, Accounts Receivable Ledgers</td>
+    </tr>
+  </table>
+
+  <h2 class="section s-yellow">6. UI/UX Logic</h2>
+  <p><strong>Navigation Structure:</strong> Persistent Sidebar Left (Role-filtered Context Navigation), Top Header (Contextual Actions & User Profile), Main Canvas (Task-based Workspace).</p>
+  <p><strong>Interaction Model:</strong></p>
+  <ul>
+    <li><strong>Dark Luxury:</strong> Decreases eye strain for continuous 8+ hour usage by healthcare operators (Background `#06060b` gradient).</li>
+    <li><strong>Glassmorphism overlays:</strong> Modals and cards float over context without jarring page reloads.</li>
+    <li><strong>Micro-animations:</strong> Hover lifts, glowing portal effects on login, and toast notifications provide immediate, satisfying feedback ensuring operators feel action completion without reading verbose text.</li>
+  </ul>
+
+  <h2 class="section s-green">7. Data & System Design</h2>
+  <p><strong>Storage Assumptions:</strong> SQLite is utilized under the assumption of horizontal container constraints where file-based RDBMS suffices for high-read/low-concurrent-write operations. Max DB assumption: ~5GB before archiving.</p>
+  <p><strong>Processing Logic:</strong> Transactions are strongly coupled. Example: <code>Dispense Pharmacy Item</code> execution synchronously executes 1) Deduct Stock 2) Increment Patient Outstanding 3) Create Line Item Charge 4) Append Audit Log.</p>
+
+  <h2 class="section s-blue">8. User Flow (Step-by-Step Scenario)</h2>
+  <div class="flow-box">
+    <div class="flow-step">
+      <strong>1. Receptionist</strong> logs in ➔ Registers Patient (acquires DPDP consent) ➔ Books Appointment.
+    </div>
+    <div class="flow-step">
+      <strong>2. Nurse</strong> logs in ➔ Views incoming Appointment ➔ Modifies status to "Checked-in" ➔ Captures basic vitals attached to new Encounter.
+    </div>
+    <div class="flow-step">
+      <strong>3. Doctor</strong> logs in ➔ Opens Encounter ➔ Uses AI to document chief complaint ➔ Generates Prescription ➔ Digitally signs encounter.
+    </div>
+    <div class="flow-step">
+      <strong>4. Pharmacist</strong> logs in ➔ Views queued prescription ➔ Approves dispense (system auto-picks closest expiry batch) ➔ Triggers financial charge.
+    </div>
+    <div class="flow-step" style="margin-bottom: 0;">
+      <strong>5. Billing</strong> logs in ➔ Aggregates unbilled charges for Patient ➔ Generates Invoice ➔ Process Payment.
+    </div>
+  </div>
+
+  <h2 class="section s-red">9. KPIs / Success Metrics</h2>
+  <table style="width: 100%; border: 1px solid #E8EAED;">
+    <tr>
+      <td style="padding: 15px; width: 50%; vertical-align: top; border-right: 1px solid #E8EAED;">
+        <strong>Business Metrics:</strong>
+        <ul style="margin-bottom: 0;">
+          <li>Reduction in "Unbilled Revenue"</li>
+          <li>Decrease in Expired Medicine Write-offs</li>
+          <li>Reduction in average patient wait time</li>
+        </ul>
+      </td>
+      <td style="padding: 15px; width: 50%; vertical-align: top;">
+        <strong>Product Metrics:</strong>
+        <ul style="margin-bottom: 0;">
+          <li>DAU/MAU across roles</li>
+          <li>AI Medicine Suggestion acceptance rate</li>
+          <li>End-to-end task completion times</li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <h2 class="section s-yellow">10. Non-Functional Requirements</h2>
+  <ul>
+    <li><strong>Performance:</strong> Initial App mounting &lt; 1.5s. API response boundaries &lt; 200ms (excluding external LLM calls).</li>
+    <li><strong>Scalability:</strong> Designed for single-tenant clinic deployment but architecture allows migration from SQLite to PostgreSQL for multi-tenant scalability.</li>
+    <li><strong>Security:</strong> JWT tokens expiring in 10h, BCrypt hashed passwords, Knex.js parameterized SQL queries (anti-injection), complete Audit trail tracking.</li>
+  </ul>
+
+  <h2 class="section s-green">11. Risk Analysis & Scenario Validation</h2>
+  <table class="t-green">
+    <tr>
+      <th>Risk Type</th>
+      <th>Description</th>
+      <th>Mitigation</th>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Technical</td>
+      <td>SQLite Data Locking under hyper-concurrency</td>
+      <td>Maintain as single-node instance. Migrate schema strictly to PG on scale.</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold;">Product</td>
+      <td>Doctors ignore AI suggestions due to hallucination</td>
+      <td>System is hard-bounded to ONLY return medicines existing in local `medicine_catalog`.</td>
+    </tr>
+  </table>
+
+  <h2 class="section s-blue">12. Monetization Model</h2>
+  <p><strong>B2B SaaS / Perpetual License:</strong></p>
+  <ol>
+    <li><strong>Base Instance Fee:</strong> Core modules + 5 Users.</li>
+    <li><strong>AI Add-on Tier:</strong> Per-query cost pass-through or premium subscription tier enabling Claude API features.</li>
+    <li><strong>Maintenance SLA:</strong> Annual fee for regulatory module updates (e.g., GST changes, NDHM integration).</li>
+  </ol>
+
+  <h2 class="section s-red">13. Decision Triggers (Invalidation Criteria)</h2>
+  <p>This product strategy should pivot or halt if:</p>
+  <ul>
+    <li>National Health Authority (NHA) mandates cloud-only integration mechanisms incompatible with local instances.</li>
+    <li>The local LLM processing API costs outpace the margin generated by premium subscriptions.</li>
+    <li>User feedback consistently reports the "Dark Mode" severely limits visibility in bright clinic environments (forcing a light-mode refactor).</li>
+  </ul>
+
+  <h2 class="section s-yellow">14. Hidden Assumptions (CRITICAL)</h2>
+  <div class="crit-assump">
+    <div style="margin-bottom: 10px;"><b>Assumption 1:</b> The hospital relies on a localized deployment topology where a centralized server runs `localhost` exposed over LAN to client terminals.</div>
+    <div style="margin-bottom: 10px;"><b>Assumption 2:</b> Time-series data (like patient wait times) relies on strict client-to-server time synchronization.</div>
+    <div style="margin-bottom: 10px;"><b>Assumption 3:</b> The pharmacy operates purely digitally; physical stock variance (theft/loss) is manually corrected as there is no IoT/Barcode integration in v3.0.</div>
+    <div><b>Assumption 4:</b> The API connection to Anthropic is reliable and patient identifiers are sanitized locally before being pushed to external LLMs.</div>
+  </div>
+
+</body>
+</html>
