@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:medos;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+medos:
+  security:
+    jwt:
+      secret: ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==
+      expiration-ms: 36000000
+      issuer: medos-hms-v3
+  ai:
+    enabled: false

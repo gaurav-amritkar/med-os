@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: medos-backend
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:db}:${DB_PORT:5432}/${DB_NAME:medos}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 20000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+  forward-headers-strategy: framework
+
+medos:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==}
+      expiration-ms: 36000000
+      issuer: medos-hms-v3
+  ai:
+    enabled: false
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost,http://localhost:80,http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.medos: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

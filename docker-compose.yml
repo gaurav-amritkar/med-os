@@ -1,0 +1,93 @@
+name: medos
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: medos-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-medos}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_EXTERNAL_PORT:-5432}:5432"
+    volumes:
+      - medos-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-medos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - medos-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: medos-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+    volumes:
+      - medos-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medos-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medos-backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-medos}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "${BACKEND_EXTERNAL_PORT:-8080}:8080"
+    networks:
+      - medos-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: medos-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-/api}
+    ports:
+      - "${FRONTEND_EXTERNAL_PORT:-80}:80"
+    networks:
+      - medos-net
+    restart: unless-stopped
+
+volumes:
+  medos-db-data:
+    name: medos-db-data
+  medos-redis-data:
+    name: medos-redis-data
+
+networks:
+  medos-net:
+    name: medos-net
+    driver: bridge

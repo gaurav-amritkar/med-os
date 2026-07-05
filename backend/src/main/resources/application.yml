@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: medos-backend
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/medos
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+  servlet:
+    context-path: /
+
+medos:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==}
+      expiration-ms: 36000000
+      issuer: medos-hms-v3
+  ai:
+    enabled: false
+    anthropic-api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-3-5-sonnet-20241022
+  cors:
+    allowed-origins: http://localhost:5173,http://localhost:3000
+
+logging:
+  level:
+    com.medos: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
