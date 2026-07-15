@@ -78,7 +78,7 @@ export default function Billing() {
         <p>Charge management, GST invoices, and payment reconciliation</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 20 }} className="billing-layout">
         <div style={{ width: 300, flexShrink: 0 }}>
           <div className="card">
             <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>Patients</h3>

@@ -75,7 +75,7 @@ export default function Patients() {
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12 }} className="search-row">
           <input
             placeholder="Search patients by name..."
             value={search}
@@ -88,7 +88,7 @@ export default function Patients() {
 
       {selectedPatient ? (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }} className="profile-header">
             <div>
               <h3 style={{ color: 'var(--text-white)', fontSize: '1.2rem', marginBottom: 4 }}>
                 {selectedPatient.name}
@@ -99,7 +99,7 @@ export default function Patients() {
               <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                 {selectedPatient.uhid} • {selectedPatient.phone} • {selectedPatient.email}
               </div>
-              <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }} className="badges-row">
                 <span className={`badge ${selectedPatient.dpdpConsent ? 'badge-success' : 'badge-danger'}`}>
                   DPDP: {selectedPatient.dpdpConsent ? 'Consented' : 'Not Consented'}
                 </span>

@@ -28,6 +28,7 @@
   --z-toast: 200;
   --radius: 12px;
   --radius-sm: 8px;
+  --mobile-breakpoint: 768px;
 }
 
 *, *::before, *::after {
@@ -442,4 +443,239 @@ tbody tr:hover {
 .tab:hover {
   transform: none;
   filter: none;
+}
+
+/* =========================================
+   RESPONSIVE — Tablet (max-width: 1024px)
+   ========================================= */
+@media (max-width: 1024px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* =========================================
+   RESPONSIVE — Mobile (max-width: 768px)
+   ========================================= */
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+
+  /* Grids collapse to single column on phones */
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; gap: 14px; }
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+
+  /* Cards need less padding on small screens */
+  .card { padding: 16px; border-radius: 10px; }
+
+  /* Page headers become simpler */
+  .page-header { margin-bottom: 20px; }
+  .page-header h1 { font-size: 1.3rem; }
+  .page-header p { font-size: 0.85rem; }
+
+  /* Stats: smaller value font */
+  .stat-card .stat-value { font-size: 1.5rem; }
+
+  /* Tables: horizontal scroll + tighter cells */
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  thead th { padding: 10px 12px; font-size: 0.7rem; }
+  tbody td { padding: 10px 12px; font-size: 0.85rem; }
+
+  /* Touch-friendly buttons */
+  button { padding: 9px 16px; }
+  .btn-sm { padding: 7px 12px; }
+
+  /* Full-width modals */
+  .modal { max-width: 100%; padding: 20px; max-height: 95vh; }
+  .modal-header h2 { font-size: 1.05rem; }
+  .modal-overlay { padding: 10px; align-items: flex-end; }
+
+  /* Tabs scroll horizontally if they overflow */
+  .tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .tab { padding: 10px 12px; font-size: 0.85rem; white-space: nowrap; }
+
+  /* Toasts: smaller and compact */
+  .toast { min-width: 0; max-width: calc(100vw - 40px); font-size: 0.85rem; }
+  .toast-container { top: 10px; right: 10px; left: 10px; }
+
+  /* Inputs get more breathing room */
+  input, textarea, select { padding: 11px 14px; font-size: 16px; /* prevents iOS zoom */ }
+
+  /* === Inline-style overrides for page-level layouts === */
+
+  /* Page headers with inline flex space-between stack vertically */
+  .page-header[style*="flex"],
+  .page-header > div[style*="flex"] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Patient/Encounter/Pharmacy/Billing: master-detail (flex with fixed widths) must stack */
+  .pharmacy-layout,
+  .billing-layout,
+  .encounter-layout {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  .pharmacy-layout > div[style*="width"],
+  .billing-layout > div[style*="width"],
+  .encounter-layout > div[style*="width"] {
+    width: 100% !important;
+    flex-shrink: 1 !important;
+  }
+
+  /* Vitals grid (inline 3-col) collapses */
+  .vitals-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Search row inline flex becomes column on phone */
+  .search-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .search-row > input { max-width: 100% !important; }
+
+  /* Patient profile header: stack name + Back button */
+  .profile-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .profile-header .badges-row {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* AI suggestions rows: inline flex space-between stack */
+  .ai-suggestion-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+  .ai-suggestion-item > button { width: 100%; justify-content: center; }
+
+  /* Manual prescription row: wrap, full-width selects */
+  .rx-manual-row {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+  .rx-manual-row > div { flex: 1 1 100% !important; min-width: 0 !important; }
+
+  /* Admissions: stat cards inline flex wrap and shrink */
+  .stats-row {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+  .stats-row > .stat-card {
+    flex: 1 1 calc(50% - 10px) !important;
+    min-width: 0 !important;
+    padding: 14px !important;
+  }
+
+  /* Header: hide logout text on tiny phone to fit avatar + name */
+  .logout-btn { font-size: 0.8rem !important; padding: 6px 10px !important; }
+  .user-info { display: none !important; }
+}
+
+/* =========================================
+   RESPONSIVE — Small phones (max-width: 480px)
+   ========================================= */
+@media (max-width: 480px) {
+  .stat-card { padding: 14px; }
+  .stat-card .stat-value { font-size: 1.3rem; }
+  .badge { font-size: 0.7rem; padding: 2px 8px; }
+}
+
+/* Reduced-motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =========================================
+   SIDEBAR — Responsive drawer
+   ========================================= */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background: rgba(12, 12, 20, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--border);
+  z-index: var(--z-sidebar);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: calc(var(--z-sidebar) - 1);
+  animation: sidebarOverlayIn 0.2s ease-out;
+}
+
+@keyframes sidebarOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sidebarSlideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Mobile sidebar: hidden by default, slides in when open */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    animation: sidebarSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sidebar-close {
+    display: inline-flex !important;
+  }
+}
+
+/* Close button in sidebar — hidden on desktop, shown on mobile */
+.sidebar-close {
+  display: none;
+}
+
+/* Hamburger button visibility */
+.hamburger-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: inline-flex;
+    padding: 8px;
+    margin-right: auto;
+  }
+  header {
+    left: 0 !important;
+    padding: 0 16px !important;
+  }
+  main {
+    margin-left: 0 !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: calc(var(--header-height) + 20px) !important;
+  }
+  .logout-btn-text { display: none; }
 }

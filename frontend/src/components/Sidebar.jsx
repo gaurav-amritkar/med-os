@@ -50,65 +50,78 @@ function ClockWidget() {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const role = user?.role?.toLowerCase() || 'admin';
   const items = navItems[role] || navItems.admin;
 
+  const handleNav = () => {
+    if (onClose) onClose();
+  };
+
   return (
-    <aside style={{
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 'var(--sidebar-width)',
-      background: 'rgba(12, 12, 20, 0.95)',
-      backdropFilter: 'blur(24px)',
-      borderRight: '1px solid var(--border)',
-      zIndex: 'var(--z-sidebar)',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '20px 0',
-    }}>
-      <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-1px' }}>
-          MED<span style={{ color: 'var(--accent, #22d3ee)' }}>OS</span>
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-1px' }}>
+              MED<span style={{ color: '#22d3ee' }}>OS</span>
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase', marginTop: 2 }}>
+              HMS v3.0
+            </div>
+          </div>
+          {/* Close button — mobile only */}
+          <button
+            className="btn-ghost btn-sm sidebar-close"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            ✕
+          </button>
         </div>
-        <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', letterSpacing: '1px', textTransform: 'uppercase', marginTop: 2 }}>
-          HMS v3.0
-        </div>
-      </div>
 
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, padding: '0 12px' }}>
-        {items.map((item) => {
-          const active = location.pathname === item.to;
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-sm)',
-                color: active ? 'var(--text-white)' : 'var(--text-muted)',
-                background: active ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                transition: 'all 0.2s',
-                fontSize: '0.9rem',
-                fontWeight: active ? 600 : 400,
-                textDecoration: 'none',
-              }}
-            >
-              <span style={{ fontSize: '1.1rem', opacity: 0.7 }}>{item.icon}</span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, padding: '0 12px' }}>
+          {items.map((item) => {
+            const active = location.pathname === item.to;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={handleNav}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '11px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  color: active ? 'var(--text-white)' : 'var(--text-muted)',
+                  background: active ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                  transition: 'all 0.2s',
+                  fontSize: '0.9rem',
+                  fontWeight: active ? 600 : 400,
+                  textDecoration: 'none',
+                  minHeight: 44,
+                }}
+              >
+                <span style={{ fontSize: '1.1rem', opacity: 0.7 }}>{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-      <ClockWidget />
-    </aside>
+        <ClockWidget />
+      </aside>
+    </>
   );
 }

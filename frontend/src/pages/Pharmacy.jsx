@@ -83,7 +83,7 @@ export default function Pharmacy() {
           <h1>Pharmacy Vault</h1>
           <p>Inventory, FEFO dispensing, and stock ledger</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }} className="badges-row">
           <span className={`badge badge-warning`}>{pendingRx.length} pending</span>
         </div>
       </div>
@@ -114,7 +114,7 @@ export default function Pharmacy() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 20 }} className="pharmacy-layout">
         <div style={{ width: 340, flexShrink: 0 }}>
           <div className="card" style={{ marginBottom: 20 }}>
             <div className="card-header">

@@ -108,7 +108,7 @@ export default function Encounters() {
         <p>Manage patient encounters, vitals, and prescriptions</p>
       </div>
 
-      <div className="grid-2" style={{ gridTemplateColumns: selectedPatient ? '320px 1fr' : '1fr' }}>
+      <div className="grid-2 encounter-layout" style={{ gridTemplateColumns: selectedPatient ? '320px 1fr' : '1fr' }}>
         <div className="card">
           <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>Patients</h3>
           <input placeholder="Search patients..." style={{ marginBottom: 12 }}
@@ -141,7 +141,7 @@ export default function Encounters() {
             {!activeEncounter ? (
               <div className="card">
                 <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>New Encounter: {selectedPatient.name}</h3>
-                <div className="grid-2" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+                <div className="grid-2 vitals-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
                   {Object.entries({ bp: 'BP (mmHg)', pulse: 'Pulse (/min)', temp: 'Temp (°F)', spo2: 'SpO2 (%)', weight: 'Weight (kg)' }).map(([k, label]) => (
                     <div key={k} className="form-group">
                       <label>{label}</label>
@@ -183,7 +183,7 @@ export default function Encounters() {
 
                 <div style={{ marginBottom: 20 }}>
                   <h4 style={{ color: 'var(--text-white)', marginBottom: 8, fontSize: '0.95rem' }}>AI Medicine Advisor</h4>
-                  <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 12 }} className="search-row">
                     <input placeholder="Describe condition for AI suggestions..." value={diagnosis}
                       onChange={(e) => setDiagnosis(e.target.value)} />
                     <button className="btn-primary btn-sm" onClick={fetchSuggestions} disabled={suggestLoading}>
@@ -202,7 +202,7 @@ export default function Encounters() {
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                        }}>
+                        }} className="ai-suggestion-item">
                           <div>
                             <div style={{ fontWeight: 500, color: 'var(--text-white)', fontSize: '0.9rem' }}>{s.name}</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
@@ -222,7 +222,7 @@ export default function Encounters() {
 
                 <div>
                   <h4 style={{ color: 'var(--text-white)', marginBottom: 8, fontSize: '0.95rem' }}>Manual Prescription</h4>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }} className="rx-manual-row">
                     <div style={{ flex: 2, minWidth: 180 }}>
                       <label>Medicine</label>
                       <select id="med-select">

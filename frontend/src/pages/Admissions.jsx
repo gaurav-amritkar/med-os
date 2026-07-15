@@ -90,7 +90,7 @@ export default function Admissions() {
         <p>Bed allocation, occupancy map, and discharge management</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }} className="stats-row">
         <div className="stat-card" style={{ flex: 1 }}>
           <div className="stat-label">Total Beds</div>
           <div className="stat-value">{rooms.length}</div>
