@@ -43,18 +43,18 @@
 ### Phase 0 — Security Hotfixes (must-do before any prod deploy)  🚨
 **Owner: backend + ops • Effort: 2–3 days**
 
-- [ ] **Replace JWT secret defaults.** Remove the hardcoded `ZmFlZmFl...` from `application.yml`, `application-prod.yml`, and `docker-compose.yml`. Make `JWT_SECRET` a required env var (fail fast on startup if missing/weak; min 32 bytes, validate length). Add a `@ConfigurationProperties` validator.
-- [ ] **Remove demo seed data from migrations.** Split `V2__seed_data.sql` into:
+- [x] **Replace JWT secret defaults.** (done: prod profile requires JWT_SECRET; fail-fast ≥32-byte validation in JwtTokenProvider; weak defaults removed from compose/.env) Remove the hardcoded `ZmFlZmFl...` from `application.yml`, `application-prod.yml`, and `docker-compose.yml`. Make `JWT_SECRET` a required env var (fail fast on startup if missing/weak; min 32 bytes, validate length). Add a `@ConfigurationProperties` validator.
+- [x] **Remove demo seed data from migrations.** (done: V3__remove_demo_seed.sql — guarded deletes/deactivation; dev seed moved to tools/seed-dev.sh) Split `V2__seed_data.sql` into:
   - `V2__reference_data.sql` (medicine catalog, disease map, rooms) — keep.
   - `V3__demo_seed.sql` (users with `password`, sample patients) — move into a `dev`-only profile-loaded script or a `tools/seed-dev.sh` that runs **outside** Flyway. Production Flyway must never create `admin/password`.
-- [ ] **Force-change default passwords** on first login; document admin bootstrap via env var (`BOOTSTRAP_ADMIN_PASSWORD`) generated per-deploy.
-- [ ] **Harden `/actuator`.** Move to `/manage/**` (internal), restrict to localhost / management network or admin role; expose only `health,info,prometheus`. Set `show-details: never` for `health` unless authenticated.
-- [ ] **Secure WebSocket.** Add a `HandshakeInterceptor` that validates JWT (query param or `Sec-WebSocket-Protocol` header); reject anonymous connections. Configure allowed origins explicitly (`setAllowedOrigins` from `medos.cors.allowed-origins`).
-- [ ] **Login hardening.** Add rate limiting (bucket4j + Redis, or a simple failed-attempts counter in Redis with lockout after N failures / exponential backoff). Return generic `Invalid credentials` and consistent timing to avoid user enumeration.
+- [x] **Force-change default passwords** (done: AdminBootstrapRunner via BOOTSTRAP_ADMIN_PASSWORD, one-time on first boot) on first login; document admin bootstrap via env var (`BOOTSTRAP_ADMIN_PASSWORD`) generated per-deploy.
+- [x] **Harden `/actuator`.** (done: base-path /manage; only health/info public with show-details:never; /manage/** requires ADMIN) Move to `/manage/**` (internal), restrict to localhost / management network or admin role; expose only `health,info,prometheus`. Set `show-details: never` for `health` unless authenticated.
+- [x] **Secure WebSocket.** (done: allowed origins from config; STOMP CONNECT rejected without valid Bearer token) Add a `HandshakeInterceptor` that validates JWT (query param or `Sec-WebSocket-Protocol` header); reject anonymous connections. Configure allowed origins explicitly (`setAllowedOrigins` from `medos.cors.allowed-origins`).
+- [x] **Login hardening.** (done: LoginRateLimiter — 5 fails/15min lockout, Redis-backed with in-memory fallback; generic 'Invalid credentials') Add rate limiting (bucket4j + Redis, or a simple failed-attempts counter in Redis with lockout after N failures / exponential backoff). Return generic `Invalid credentials` and consistent timing to avoid user enumeration.
 - [ ] **CSRF:** keep disabled (JWT stateless), but add `SameSite=Strict` note documented; ensure no cookie-based auth.
-- [ ] **Secrets management.** Remove `.env` from being committed anywhere in history via `git filter-repo` (note: it's gitignored, but defaults still baked in source — remove those). Provide `.env.example` with placeholders. Document use of Docker secrets / Vault / SSM for real deploys.
-- [ ] **DB external port.** In prod compose, do **not** expose `db:5432` and `redis:6379` externally. Add a `docker-compose.prod.yml` override that drops the `ports:` for db/redis.
-- [ ] **Container users.** Backend Dockerfile: run as non-root (`USER 10001`), nginx: use the unprivileged image / run with `USER nginx` and bind to 8080 internally behind TLS.
+- [x] **Secrets management.** (done: .env.example added; real secret rotated out of local .env; defaults removed from source; compose uses :? required syntax in prod override) Remove `.env` from being committed anywhere in history via `git filter-repo` (note: it's gitignored, but defaults still baked in source — remove those). Provide `.env.example` with placeholders. Document use of Docker secrets / Vault / SSM for real deploys.
+- [x] **DB external port.** (done: docker-compose.prod.yml drops db/redis published ports) In prod compose, do **not** expose `db:5432` and `redis:6379` externally. Add a `docker-compose.prod.yml` override that drops the `ports:` for db/redis.
+- [x] **Container users.** (done: backend runs as non-root appuser; nginx switched to unprivileged image on :8080) Backend Dockerfile: run as non-root (`USER 10001`), nginx: use the unprivileged image / run with `USER nginx` and bind to 8080 internally behind TLS.
 - [ ] **PII at rest.** Plan encryption for `patients.phone`, `email`, `address`, `encounters.diagnosis/clinical_notes` (DB-level column encryption or app-level envelope encryption via a KMS key per tenant). At minimum add a `V4__pii_encryption` migration path + service-layer encrypt/decrypt with reserved columns.
 
 ### Phase 1 — Reliability & Data Integrity  🔧
@@ -110,7 +110,7 @@
 ### Phase 5 — Deployment & Infra  🚀
 **Effort: 2–3 days**
 
-- [ ] **CI/CD pipeline** (GitHub Actions):
+- [~] **CI/CD pipeline** (GitHub Actions): (CI workflow added — build/lint/test both sides; image scan + Flyway deploy step still pending)
   - lint (oxlint for FE; checkstyle/checkstyle for BE or SpotBugs).
   - unit + integration tests (Testcontainers).
   - build images, scan with Trivy, push to registry.

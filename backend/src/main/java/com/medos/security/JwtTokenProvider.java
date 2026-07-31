@@ -7,6 +7,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
@@ -24,6 +25,24 @@ public class JwtTokenProvider {
 
     @Value("${medos.security.jwt.issuer}")
     private String issuer;
+
+    @PostConstruct
+    void validateConfig() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET is not configured. " +
+                    "Set the JWT_SECRET environment variable (e.g. `openssl rand -base64 48`).");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(jwtSecret);
+        } catch (Exception e) {
+            throw new IllegalStateException("JWT_SECRET must be a valid Base64-encoded value.", e);
+        }
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException("JWT_SECRET must decode to at least 32 bytes (HS256). " +
+                    "Current length: " + keyBytes.length + " bytes. Generate one with: openssl rand -base64 48");
+        }
+    }
 
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);

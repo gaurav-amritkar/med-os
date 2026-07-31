@@ -38,22 +38,27 @@ server:
 medos:
   security:
     jwt:
-      secret: ${JWT_SECRET:ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==}
+      # REQUIRED in production — no fallback. Startup fails fast if JWT_SECRET is unset.
+      # Generate with: openssl rand -base64 48
+      secret: ${JWT_SECRET}
       expiration-ms: 36000000
       issuer: medos-hms-v3
   ai:
     enabled: false
+  bootstrap:
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost,http://localhost:80,http://localhost:5173}
 
 management:
   endpoints:
     web:
+      base-path: /manage
       exposure:
         include: health,info
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: never
 
 logging:
   level:

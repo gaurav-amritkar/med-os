@@ -39,7 +39,10 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
+                // Actuator: only health/info public; everything else under /manage requires ADMIN.
+                .requestMatchers("/manage/health", "/manage/info").permitAll()
+                .requestMatchers("/manage/**").hasRole("ADMIN")
+                // WebSocket handshake is open; token is enforced at the STOMP CONNECT layer.
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { encounterApi, patientApi, pharmacyApi } from '../api';
-import useAuthStore from '../store/authStore';
 import useToastStore from '../store/toastStore';
 
 export default function Encounters() {

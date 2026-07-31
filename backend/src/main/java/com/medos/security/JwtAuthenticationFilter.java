@@ -17,9 +17,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collections;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtTokenProvider tokenProvider;
 
@@ -27,19 +32,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String token = extractToken(request);
-        if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
+        if (StringUtils.hasText(token)) {
             try {
-                Claims claims = tokenProvider.parseToken(token);
-                String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
-                String role = claims.get("role").toString();
+                if (tokenProvider.validateToken(token)) {
+                    Claims claims = tokenProvider.parseToken(token);
+                    String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
+                    String role = claims.get("role").toString();
 
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                        uid, null,
-                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                );
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (Exception ignored) {
+                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                            uid, null,
+                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
+                    );
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                } else {
+                    log.warn("Rejected invalid/expired JWT on {} {}", request.getMethod(), request.getRequestURI());
+                }
+            } catch (Exception e) {
+                // Never leak token internals — log a sanitized message only.
+                log.warn("JWT parsing failed on {} {}: {}", request.getMethod(), request.getRequestURI(), e.getClass().getSimpleName());
             }
         }
         filterChain.doFilter(request, response);
