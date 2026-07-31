@@ -98,6 +98,8 @@ npm run dev
 
 ### Default Credentials
 
+> **Dev only** — production never ships default accounts. See [Production Deployment](#production-deployment).
+
 | Role | Username | Password |
 |------|----------|----------|
 | Admin | `admin` | `password` |
@@ -106,6 +108,14 @@ npm run dev
 | Receptionist | `reception` | `password` |
 | Pharmacist | `pharmacy` | `password` |
 | Billing | `billing` | `password` |
+
+These accounts are **not** created by Flyway migrations (removed in `V3__remove_demo_seed.sql`).
+For local development, seed them explicitly:
+
+```bash
+docker compose up -d db     # start the DB
+./tools/seed-dev.sh         # seeds demo users + patients (never run against prod)
+```
 
 ## API Endpoints
 
@@ -159,3 +169,53 @@ npm run dev
 5. **Audit Trail** - All mutations logged with user, IP, and diff
 6. **Real-time Notifications** - WebSocket-based alerts for critical events
 7. **Role-based Access** - 6 roles with granular route and API protection
+
+## Production Deployment
+
+### Required environment variables
+
+| Variable | Purpose | Notes |
+|----------|---------|-------|
+| `JWT_SECRET` | HMAC signing key | **Required** in prod. `openssl rand -base64 48`, must decode to ≥32 bytes. App fails fast if unset/weak. |
+| `DB_PASSWORD` | Postgres password | Required (no default fallback in prod compose). |
+| `CORS_ORIGINS` | Allowed browser origins | Comma-separated; required in prod. |
+| `BOOTSTRAP_ADMIN_PASSWORD` | One-time initial admin password | Only needed on the very first boot of a fresh DB. Unset after first login. |
+
+Copy `.env.example` to `.env` and fill in real values. **Never commit `.env`** (it is gitignored) and never reuse the dev fallback secret.
+
+### Boot a production stack
+
+```bash
+# generate a strong secret and admin bootstrap password
+export JWT_SECRET=$(openssl rand -base64 48)
+export BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -base64 24)
+
+# prod override: DB/Redis ports not published, JWT_SECRET/CORS_ORIGINS required
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# verify health (public) — detail-free endpoint
+curl http://<host>/manage/health
+```
+
+After the first successful login, unset `BOOTSTRAP_ADMIN_PASSWORD` (the runner is a no-op once an active admin exists).
+
+### Security posture (what's enforced)
+
+- **No demo/default accounts** — Flyway migrations never create users; `V3` deletes/deactivates any that predate it. Admin is created once via `BOOTSTRAP_ADMIN_PASSWORD`.
+- **JWT_SECRET** — required in prod profile, validated at startup (Base64, ≥32 bytes).
+- **Actuator** — moved to `/manage/health` + `/manage/info` (public, no details); all other `/manage/**` require the `admin` role.
+- **Login brute-force** — 5 failed attempts per (user+IP) → 15-minute lockout (Redis-backed with in-memory fallback).
+- **WebSocket** — allowed origins restricted to `CORS_ORIGINS`; STOMP `CONNECT` rejected without a valid Bearer token.
+- **TLS** — terminate TLS in front of the nginx container (Caddy/Traefik/ALB). Enable the `Strict-Transport-Security` header in `frontend/nginx.conf` once TLS is live.
+
+### Operations
+
+- **Backups**: `pg_dump` the `medos-db-data` volume (cron sidecar or managed Postgres snapshots). Test restores periodically.
+- **Migrate**: Flyway runs at boot (`validate-on-migrate: true`); add migrations under `backend/src/main/resources/db/migration/` following the `V<n>__name.sql` convention.
+- **Rollback**: app rollback = redeploy previous image. DB migrations are forward-only; never edit an applied migration (checksum validation will fail) — add a new one instead.
+
+### Testing & CI
+
+- Backend: `cd backend && mvn test` (uses H2 test profile; no Docker required).
+- Frontend: `cd frontend && npm test` (Vitest + Testing Library), `npm run lint`, `npm run build`.
+- CI: `.github/workflows/ci.yml` runs all of the above on every PR and push to `main`. Require it as a status check in branch protection.

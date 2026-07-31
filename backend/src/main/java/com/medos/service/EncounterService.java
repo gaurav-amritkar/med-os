@@ -22,7 +22,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class EncouterService {
+public class EncounterService {
 
     private final EncounterRepository encounterRepository;
     private final PrescriptionRepository prescriptionRepository;

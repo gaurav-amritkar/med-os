@@ -7,7 +7,7 @@ import com.medos.dto.PrescriptionRequest;
 import com.medos.entity.Encounter;
 import com.medos.entity.Prescription;
 import com.medos.service.AiMedicineService;
-import com.medos.service.EncouterService;
+import com.medos.service.EncounterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,49 +23,49 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EncounterController {
 
-    private final EncouterService encouterService;
+    private final EncounterService encounterService;
     private final AiMedicineService aiMedicineService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DOCTOR','NURSE','ADMIN')")
     public ResponseEntity<Encounter> createEncounter(@Valid @RequestBody EncounterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(encouterService.createEncounter(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.createEncounter(request));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Encounter> getEncounter(@PathVariable UUID id) {
-        return ResponseEntity.ok(encouterService.getEncounter(id));
+        return ResponseEntity.ok(encounterService.getEncounter(id));
     }
 
     @GetMapping("/patient/{patientId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Encounter>> listByPatient(@PathVariable UUID patientId) {
-        return ResponseEntity.ok(encouterService.listByPatient(patientId));
+        return ResponseEntity.ok(encounterService.listByPatient(patientId));
     }
 
     @PostMapping("/{id}/sign")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<Encounter> signEncounter(@PathVariable UUID id) {
-        return ResponseEntity.ok(encouterService.signEncounter(id));
+        return ResponseEntity.ok(encounterService.signEncounter(id));
     }
 
     @PostMapping("/{id}/prescriptions")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<Prescription> addPrescription(@Valid @RequestBody PrescriptionRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(encouterService.addPrescription(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.addPrescription(request));
     }
 
     @GetMapping("/{id}/prescriptions")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Prescription>> listPrescriptions(@PathVariable UUID id) {
-        return ResponseEntity.ok(encouterService.listPrescriptions(id));
+        return ResponseEntity.ok(encounterService.listPrescriptions(id));
     }
 
     @GetMapping("/prescriptions/pending")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<List<Prescription>> pendingPrescriptions() {
-        return ResponseEntity.ok(encouterService.pendingPrescriptions());
+        return ResponseEntity.ok(encounterService.pendingPrescriptions());
     }
 
     @PostMapping("/suggest-medicines")

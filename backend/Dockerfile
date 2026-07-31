@@ -17,6 +17,10 @@ WORKDIR /app
 # Install curl for healthcheck
 RUN apk add --no-cache curl
 
+# Run as non-root (least privilege)
+RUN addgroup -S appuser && adduser -S appuser -G appuser
+USER appuser
+
 # Copy jar from builder
 COPY --from=builder /app/target/*.jar /app/medos-backend.jar
 
@@ -26,6 +30,6 @@ ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
+  CMD curl -f http://localhost:8080/manage/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/medos-backend.jar"]

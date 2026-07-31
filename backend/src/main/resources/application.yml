@@ -41,13 +41,16 @@ server:
 medos:
   security:
     jwt:
-      secret: ${JWT_SECRET:ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==}
+      # DEV-ONLY fallback. Production must supply JWT_SECRET (see application-prod.yml).
+      secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LW11c3QtYmUtb3ZlcnJpZGRlbi1pbi1wcm9kLTAxMjM0NTY3ODlhYmNkZWY=}
       expiration-ms: 36000000
       issuer: medos-hms-v3
   ai:
     enabled: false
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
     model: claude-3-5-sonnet-20241022
+  bootstrap:
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: http://localhost:5173,http://localhost:3000
 
@@ -60,8 +63,9 @@ logging:
 management:
   endpoints:
     web:
+      base-path: /manage
       exposure:
         include: health,info
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: never
