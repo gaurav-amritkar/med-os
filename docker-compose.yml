@@ -27,6 +27,7 @@ services:
     networks: [medos-private]
 
   migrate:
+    platform: linux/amd64
     build:
       context: ./database
       dockerfile: migrations.Dockerfile
