@@ -53,7 +53,7 @@
 - [x] **Login hardening.** (done: LoginRateLimiter — 5 fails/15min lockout, Redis-backed with in-memory fallback; generic 'Invalid credentials') Add rate limiting (bucket4j + Redis, or a simple failed-attempts counter in Redis with lockout after N failures / exponential backoff). Return generic `Invalid credentials` and consistent timing to avoid user enumeration.
 - [ ] **CSRF:** keep disabled (JWT stateless), but add `SameSite=Strict` note documented; ensure no cookie-based auth.
 - [x] **Secrets management.** (done: .env.example added; real secret rotated out of local .env; defaults removed from source; compose uses :? required syntax in prod override) Remove `.env` from being committed anywhere in history via `git filter-repo` (note: it's gitignored, but defaults still baked in source — remove those). Provide `.env.example` with placeholders. Document use of Docker secrets / Vault / SSM for real deploys.
-- [x] **DB external port.** (done: docker-compose.prod.yml drops db/redis published ports) In prod compose, do **not** expose `db:5432` and `redis:6379` externally. Add a `docker-compose.prod.yml` override that drops the `ports:` for db/redis.
+- [x] **DB external port.** The single Compose file never publishes `db:5432`, `redis:6379`, or the backend port; only the frontend is externally reachable.
 - [x] **Container users.** (done: backend runs as non-root appuser; nginx switched to unprivileged image on :8080) Backend Dockerfile: run as non-root (`USER 10001`), nginx: use the unprivileged image / run with `USER nginx` and bind to 8080 internally behind TLS.
 - [ ] **PII at rest.** Plan encryption for `patients.phone`, `email`, `address`, `encounters.diagnosis/clinical_notes` (DB-level column encryption or app-level envelope encryption via a KMS key per tenant). At minimum add a `V4__pii_encryption` migration path + service-layer encrypt/decrypt with reserved columns.
 
@@ -115,7 +115,7 @@
   - unit + integration tests (Testcontainers).
   - build images, scan with Trivy, push to registry.
   - Flyway `migrate` as part of deploy (gated), with automatic rollback path.
-- [ ] **Environment split.** `dev`, `staging`, `prod` orchestras. Provide `docker-compose.prod.yml` (no db/redis ports, TLS via Caddy/Traefik in front, secrets via file mounts / `secrets:`).
+- [x] **Container boundary.** The single Compose stack keeps database/cache/backend on an internal network, requires secrets through environment configuration, and leaves TLS termination to Caddy, Traefik, or a managed load balancer in front of the frontend.
 - [ ] **TLS termination.** Put Caddy or Traefik in front of nginx with auto-LE certs; force HTTPS, HSTS, HTTP→HTTPS redirect.
 - [ ] **Secrets.** Docker `secrets:` for DB_PASSWORD, JWT_SECRET; Spring Boot reads from `/run/secrets/...`. Document rotation.
 - [ ] **Resource limits.** Compose: memory/CPU limits; JVM `-XX:MaxRAMPercentage=75` instead of fixed `-Xmx512m`.

@@ -71,6 +71,7 @@ public class JwtTokenProvider {
     public Claims parseToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
+                .requireIssuer(issuer)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

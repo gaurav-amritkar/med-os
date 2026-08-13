@@ -38,8 +38,14 @@ backend/ (Spring Boot)
   │   ├── security/   # JWT, UserDetails, Auth filter
   │   ├── service/    # Business logic
   │   └── util/       # Audit logger
-  └── src/main/resources/
-      └── db/migration/  # Flyway SQL migrations
+database/
+  ├── migrations/        # Flyway SQL migrations (schema ownership)
+  ├── Dockerfile         # PostgreSQL runtime image
+  └── migrations.Dockerfile # versioned Flyway migration job
+
+cache/
+  ├── Dockerfile
+  └── redis.conf
 ```
 
 ## Database Schema (19 Tables)
@@ -74,27 +80,25 @@ backend/ (Spring Boot)
 - Redis 7+
 - Maven 3.8+
 
-### Backend Setup
+### Run the full stack locally
 
 ```bash
-cd backend
-
-# Create PostgreSQL database
-createdb medos
-
-# Configure application.yml (update DB credentials)
-
-# Run with Maven
-mvn spring-boot:run
+cp .env.example .env
+# Set DB_PASSWORD, JWT_SECRET and BOOTSTRAP_ADMIN_PASSWORD in .env.
+docker compose up --build
 ```
 
-### Frontend Setup
+Open `http://localhost:8080`. The command builds the database, migration,
+cache, backend and frontend images; runs Flyway to completion; then starts the
+backend and frontend. Only the frontend port is published. Stop with
+`docker compose down`; add `-v` only when deliberately deleting local data.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+### Schema changes
+
+The project uses one migration tool, Flyway, via the dedicated `migrate`
+container. Do not add Liquibase alongside it: two tools create competing schema
+histories. Follow the versioning, validation, and zero-downtime change guidance
+in [database/README.md](database/README.md) whenever adding or changing tables.
 
 ### Default Credentials
 
@@ -181,19 +185,15 @@ docker compose up -d db     # start the DB
 | `CORS_ORIGINS` | Allowed browser origins | Comma-separated; required in prod. |
 | `BOOTSTRAP_ADMIN_PASSWORD` | One-time initial admin password | Only needed on the very first boot of a fresh DB. Unset after first login. |
 
-Copy `.env.example` to `.env` and fill in real values. **Never commit `.env`** (it is gitignored) and never reuse the dev fallback secret.
+Copy `.env.example` to `.env` and fill in real values. **Never commit `.env`** (it is gitignored) and never reuse the development fallback secret. Production deployments must set a strong `REDIS_PASSWORD` as well.
 
 ### Boot a production stack
 
 ```bash
-# generate a strong secret and admin bootstrap password
-export JWT_SECRET=$(openssl rand -base64 48)
-export BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -base64 24)
+# Set production values in a deployment-specific .env file, then build and run.
+docker compose --env-file .env.production up -d --build --pull always
 
-# prod override: DB/Redis ports not published, JWT_SECRET/CORS_ORIGINS required
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-# verify health (public) — detail-free endpoint
+# The public health endpoint is proxied through the frontend.
 curl http://<host>/manage/health
 ```
 
@@ -210,8 +210,8 @@ After the first successful login, unset `BOOTSTRAP_ADMIN_PASSWORD` (the runner i
 
 ### Operations
 
-- **Backups**: `pg_dump` the `medos-db-data` volume (cron sidecar or managed Postgres snapshots). Test restores periodically.
-- **Migrate**: Flyway runs at boot (`validate-on-migrate: true`); add migrations under `backend/src/main/resources/db/migration/` following the `V<n>__name.sql` convention.
+- **Backups**: use `docker compose exec -T db pg_dump -U "$DB_USER" "$DB_NAME"` or managed-Postgres snapshots. Test restores periodically.
+- **Migrate**: the dedicated `migrate` job runs before the backend; add migrations under `database/migrations/` following the `V<n>__name.sql` convention.
 - **Rollback**: app rollback = redeploy previous image. DB migrations are forward-only; never edit an applied migration (checksum validation will fail) — add a new one instead.
 
 ### Testing & CI
