@@ -1,95 +1,123 @@
 name: medos
 
+# Local stack entry point:
+#   cp .env.example .env && docker compose up --build
+# Database migrations run once before the backend starts. All database and cache
+# ports remain private; access the application through the frontend only.
 services:
   db:
-    image: postgres:16-alpine
-    container_name: medos-db
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+      pull: true
+    image: medos-db:local
     environment:
       POSTGRES_DB: ${DB_NAME:-medos}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    ports:
-      - "${DB_EXTERNAL_PORT:-5432}:5432"
+      POSTGRES_USER: ${DB_USER:-medos}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     volumes:
       - medos-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-medos}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 30s
-    networks:
-      - medos-net
+    restart: unless-stopped
+    networks: [medos-private]
+
+  migrate:
+    build:
+      context: ./database
+      dockerfile: migrations.Dockerfile
+      pull: true
+    image: medos-migrations:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${DB_NAME:-medos}
+      FLYWAY_USER: ${DB_USER:-medos}
+      FLYWAY_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      FLYWAY_CONNECT_RETRIES: 30
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_VALIDATE_MIGRATION_NAMING: "true"
+    command: ["migrate"]
+    restart: "no"
+    networks: [medos-private]
 
   redis:
-    image: redis:7-alpine
-    container_name: medos-redis
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+    build:
+      context: ./cache
+      dockerfile: Dockerfile
+      pull: true
+    image: medos-redis:local
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     volumes:
       - medos-redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    networks:
-      - medos-net
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [medos-private]
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: medos-backend
+      pull: true
+    image: medos-backend:local
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
+      SPRING_PROFILES_ACTIVE: prod
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-medos}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_USER: ${DB_USER:-medos}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      # DEV-ONLY fallback. Production must use docker-compose.prod.yml (JWT_SECRET required).
-      JWT_SECRET: ${JWT_SECRET:-ZGV2LW9ubHktc2VjcmV0LW11c3QtYmUtb3ZlcnJpZGRlbi1pbi1wcm9kLTAxMjM0NTY3ODlhYmNkZWY=}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (openssl rand -base64 48)}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
-      SPRING_PROFILES_ACTIVE: prod
-    ports:
-      - "${BACKEND_EXTERNAL_PORT:-8080}:8080"
-    networks:
-      - medos-net
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/manage/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     restart: unless-stopped
+    networks: [medos-private]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      pull: true
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
-    container_name: medos-frontend
+    image: medos-frontend:local
     depends_on:
-      - backend
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-/api}
+      backend:
+        condition: service_healthy
     ports:
-      - "${FRONTEND_EXTERNAL_PORT:-80}:8080"
-    networks:
-      - medos-net
+      - "${FRONTEND_EXTERNAL_PORT:-8080}:8080"
     restart: unless-stopped
+    networks: [medos-private]
 
 volumes:
   medos-db-data:
-    name: medos-db-data
   medos-redis-data:
-    name: medos-redis-data
 
 networks:
-  medos-net:
-    name: medos-net
-    driver: bridge
+  medos-private:
+    internal: true

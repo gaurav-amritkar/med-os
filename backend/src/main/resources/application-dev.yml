@@ -6,13 +6,12 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      # Standalone development uses an ephemeral H2 schema. Docker Compose
+      # uses PostgreSQL plus the dedicated Flyway migration job instead.
+      ddl-auto: create-drop
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
   data:
     redis:
       host: localhost

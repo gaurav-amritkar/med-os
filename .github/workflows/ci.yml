@@ -59,3 +59,30 @@ jobs:
       - name: Production build
         working-directory: frontend
         run: npm run build
+
+  containers:
+    name: Container definitions
+    runs-on: ubuntu-latest
+    env:
+      DB_PASSWORD: ci-database-password
+      REDIS_PASSWORD: ci-redis-password
+      JWT_SECRET: DKZ5wvr1Iv5kPW/7xZ2rzUUsHgr67Md4/uxGukH4zQ+uaYoHV1KMjOuX5pJHSLre
+      CORS_ORIGINS: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Compose model
+        run: docker compose config --quiet
+
+      - name: Build all container images
+        run: docker compose build --pull
+
+      - name: Apply and validate schema migrations
+        run: |
+          docker compose up -d db
+          docker compose run --rm migrate migrate
+          docker compose run --rm migrate validate
+
+      - name: Remove CI containers and volumes
+        if: always()
+        run: docker compose down -v
