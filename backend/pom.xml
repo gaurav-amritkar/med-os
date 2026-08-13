@@ -22,6 +22,8 @@
         <jjwt.version>0.12.5</jjwt.version>
         <bytebuddy.version>1.18.11</bytebuddy.version>
         <mockito.version>5.19.0</mockito.version>
+        <!-- Lombok 1.18.46 adds JDK 25/26 support; Spring Boot 3.2.5 manages 1.18.32 which fails on JDK 25. -->
+        <lombok.version>1.18.46</lombok.version>
     </properties>
 
     <dependencies>
@@ -146,6 +148,21 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <!-- JDK 23+ defaults to -proc:none; explicitly enable annotation processing so Lombok generates getters/setters/builders. -->
+                    <proc>full</proc>
                 </configuration>
             </plugin>
             <plugin>
