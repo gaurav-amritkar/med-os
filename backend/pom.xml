@@ -20,8 +20,6 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.5</jjwt.version>
-        <bytebuddy.version>1.18.11</bytebuddy.version>
-        <mockito.version>5.19.0</mockito.version>
         <!-- Lombok 1.18.46 adds JDK 25/26 support; Spring Boot 3.2.5 manages 1.18.32 which fails on JDK 25. -->
         <lombok.version>1.18.46</lombok.version>
     </properties>
@@ -101,34 +99,6 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-
-        <!-- Byte Buddy and Mockito version overrides for Java 25+ compatibility -->
-        <dependency>
-            <groupId>net.bytebuddy</groupId>
-            <artifactId>byte-buddy</artifactId>
-            <version>${bytebuddy.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.bytebuddy</groupId>
-            <artifactId>byte-buddy-agent</artifactId>
-            <version>${bytebuddy.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>${mockito.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-            <version>${mockito.version}</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -164,9 +134,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <!-- JDK 21+ disallows Mockito's self-attachment in many
-                         environments. Load the test-scoped agent explicitly. -->
-                    <argLine>-javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/${bytebuddy.version}/byte-buddy-agent-${bytebuddy.version}.jar -Dnet.bytebuddy.experimental=true</argLine>
+                    <!-- Mockito needs an agent on JDK 21+. Keep its Byte Buddy
+                         version aligned with Hibernate's runtime dependency. -->
+                    <argLine>-javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.14.13/byte-buddy-agent-1.14.13.jar -Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
         </plugins>
