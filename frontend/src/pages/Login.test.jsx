@@ -39,7 +39,7 @@ describe('Login page', () => {
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
-  it('logs in successfully, stores the token and navigates home', async () => {
+  it('logs in successfully, stores the token and navigates to dashboard', async () => {
     authApi.login.mockResolvedValue({
       data: {
         token: 'jwt-123',
@@ -56,12 +56,23 @@ describe('Login page', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } });
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/'));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard'));
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'secret' });
     expect(useAuthStore.getState().token).toBe('jwt-123');
     expect(useAuthStore.getState().user.username).toBe('admin');
     expect(localStorage.getItem('token')).toBe('jwt-123');
     expect(useToastStore.getState().toasts[0].message).toMatch(/welcome back/i);
+  });
+
+  it('redirects authenticated users to dashboard', async () => {
+    useAuthStore.setState({
+      token: 'existing-token',
+      user: { username: 'admin', role: 'admin' },
+    });
+
+    renderLogin();
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard'));
   });
 
   it('shows an error toast on failed login and stays on the page', async () => {

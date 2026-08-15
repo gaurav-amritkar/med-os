@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { authApi } from '../api';
@@ -9,8 +9,15 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const token = useAuthStore((s) => s.token);
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [token, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +32,7 @@ export default function Login() {
         specialization: data.specialization,
       });
       addToast(`Welcome back, ${data.fullName}`, 'success');
-      navigate('/');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       addToast(err.response?.data?.message || 'Login failed', 'critical');
     } finally {
@@ -123,9 +130,10 @@ export default function Login() {
           color: 'var(--text-dim)',
           lineHeight: 1.7,
         }}>
-          <strong style={{ color: 'var(--text-muted)' }}>Demo Accounts:</strong><br />
-          admin / doctor / nurse / reception / pharmacy / billing<br />
-          <span style={{ color: 'var(--text-dim)' }}>Password: <strong style={{ color: 'var(--text-muted)' }}>password</strong></span>
+          <strong style={{ color: 'var(--text-muted)' }}>Local Login Setup:</strong><br />
+          Fresh database: sign in as <strong style={{ color: 'var(--text-muted)' }}>admin</strong> with your
+          <strong style={{ color: 'var(--text-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
+          Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--text-muted)' }}>password</strong>.
         </div>
       </div>
     </div>
