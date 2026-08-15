@@ -49,7 +49,10 @@ medos:
   bootstrap:
     admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
-    allowed-origins: http://localhost:5173,http://localhost:3000
+    # Read from the CORS_ORIGINS env var (same key used in docker-compose / .env)
+    # so edits to .env take effect in the dev/standalone profile too. Fall back to
+    # localhost:5173 (Vite dev server) when unset.
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
 
 logging:
   level:

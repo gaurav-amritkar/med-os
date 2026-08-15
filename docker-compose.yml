@@ -113,12 +113,15 @@ services:
     ports:
       - "${FRONTEND_EXTERNAL_PORT:-8080}:8080"
     restart: unless-stopped
-    networks: [medos-private]
+    # The edge network permits the published host port while medos-private
+    # keeps frontend-to-backend traffic isolated from the host.
+    networks: [medos-edge, medos-private]
 
 volumes:
   medos-db-data:
   medos-redis-data:
 
 networks:
+  medos-edge:
   medos-private:
     internal: true
