@@ -24,12 +24,15 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 2000ms
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
   compression:
     enabled: true
   forward-headers-strategy: framework
+  shutdown: graceful
 
 medos:
   security:
@@ -55,6 +58,13 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
 
 logging:
   level:
