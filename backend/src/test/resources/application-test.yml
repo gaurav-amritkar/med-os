@@ -22,6 +22,7 @@ medos:
       secret: dGVzdC1vbmx5LXNlY3JldC1ub3QtdXNlZC1pbi1wcm9kdWN0aW9uLTEyMzQ1Njc4OWFiY2RlZg==
       expiration-ms: 3600000
       issuer: medos-test
+    pii-encryption-key: jIMpvDp7I0XTfZLdyYKeryj/7t7yKPydMu+4tOJMBus=
   ai:
     enabled: false
   cors:
