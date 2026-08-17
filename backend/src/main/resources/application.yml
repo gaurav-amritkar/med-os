@@ -27,6 +27,8 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
@@ -34,6 +36,7 @@ server:
     enabled: true
   servlet:
     context-path: /
+  shutdown: graceful
 
 medos:
   security:
@@ -69,3 +72,10 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true

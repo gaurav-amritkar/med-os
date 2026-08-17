@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -21,51 +23,80 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest req) {
         log.warn("Business exception: {}", ex.getMessage());
-        ApiError err = new ApiError(
+        String code = ex.getStatus().is4xxClientError() ? "BUSINESS_ERROR" : "SERVER_ERROR";
+        ApiError err = ApiError.of(
             ex.getStatus().value(),
             ex.getStatus().getReasonPhrase(),
+            code,
             ex.getMessage(),
-            req.getRequestURI(),
-            LocalDateTime.now()
+            req.getRequestURI()
         );
         return ResponseEntity.status(ex.getStatus()).body(err);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
-        return handleBusiness(ex, req);
+        ApiError err = ApiError.of(
+            HttpStatus.NOT_FOUND.value(),
+            HttpStatus.NOT_FOUND.getReasonPhrase(),
+            "NOT_FOUND",
+            ex.getMessage(),
+            req.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCreds(BadCredentialsException ex, HttpServletRequest req) {
-        ApiError err = new ApiError(401, "Unauthorized", "Invalid credentials", req.getRequestURI(), LocalDateTime.now());
+        ApiError err = ApiError.of(
+            HttpStatus.UNAUTHORIZED.value(),
+            HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+            "UNAUTHORIZED",
+            "Invalid credentials",
+            req.getRequestURI()
+        );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleDenied(AccessDeniedException ex, HttpServletRequest req) {
-        ApiError err = new ApiError(403, "Forbidden", "Access denied", req.getRequestURI(), LocalDateTime.now());
+        ApiError err = ApiError.of(
+            HttpStatus.FORBIDDEN.value(),
+            HttpStatus.FORBIDDEN.getReasonPhrase(),
+            "FORBIDDEN",
+            "Access denied",
+            req.getRequestURI()
+        );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
-        String msg = ex.getBindingResult().getFieldErrors().stream()
-                .map(this::formatFieldError)
-                .collect(Collectors.joining("; "));
-        ApiError err = new ApiError(400, "Bad Request", msg, req.getRequestURI(), LocalDateTime.now());
+        Map<String, String> errors = new LinkedHashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(fe ->
+            errors.put(fe.getField(), fe.getDefaultMessage())
+        );
+        ApiError err = ApiError.of(
+            HttpStatus.BAD_REQUEST.value(),
+            HttpStatus.BAD_REQUEST.getReasonPhrase(),
+            "VALIDATION_ERROR",
+            "Invalid request parameters",
+            req.getRequestURI(),
+            errors
+        );
         return ResponseEntity.badRequest().body(err);
-    }
-
-    private String formatFieldError(FieldError fe) {
-        return fe.getField() + " " + fe.getDefaultMessage();
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(Exception ex, HttpServletRequest req) {
         log.error("Unhandled exception", ex);
-        ApiError err = new ApiError(500, "Internal Server Error",
-            "An unexpected error occurred", req.getRequestURI(), LocalDateTime.now());
+        ApiError err = ApiError.of(
+            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+            HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+            "INTERNAL_ERROR",
+            "An unexpected error occurred",
+            req.getRequestURI()
+        );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
     }
 }
