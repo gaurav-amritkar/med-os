@@ -6,6 +6,7 @@ import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.repository.*;
 import com.medos.util.AuditLogger;
+import com.medos.util.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,9 +91,9 @@ public class PharmacyService {
 
         int requiredQty = request.getQuantity();
 
-        // FEFO Algorithm: fetch batches sorted by expiry date, deduct oldest first
+        // FEFO Algorithm with row-level locking: fetch batches with PESSIMISTIC_WRITE lock
         List<MedicineBatch> batches = medicineBatchRepository
-                .findAvailableBatchesByFefo(rx.getMedicineId(), LocalDate.now());
+                .findAvailableBatchesByFefoForUpdate(rx.getMedicineId(), LocalDate.now());
 
         if (batches.isEmpty()) {
             throw new BusinessException("No stock available for medicine");
@@ -136,10 +137,11 @@ public class PharmacyService {
                 .orElseThrow(() -> new ResourceNotFoundException("Medicine", rx.getMedicineId().toString()));
 
         BigDecimal unitPrice = med.getUnitPrice();
-        BigDecimal amount = unitPrice.multiply(BigDecimal.valueOf(requiredQty));
-        BigDecimal gstPercent = BigDecimal.valueOf(5);
-        BigDecimal gstAmount = amount.multiply(gstPercent).divide(BigDecimal.valueOf(100));
-        BigDecimal totalAmount = amount.add(gstAmount);
+        BigDecimal[] lineItem = MoneyUtil.calculateLineItem(unitPrice, requiredQty, MoneyUtil.GST_RATE_PHARMACY);
+        BigDecimal amount = lineItem[0];
+        BigDecimal gstAmount = lineItem[1];
+        BigDecimal totalAmount = lineItem[2];
+        BigDecimal gstPercent = MoneyUtil.GST_RATE_PHARMACY;
 
         Charge charge = Charge.builder()
                 .patientId(request.getPatientId())

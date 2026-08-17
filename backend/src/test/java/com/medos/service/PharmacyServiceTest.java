@@ -107,7 +107,7 @@ class PharmacyServiceTest {
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         // Repository returns in FEFO order (oldest expiry first) — service relies on this ordering.
-        when(medicineBatchRepository.findAvailableBatchesByFefo(MEDICINE_ID, today))
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1, b2));
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
@@ -147,7 +147,7 @@ class PharmacyServiceTest {
 
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
-        when(medicineBatchRepository.findAvailableBatchesByFefo(MEDICINE_ID, today))
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1, b2));
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("5.00"))));
@@ -165,7 +165,7 @@ class PharmacyServiceTest {
     void dispense_noStock_throwsAndDoesNotUpdatePrescription() {
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
-        when(medicineBatchRepository.findAvailableBatchesByFefo(eq(MEDICINE_ID), any()))
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(eq(MEDICINE_ID), any()))
                 .thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -183,7 +183,7 @@ class PharmacyServiceTest {
         // We assert it throws and the prescription is NOT marked dispensed.
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
-        when(medicineBatchRepository.findAvailableBatchesByFefo(MEDICINE_ID, today))
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1));
 
         BusinessException ex = assertThrows(BusinessException.class,

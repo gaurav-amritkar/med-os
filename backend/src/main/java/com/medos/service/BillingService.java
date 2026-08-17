@@ -7,6 +7,7 @@ import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.repository.*;
 import com.medos.util.AuditLogger;
+import com.medos.util.MoneyUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,21 +50,21 @@ public class BillingService {
 
         BigDecimal subtotal = charges.stream()
                 .map(Charge::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, MoneyUtil::add);
         BigDecimal gstTotal = charges.stream()
                 .map(c -> c.getGstAmount() != null ? c.getGstAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, MoneyUtil::add);
         BigDecimal discount = request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO;
-        BigDecimal totalAmount = subtotal.add(gstTotal).subtract(discount);
+        BigDecimal totalAmount = MoneyUtil.subtract(MoneyUtil.add(subtotal, gstTotal), discount);
 
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(generateInvoiceNumber())
                 .patientId(request.getPatientId())
                 .invoiceDate(LocalDateTime.now())
-                .subtotal(subtotal)
-                .gstTotal(gstTotal)
-                .discount(discount)
-                .totalAmount(totalAmount)
+                .subtotal(MoneyUtil.normalize(subtotal))
+                .gstTotal(MoneyUtil.normalize(gstTotal))
+                .discount(MoneyUtil.normalize(discount))
+                .totalAmount(MoneyUtil.normalize(totalAmount))
                 .paidAmount(BigDecimal.ZERO)
                 .status(Invoice.Status.issued)
                 .notes(request.getNotes())
@@ -86,7 +87,8 @@ public class BillingService {
 
     @Transactional
     public Payment recordPayment(PaymentRequest request) {
-        Invoice invoice = invoiceRepository.findById(request.getInvoiceId())
+        // Lock invoice for update to prevent concurrent payment issues
+        Invoice invoice = invoiceRepository.findByIdForUpdate(request.getInvoiceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", request.getInvoiceId().toString()));
         if (invoice.getStatus() == Invoice.Status.paid) {
             throw new BusinessException("Invoice is already fully paid");
@@ -158,19 +160,19 @@ public class BillingService {
         BigDecimal totalBilled = allCharges.stream()
                 .filter(c -> c.getStatus() == Charge.Status.billed || c.getStatus() == Charge.Status.paid)
                 .map(c -> c.getTotalAmount() != null ? c.getTotalAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, MoneyUtil::add);
 
         List<Payment> payments = paymentRepository.findByPatientId(patientId);
         BigDecimal totalPaid = payments.stream()
                 .filter(p -> p.getStatus() == Payment.Status.success)
                 .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, MoneyUtil::add);
 
-        BigDecimal outstanding = totalBilled.subtract(totalPaid);
+        BigDecimal outstanding = MoneyUtil.subtract(totalBilled, totalPaid);
 
         Patient patient = patientRepository.findById(patientId).orElse(null);
         if (patient != null) {
-            patient.setOutstanding(outstanding.max(BigDecimal.ZERO));
+            patient.setOutstanding(MoneyUtil.normalize(outstanding.max(BigDecimal.ZERO)));
             patientRepository.save(patient);
         }
     }
