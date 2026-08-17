@@ -251,7 +251,22 @@ To rollback a schema change:
 | `JWT_SECRET` | 90 days | Generate new, deploy, invalidate all sessions |
 | `DB_PASSWORD` | 90 days | Update in managed DB, update `.env`, redeploy |
 | `REDIS_PASSWORD` | 90 days | Update Redis, update `.env`, redeploy |
+| `PII_ENCRYPTION_KEY` | 180 days | Generate new, re-encrypt all PII fields (see below), deploy |
 | `BOOTSTRAP_ADMIN_PASSWORD` | One-time | Remove after first admin login |
+
+### PII Encryption Key Rotation
+
+Rotating the PII encryption key requires re-encrypting all encrypted fields:
+
+1. Generate new key: `openssl rand -base64 32`
+2. Run re-encryption script (decrypt with old key, encrypt with new key):
+   ```sql
+   -- Example for patients table (run for each encrypted column)
+   UPDATE patients SET name = encrypt(decrypt(name, old_key), new_key);
+   ```
+3. Update `PII_ENCRYPTION_KEY` in environment
+4. Redeploy application
+5. Verify decryption works for all roles
 
 ### Certificate Management
 - TLS termination at load balancer / reverse proxy (Caddy, Traefik, ALB)

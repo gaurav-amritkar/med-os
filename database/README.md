@@ -50,3 +50,42 @@ docker compose run --rm migrate info
 # Validates migration names and checksums without changing data
 docker compose run --rm migrate validate
 ```
+
+## PII Encryption at Rest
+
+Sensitive patient data and clinical notes are encrypted using AES-GCM (256-bit key) before storage.
+
+### Encrypted Fields
+
+| Table | Fields |
+|-------|--------|
+| `patients` | name, phone, email, address, blood_group |
+| `encounters` | chief_complaint, diagnosis, clinical_notes, ai_note |
+
+### Configuration
+
+Set the encryption key via environment variable (required in production):
+
+```bash
+# Generate key: openssl rand -base64 32
+export PII_ENCRYPTION_KEY="<base64-encoded-32-byte-key>"
+```
+
+In `application.yml`:
+```yaml
+medos:
+  security:
+    pii-encryption-key: ${PII_ENCRYPTION_KEY}
+```
+
+### Implementation
+
+- `EncryptionUtil` (JPA `AttributeConverter`) handles transparent encryption/decryption
+- Each field encrypted with unique random IV (12 bytes) + AES-GCM
+- Encrypted format: Base64(IV || ciphertext || authTag)
+
+### Migration Notes
+
+- `V5__encrypt_pii_fields.sql` adds column comments indicating encryption
+- Existing plaintext data requires one-time encryption script or re-entry
+- For zero-downtime: add encrypted columns, backfill, switch, drop old

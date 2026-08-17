@@ -1,5 +1,6 @@
 package com.medos.entity;
 
+import com.medos.util.EncryptionUtil;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -33,18 +34,22 @@ public class Encounter {
     private Status status = Status.open;
 
     @Column(name = "chief_complaint", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionUtil.class)
     private String chiefComplaint;
 
     @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionUtil.class)
     private String diagnosis;
 
     @Column(name = "clinical_notes", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionUtil.class)
     private String clinicalNotes;
 
     @Column(name = "vitals_json", columnDefinition = "TEXT")
     private String vitalsJson;
 
     @Column(name = "ai_note", columnDefinition = "TEXT")
+    @Convert(converter = EncryptionUtil.class)
     private String aiNote;
 
     @Column(name = "signed_at")

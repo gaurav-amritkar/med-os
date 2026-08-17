@@ -1,5 +1,6 @@
 package com.medos.entity;
 
+import com.medos.util.EncryptionUtil;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ public class Patient {
     private String uhid;
 
     @Column(nullable = false, length = 128)
+    @Convert(converter = EncryptionUtil.class)
     private String name;
 
     private Integer age;
@@ -32,15 +34,19 @@ public class Patient {
     private String gender;
 
     @Column(length = 20)
+    @Convert(converter = EncryptionUtil.class)
     private String phone;
 
     @Column(length = 128)
+    @Convert(converter = EncryptionUtil.class)
     private String email;
 
     @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptionUtil.class)
     private String address;
 
     @Column(name = "blood_group", length = 8)
+    @Convert(converter = EncryptionUtil.class)
     private String bloodGroup;
 
     @Column(name = "dpdp_consent", nullable = false)

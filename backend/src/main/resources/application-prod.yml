@@ -42,6 +42,7 @@ medos:
       secret: ${JWT_SECRET}
       expiration-ms: 36000000
       issuer: medos-hms-v3
+    pii-encryption-key: ${PII_ENCRYPTION_KEY}
   ai:
     enabled: false
   bootstrap:
