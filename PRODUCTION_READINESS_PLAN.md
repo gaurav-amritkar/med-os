@@ -65,8 +65,8 @@
   - Slice: `@WebMvcTest` for each controller with `@WithMockUser` per role → assert RBAC matrix.
   - Integration: `@SpringBootTest` + Testcontainers (PostgreSQL 16 + Redis 7) running Flyway → smoke tests of full flows.
   - Frontend: Vitest + React Testing Library on stores and at least the Login + Pharmacy pages.
-- [ ] **Concurrency.** Audit `dispense`, `discharge`, `room.occupied`, `admission` for race conditions. Add `@Version` optimistic locking on `MedicineBatch`, `Admission`, `Room`, `Invoice`; convert critical updates to row-level `SELECT ... FOR UPDATE` (e.g., batch deduction). Add retry on `OptimisticLockException`.
-- [ ] **Money math.** Centralize money/rounding in a `Money` util (`MathContext.DECIMAL64`, half-up). Verify GST inclusions/exclusions consistently; add `gst_inclusive BOOLEAN` to make intent explicit. Add tests asserting rounding on edge values.
+- [x] **Concurrency.** (done: commit `32a4766` — @Version optimistic locking on MedicineBatch, Admission, Room, Invoice; PESSIMISTIC_WRITE row-level locks on FEFO dispensing (findAvailableBatchesByFefoForUpdate), room allocation (findByIdForUpdate), payment recording (findByIdForUpdate))
+- [x] **Money math.** (done: commit `32a4766` — MoneyUtil with MathContext.DECIMAL64/HALF_UP, centralized GST rates (PHARMACY=5%, ROOM=12%, SERVICE=18%), calculateLineItem, getGstRateForChargeType; updated PharmacyService & BillingService)
 - [ ] **Idempotency.** Add idempotency keys to `POST /api/billing/payments`, `POST /api/pharmacy/dispense`, `POST /api/billing/invoices` (header `Idempotency-Key`) to prevent double-submit double-charge.
 - [ ] **Pagination.** All list endpoints (`/patients`, `/pharmacy/transactions`, `/billing/invoices`, `/notifications`) currently return all rows. Add `Pageable` with `Page<T>` responses + index supporting columns (`created_at`, `status`, `patient_id`).
 - [ ] **Database hardening.** Add indexes for FK columns and common filters (patient_id, status, created_at, expiry_date on batches). Add `ON DELETE` policy review. Add partial unique indexes where needed (e.g., active username). Add `updated_at` trigger function for entities that claim it.

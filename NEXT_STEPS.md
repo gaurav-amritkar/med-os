@@ -26,13 +26,13 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 ## Milestone: Release Readiness - Phase 2 (P1) — reliability & data integrity
 
-| # | Issue | Area |
-|---|-------|------|
-| 4 | Optimistic locking + row-level locking (stock/billing/admissions) | reliability |
-| 5 | Centralize money math (Money util, GST consistency) | reliability |
-| 6 | Idempotency keys (payments / dispense / invoices) | reliability |
-| 7 | Pagination for all list endpoints | reliability/api |
-| 8 | Graceful shutdown + readiness health group | devops |
+| # | Issue | Area | Status |
+|---|-------|------|--------|
+| 4 | ~~Optimistic locking + row-level locking (stock/billing/admissions)~~ | reliability | ✅ Done (commit `32a4766`) |
+| 5 | ~~Centralize money math (Money util, GST consistency)~~ | reliability | ✅ Done (commit `32a4766`) |
+| 6 | Idempotency keys (payments / dispense / invoices) | reliability | |
+| 7 | Pagination for all list endpoints | reliability/api | |
+| 8 | Graceful shutdown + readiness health group | devops | ✅ Done (commit `7c105b6`) |
 
 ---
 
