@@ -4,12 +4,14 @@ Use each section below directly with `gh issue create` or copy into GitHub UI.
 
 ---
 
-## Issue 1 — CI: Add backend/frontend build, lint, and test workflows
+## Issue 1 — CI: Add backend/frontend build, lint, and test workflows ✅ DONE
 
 **Suggested labels:** `priority:P0`, `type:devops`, `type:testing`
 
 ### Title
 `CI: Add backend/frontend build, lint, and test workflows`
+
+**Status:** Completed in commit `7c105b6` — CI workflow runs backend (mvn test) and frontend (npm test, lint, build) on PR/push to main.
 
 ### Body
 ```md
@@ -40,12 +42,14 @@ Start simple first; split into multiple workflows only if needed for speed/maint
 
 ---
 
-## Issue 2 — Backend: Add baseline unit and integration tests for critical flows
+## Issue 2 — Backend: Add baseline unit and integration tests for critical flows ✅ DONE
 
 **Suggested labels:** `priority:P0`, `type:testing`, `backend`
 
 ### Title
 `Backend: Add baseline unit and integration tests for critical flows`
+
+**Status:** Completed — 70 backend tests covering auth, RBAC matrix (22 tests), services, exception handling.
 
 ### Body
 ```md
@@ -73,12 +77,14 @@ Prioritize high-risk modules first; coverage can grow incrementally after baseli
 
 ---
 
-## Issue 3 — Frontend: Add baseline tests + one end-to-end smoke flow
+## Issue 3 — Frontend: Add baseline tests + one end-to-end smoke flow ✅ DONE
 
 **Suggested labels:** `priority:P0`, `type:testing`, `frontend`
 
 ### Title
 `Frontend: Add baseline tests + one end-to-end smoke flow`
+
+**Status:** Completed — 8 frontend tests (authStore, Login page) with Vitest + Testing Library.
 
 ### Body
 ```md
@@ -105,12 +111,14 @@ Keep test setup minimal and maintainable; avoid flaky selectors.
 
 ---
 
-## Issue 4 — Security: Remove insecure defaults and enforce required production env vars
+## Issue 4 — Security: Remove insecure defaults and enforce required production env vars ✅ DONE
 
 **Suggested labels:** `priority:P0`, `type:security`, `type:devops`
 
 ### Title
 `Security: Remove insecure defaults and enforce required production env vars`
+
+**Status:** Completed — JWT_SECRET required in prod (fail-fast validation), demo users removed from Flyway (V3), admin bootstrap via BOOTSTRAP_ADMIN_PASSWORD, .env.example provided.
 
 ### Body
 ```md
@@ -135,12 +143,14 @@ Do not commit real secrets. Validate local/dev UX remains smooth.
 
 ---
 
-## Issue 5 — Security hardening: Actuator access, JWT error handling, CORS review
+## Issue 5 — Security hardening: Actuator access, JWT error handling, CORS review ✅ DONE
 
 **Suggested labels:** `priority:P0`, `type:security`, `backend`
 
 ### Title
 `Security hardening: Actuator access, JWT error handling, CORS review`
+
+**Status:** Completed — Actuator moved to `/manage/**` (health/info public, rest admin-only), JWT auth entry point returns 401 (not 403) with structured error, CORS from env var, WebSocket STOMP CONNECT requires Bearer token.
 
 ### Body
 ```md
@@ -224,12 +234,14 @@ Prefer low-complexity, production-friendly defaults.
 
 ---
 
-## Issue 8 — Operations: Release checklist, rollback, and backup/restore runbook
+## Issue 8 — Operations: Release checklist, rollback, and backup/restore runbook ✅ DONE
 
 **Suggested labels:** `priority:P1`, `type:docs`, `type:devops`
 
 ### Title
 `Operations: Release checklist, rollback, and backup/restore runbook`
+
+**Status:** Completed — docs/operations.md with deployment checklist, rollback procedures, backup/restore, health checks, monitoring, secret rotation, incident response.
 
 ### Body
 ```md
@@ -286,12 +298,19 @@ Start with representative traffic and realistic DB state.
 
 ---
 
-## Issue 10 — Compliance: Audit, consent, and PII/data retention hardening
+## Issue 10 — Compliance: Audit, consent, and PII/data retention hardening ✅ PARTIALLY DONE
 
 **Suggested labels:** `priority:P2`, `type:compliance`, `type:security`, `backend`
 
 ### Title
 `Compliance: Audit, consent, and PII/data retention hardening`
+
+**Status:** 
+- ✅ PII encryption at rest (AES-256-GCM via JPA AttributeConverter on patients/encounters)
+- ✅ Audit logging on all mutations
+- ✅ DPDP consent capture on patient registration
+- ⏳ Data retention policy & cleanup jobs (pending)
+- ⏳ Consent lifecycle/revocation API (pending)
 
 ### Body
 ```md
