@@ -9,16 +9,18 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 ## Milestone: Release Readiness - Phase 1 (P0) — blocks any prod deploy 🚨
 
-| # | Issue | Area |
-|---|-------|------|
-| 1 | PII encryption at rest (patient demographics, clinical notes) | security |
-| 2 | Return 401 (not 403) for unauthenticated API requests | security/api |
-| 3 | Branch protection: require CI status checks on main | devops |
+| # | Issue | Area | Status |
+|---|-------|------|--------|
+| 1 | ~~PII encryption at rest (patient demographics, clinical notes)~~ | security | ✅ Done (commit `7c105b6`) |
+| 2 | ~~Return 401 (not 403) for unauthenticated API requests~~ | security/api | ✅ Done (commit `7c105b6`) |
+| 3 | ~~Branch protection: require CI status checks on main~~ | devops | ✅ Documented (commit `7c105b6`) |
 
 > **Done in the last pass** (commit `ae92e5c`): JWT_SECRET required + validated,
 > demo accounts removed from Flyway (V3), admin bootstrap, actuator → `/manage`,
 > WebSocket token enforcement + origin restriction, login rate limiting,
 > non-root containers, prod compose override, 48 backend + 7 frontend tests, CI workflow.
+>
+> **Done in this pass** (commit `7c105b6`): PII encryption (AES-256-GCM), 401 auth entry point, branch protection docs.
 
 ---
 
@@ -67,6 +69,6 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 ## Quick wins (single sitting)
 
-- #8 graceful shutdown (`server.shutdown=graceful`, 30s timeout, readiness group)
-- #13 error contract + RBAC matrix test (pure tests, no schema change)
-- #10 backup runbook (docs + a cron sidecar yml)
+- ~~#8 graceful shutdown (`server.shutdown=graceful`, 30s timeout, readiness group)~~ ✅ Done
+- ~~#13 error contract + RBAC matrix test (pure tests, no schema change)~~ ✅ Done
+- ~~#10 backup runbook (docs + a cron sidecar yml)~~ ✅ Done (docs/operations.md)

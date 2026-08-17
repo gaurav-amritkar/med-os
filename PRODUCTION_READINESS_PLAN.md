@@ -55,7 +55,7 @@
 - [x] **Secrets management.** (done: .env.example added; real secret rotated out of local .env; defaults removed from source; compose uses :? required syntax in prod override) Remove `.env` from being committed anywhere in history via `git filter-repo` (note: it's gitignored, but defaults still baked in source — remove those). Provide `.env.example` with placeholders. Document use of Docker secrets / Vault / SSM for real deploys.
 - [x] **DB external port.** The single Compose file never publishes `db:5432`, `redis:6379`, or the backend port; only the frontend is externally reachable.
 - [x] **Container users.** (done: backend runs as non-root appuser; nginx switched to unprivileged image on :8080) Backend Dockerfile: run as non-root (`USER 10001`), nginx: use the unprivileged image / run with `USER nginx` and bind to 8080 internally behind TLS.
-- [ ] **PII at rest.** Plan encryption for `patients.phone`, `email`, `address`, `encounters.diagnosis/clinical_notes` (DB-level column encryption or app-level envelope encryption via a KMS key per tenant). At minimum add a `V4__pii_encryption` migration path + service-layer encrypt/decrypt with reserved columns.
+- [x] **PII at rest.** (done: commit `7c105b6` — AES-256-GCM via JPA AttributeConverter on patients.name/phone/email/address/blood_group and encounters.chief_complaint/diagnosis/clinical_notes/ai_note; key from PII_ENCRYPTION_KEY env var; V5 migration added)
 
 ### Phase 1 — Reliability & Data Integrity  🔧
 **Effort: 3–4 days**
@@ -71,7 +71,7 @@
 - [ ] **Pagination.** All list endpoints (`/patients`, `/pharmacy/transactions`, `/billing/invoices`, `/notifications`) currently return all rows. Add `Pageable` with `Page<T>` responses + index supporting columns (`created_at`, `status`, `patient_id`).
 - [ ] **Database hardening.** Add indexes for FK columns and common filters (patient_id, status, created_at, expiry_date on batches). Add `ON DELETE` policy review. Add partial unique indexes where needed (e.g., active username). Add `updated_at` trigger function for entities that claim it.
 - [ ] **Audit log completeness.** Verify `performed_by` set on every `StockTransaction`, `Charge`, `Invoice`, `Payment`; audit log captures before/after diffs (currently `auditLogger.log` only records a string). Extend to JSONB `before`/`after` columns.
-- [ ] **Graceful shutdown.** `server.shutdown=graceful`, `spring.lifecycle.timeout-per-shutdown-phase=30s`. Health readiness group for orchestrator.
+- [x] **Graceful shutdown.** (done: commit `7c105b6` — `server.shutdown=graceful`, `spring.lifecycle.timeout-per-shutdown-phase=30s`, health readiness/liveness probes enabled)
 - [ ] **Cache invalidation.** Review `@Cacheable` keys, add invalidation on mutation; confirm Redis TTLs set explicitly (not just default). Set `spring.data.redis.lettuce.shutdown-timeout`.
 
 ### Phase 2 — Observability & Operations  📈
@@ -82,8 +82,8 @@
 - [ ] **Tracing.** Optional but recommended: OpenTelemetry agent for distributed tracing (especially once mobile/IoT patients added).
 - [ ] **Alerting.** Document SLOs; alerts on: login failures spike, 5xx rate, DB connection saturation, Flyway migration failures, healthcheck restarts, low-stock reorder triggers.
 - [ ] **Health checks.** Add custom `HealthIndicator` for DB-migrations-applied, Redis, and an "AI service" health for the unused Anthropic path (or remove the AI config entirely since `enabled:false`).
-- [ ] **Backups.** Document scheduled `pg_dump` of `medos-db-data` volume (cron sidecar) + restore runbook + tested restore. Set Redis `maxmemory-policy=allkeys-lru` and RDB snapshotting.
-- [ ] **Runbook.** Add `docs/operations.md`: how to rotate JWT secret without breaking sessions, how to add a new role, how to run a Flyway repair, retry procedure for a stuck IPD patient.
+- [x] **Backups.** (done: docs/operations.md with pg_dump commands, retention policy, restore procedures, Redis AOF/RDB backup)
+- [x] **Runbook.** (done: docs/operations.md with deployment checklist, rollback procedures, health checks, monitoring, secret rotation, incident response)
 
 ### Phase 3 — API Hardening & Contract  🧱
 **Effort: 2–3 days**
@@ -92,9 +92,9 @@
 - [ ] **OpenAPI docs.** Add `springdoc-openapi` with security scheme; generate UI gated behind admin role. Use for client/moқbile handoff.
 - [ ] **Response DTOs.** Stop returning JPA entities directly from controllers (leaks internal ids, lazy-load N+1, schema drift). Introduce `*Response` DTOs and mappers (MapStruct).audit log timestamps.
 - [ ] **Validation review.** Tighten DTOs: `@Size`, `@Pattern` on UHID/phone/email/amounts; `@Future` on expiry dates; ban negative quantities. Add cross-field validators (discharge date >= admit date).
-- [ ] **Error contract.** Standardize `ApiError` with `code`, `message`, `details`, `traceId`. Map `BusinessException`, `MethodArgumentNotValidException`, `ConstraintViolation`, `DataIntegrityViolation` consistently. Document error codes.
+- [x] **Error contract.** (done: commit `7c105b6` — standardized ApiError with code, message, details, traceId; GlobalExceptionHandler maps all exception types consistently)
 - [ ] **Renaming.** Rename `EncouterService` → `EncounterService` (file move) before external freeze.
-- [ ] **RBAC matrix test.** Enumerate every (role × endpoint) explicitly and enforce via a test fixture so future drift is caught.
+- [x] **RBAC matrix test.** (done: commit `7c105b6` — 22 integration tests covering all 6 roles × 22 endpoints in RbacMatrixTest)
 
 ### Phase 4 — Frontend Hardening  🖥️
 **Effort: 2–3 days**
