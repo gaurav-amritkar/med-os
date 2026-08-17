@@ -32,7 +32,8 @@ public class AdmissionService {
 
     @Transactional
     public Admission admitPatient(AdmissionRequest request) {
-        Room room = roomRepository.findById(request.getRoomId())
+        // Lock the room for update to prevent concurrent admission
+        Room room = roomRepository.findByIdForUpdate(request.getRoomId())
                 .orElseThrow(() -> new ResourceNotFoundException("Room", request.getRoomId().toString()));
         if (room.getOccupied()) {
             throw new BusinessException("Room " + room.getRoomNumber() + " is already occupied");
@@ -74,7 +75,8 @@ public class AdmissionService {
             throw new BusinessException("Patient is not currently admitted");
         }
 
-        Room room = roomRepository.findById(admission.getRoomId())
+        // Lock the room for update to prevent concurrent operations
+        Room room = roomRepository.findByIdForUpdate(admission.getRoomId())
                 .orElseThrow(() -> new ResourceNotFoundException("Room", admission.getRoomId().toString()));
 
         LocalDateTime now = LocalDateTime.now();

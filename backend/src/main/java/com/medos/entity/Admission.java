@@ -20,6 +20,10 @@ public class Admission {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     @Column(name = "patient_id", nullable = false, columnDefinition = "uuid")
     private UUID patientId;
 
