@@ -26,6 +26,7 @@ function renderLogin() {
 
 describe('Login page', () => {
   beforeEach(() => {
+    sessionStorage.clear();
     localStorage.clear();
     useAuthStore.setState({ token: null, user: null });
     useToastStore.setState({ toasts: [] });
@@ -48,6 +49,7 @@ describe('Login page', () => {
         fullName: 'System Administrator',
         role: 'admin',
         specialization: null,
+        expiresIn: 3600,
       },
     });
 
@@ -60,15 +62,19 @@ describe('Login page', () => {
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'secret' });
     expect(useAuthStore.getState().token).toBe('jwt-123');
     expect(useAuthStore.getState().user.username).toBe('admin');
-    expect(localStorage.getItem('token')).toBe('jwt-123');
+    expect(sessionStorage.getItem('medos_token')).toBe('jwt-123');
     expect(useToastStore.getState().toasts[0].message).toMatch(/welcome back/i);
   });
 
   it('redirects authenticated users to dashboard', async () => {
-    useAuthStore.setState({
-      token: 'existing-token',
-      user: { username: 'admin', role: 'admin' },
-    });
+    // Set valid token in sessionStorage
+    const expiry = Date.now() + 3600000; // 1 hour from now
+    sessionStorage.setItem('medos_token', 'existing-token');
+    sessionStorage.setItem('medos_token_expiry', expiry.toString());
+    sessionStorage.setItem('medos_user', JSON.stringify({ username: 'admin', role: 'admin' }));
+    
+    // Re-initialize auth store
+    useAuthStore.getState().initAuth();
 
     renderLogin();
 

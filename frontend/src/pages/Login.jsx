@@ -30,7 +30,7 @@ export default function Login() {
         fullName: data.fullName,
         role: data.role,
         specialization: data.specialization,
-      });
+      }, data.expiresIn);
       addToast(`Welcome back, ${data.fullName}`, 'success');
       navigate('/dashboard', { replace: true });
     } catch (err) {
