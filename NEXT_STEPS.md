@@ -30,8 +30,8 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 |---|-------|------|--------|
 | 4 | ~~Optimistic locking + row-level locking (stock/billing/admissions)~~ | reliability | ✅ Done (commit `32a4766`) |
 | 5 | ~~Centralize money math (Money util, GST consistency)~~ | reliability | ✅ Done (commit `32a4766`) |
-| 6 | ~~Idempotency keys (payments / dispense / invoices)~~ | reliability | ✅ Done (commit `...`) |
-| 7 | Pagination for all list endpoints | reliability/api | |
+| 6 | ~~Idempotency keys (payments / dispense / invoices)~~ | reliability | ✅ Done (commit `33da4d8`) |
+| 7 | ~~Pagination for all list endpoints~~ | reliability/api | ✅ Done (commit `...`) |
 | 8 | Graceful shutdown + readiness health group | devops | ✅ Done (commit `7c105b6`) |
 
 ---

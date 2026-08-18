@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.EncounterRequest;
 import com.medos.dto.PrescriptionRequest;
 import com.medos.entity.Encounter;
@@ -13,6 +14,9 @@ import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +61,13 @@ public class EncounterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Encounter", id.toString()));
     }
 
+    public PageResponse<Encounter> listByPatient(UUID patientId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Encounter> result = encounterRepository.findByPatientId(patientId, pageable);
+        return PageResponse.of(result);
+    }
+
+    // Backward compatibility
     public List<Encounter> listByPatient(UUID patientId) {
         return encounterRepository.findByPatientIdOrderByCreatedAtDesc(patientId);
     }

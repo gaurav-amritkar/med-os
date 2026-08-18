@@ -1,6 +1,8 @@
 package com.medos.repository;
 
 import com.medos.entity.Charge;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -13,4 +15,9 @@ public interface ChargeRepository extends JpaRepository<Charge, UUID> {
     List<Charge> findByStatus(Charge.Status status);
     List<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status);
     List<Charge> findByEncounterId(UUID encounterId);
+
+    Page<Charge> findByPatientId(UUID patientId, Pageable pageable);
+    Page<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status, Pageable pageable);
+    Page<Charge> findByInvoiceId(UUID invoiceId, Pageable pageable);
+    Page<Charge> findAll(Pageable pageable);
 }

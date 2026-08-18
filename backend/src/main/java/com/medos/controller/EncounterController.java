@@ -1,5 +1,6 @@
 package com.medos.controller;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.AiSuggestRequest;
 import com.medos.dto.EncounterRequest;
 import com.medos.dto.MedicineSuggestion;
@@ -40,8 +41,11 @@ public class EncounterController {
 
     @GetMapping("/patient/{patientId}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Encounter>> listByPatient(@PathVariable UUID patientId) {
-        return ResponseEntity.ok(encounterService.listByPatient(patientId));
+    public ResponseEntity<PageResponse<Encounter>> listByPatient(
+            @PathVariable UUID patientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(encounterService.listByPatient(patientId, page, size));
     }
 
     @PostMapping("/{id}/sign")
