@@ -1,12 +1,12 @@
 package com.medos.controller;
 
+import com.medos.dto.EncounterDTO;
 import com.medos.dto.PageResponse;
 import com.medos.dto.AiSuggestRequest;
 import com.medos.dto.EncounterRequest;
 import com.medos.dto.MedicineSuggestion;
+import com.medos.dto.PrescriptionDTO;
 import com.medos.dto.PrescriptionRequest;
-import com.medos.entity.Encounter;
-import com.medos.entity.Prescription;
 import com.medos.service.AiMedicineService;
 import com.medos.service.EncounterService;
 import jakarta.validation.Valid;
@@ -29,19 +29,19 @@ public class EncounterController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DOCTOR','NURSE','ADMIN')")
-    public ResponseEntity<Encounter> createEncounter(@Valid @RequestBody EncounterRequest request) {
+    public ResponseEntity<EncounterDTO> createEncounter(@Valid @RequestBody EncounterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.createEncounter(request));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Encounter> getEncounter(@PathVariable UUID id) {
+    public ResponseEntity<EncounterDTO> getEncounter(@PathVariable UUID id) {
         return ResponseEntity.ok(encounterService.getEncounter(id));
     }
 
     @GetMapping("/patient/{patientId}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<PageResponse<Encounter>> listByPatient(
+    public ResponseEntity<PageResponse<EncounterDTO>> listByPatient(
             @PathVariable UUID patientId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -50,25 +50,25 @@ public class EncounterController {
 
     @PostMapping("/{id}/sign")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public ResponseEntity<Encounter> signEncounter(@PathVariable UUID id) {
+    public ResponseEntity<EncounterDTO> signEncounter(@PathVariable UUID id) {
         return ResponseEntity.ok(encounterService.signEncounter(id));
     }
 
     @PostMapping("/{id}/prescriptions")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public ResponseEntity<Prescription> addPrescription(@Valid @RequestBody PrescriptionRequest request) {
+    public ResponseEntity<PrescriptionDTO> addPrescription(@Valid @RequestBody PrescriptionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.addPrescription(request));
     }
 
     @GetMapping("/{id}/prescriptions")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Prescription>> listPrescriptions(@PathVariable UUID id) {
+    public ResponseEntity<List<PrescriptionDTO>> listPrescriptions(@PathVariable UUID id) {
         return ResponseEntity.ok(encounterService.listPrescriptions(id));
     }
 
     @GetMapping("/prescriptions/pending")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
-    public ResponseEntity<List<Prescription>> pendingPrescriptions() {
+    public ResponseEntity<List<PrescriptionDTO>> pendingPrescriptions() {
         return ResponseEntity.ok(encounterService.pendingPrescriptions());
     }
 

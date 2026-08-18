@@ -1,12 +1,15 @@
 package com.medos.service;
 
+import com.medos.dto.EncounterDTO;
 import com.medos.dto.PageResponse;
+import com.medos.dto.PrescriptionDTO;
 import com.medos.dto.EncounterRequest;
 import com.medos.dto.PrescriptionRequest;
 import com.medos.entity.Encounter;
 import com.medos.entity.Prescription;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
+import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.EncounterRepository;
 import com.medos.repository.PrescriptionRepository;
 import com.medos.repository.UserRepository;
@@ -36,7 +39,7 @@ public class EncounterService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public Encounter createEncounter(EncounterRequest request) {
+    public EncounterDTO createEncounter(EncounterRequest request) {
         UUID doctorId = currentUserProvider.getCurrentUserId();
         if (doctorId == null) {
             throw new BusinessException("Authenticated user required");
@@ -53,28 +56,32 @@ public class EncounterService {
                 .build();
         Encounter saved = encounterRepository.save(encounter);
         auditLogger.log("CREATE", "Encounter", saved.getId().toString());
-        return saved;
+        return EntityDtoMapper.toDTO(saved);
     }
 
-    public Encounter getEncounter(UUID id) {
+    public EncounterDTO getEncounter(UUID id) {
         return encounterRepository.findById(id)
+                .map(EntityDtoMapper::toDTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Encounter", id.toString()));
     }
 
-    public PageResponse<Encounter> listByPatient(UUID patientId, int page, int size) {
+    public PageResponse<EncounterDTO> listByPatient(UUID patientId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Encounter> result = encounterRepository.findByPatientId(patientId, pageable);
-        return PageResponse.of(result);
+        return PageResponse.of(result.map(EntityDtoMapper::toDTO));
     }
 
     // Backward compatibility
-    public List<Encounter> listByPatient(UUID patientId) {
-        return encounterRepository.findByPatientIdOrderByCreatedAtDesc(patientId);
+    public List<EncounterDTO> listByPatient(UUID patientId) {
+        return encounterRepository.findByPatientIdOrderByCreatedAtDesc(patientId)
+                .stream()
+                .map(EntityDtoMapper::toDTO)
+                .toList();
     }
 
     @Transactional
-    public Encounter signEncounter(UUID id) {
-        Encounter encounter = getEncounter(id);
+    public EncounterDTO signEncounter(UUID id) {
+        Encounter encounter = getEncounterEntity(id);
         if (encounter.getStatus() != Encounter.Status.open) {
             throw new BusinessException("Encounter is not open for signing");
         }
@@ -84,12 +91,12 @@ public class EncounterService {
         encounter.setSignedBy(signer);
         Encounter saved = encounterRepository.save(encounter);
         auditLogger.log("SIGN", "Encounter", saved.getId().toString());
-        return saved;
+        return EntityDtoMapper.toDTO(saved);
     }
 
     @Transactional
-    public Prescription addPrescription(PrescriptionRequest request) {
-        Encounter encounter = getEncounter(request.getEncounterId());
+    public PrescriptionDTO addPrescription(PrescriptionRequest request) {
+        Encounter encounter = getEncounterEntity(request.getEncounterId());
         if (encounter.getStatus() == Encounter.Status.signed) {
             throw new BusinessException("Cannot add prescription to a signed encounter");
         }
@@ -110,15 +117,27 @@ public class EncounterService {
                 .build();
         Prescription saved = prescriptionRepository.save(rx);
         auditLogger.log("CREATE", "Prescription", saved.getId().toString());
-        return saved;
+        return EntityDtoMapper.toDTO(saved);
     }
 
-    public List<Prescription> listPrescriptions(UUID encounterId) {
-        return prescriptionRepository.findByEncounterId(encounterId);
+    public List<PrescriptionDTO> listPrescriptions(UUID encounterId) {
+        return prescriptionRepository.findByEncounterId(encounterId)
+                .stream()
+                .map(EntityDtoMapper::toDTO)
+                .toList();
     }
 
-    public List<Prescription> pendingPrescriptions() {
-        return prescriptionRepository.findByStatus(Prescription.Status.pending);
+    public List<PrescriptionDTO> pendingPrescriptions() {
+        return prescriptionRepository.findByStatus(Prescription.Status.pending)
+                .stream()
+                .map(EntityDtoMapper::toDTO)
+                .toList();
+    }
+
+    // Internal method to get entity for operations
+    private Encounter getEncounterEntity(UUID id) {
+        return encounterRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Encounter", id.toString()));
     }
 
     private String serializeVitals(Object vitals) {
