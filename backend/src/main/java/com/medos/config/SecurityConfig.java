@@ -28,6 +28,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final IdempotencyFilter idempotencyFilter;
 
     @Value("${medos.cors.allowed-origins}")
     private String allowedOrigins;
@@ -57,7 +58,8 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(idempotencyFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
