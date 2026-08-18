@@ -31,7 +31,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 | 4 | ~~Optimistic locking + row-level locking (stock/billing/admissions)~~ | reliability | ✅ Done (commit `32a4766`) |
 | 5 | ~~Centralize money math (Money util, GST consistency)~~ | reliability | ✅ Done (commit `32a4766`) |
 | 6 | ~~Idempotency keys (payments / dispense / invoices)~~ | reliability | ✅ Done (commit `33da4d8`) |
-| 7 | ~~Pagination for all list endpoints~~ | reliability/api | ✅ Done (commit `...`) |
+| 7 | ~~Pagination for all list endpoints~~ | reliability/api | ✅ Done (commit `8d74513`) |
 | 8 | Graceful shutdown + readiness health group | devops | ✅ Done (commit `7c105b6`) |
 
 ---
@@ -43,7 +43,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 | 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance |
 | 10 | Backup/restore runbook + Redis persistence policy | docs/devops |
 | 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs |
-| 12 | Replace JPA-entity responses with dedicated DTOs | api |
+| 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `...`) |
 | 13 | Standardize error contract + RBAC matrix test | api/testing |
 | 14 | Frontend hardening: token storage, error boundaries, states | security/testing |
 | 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops |

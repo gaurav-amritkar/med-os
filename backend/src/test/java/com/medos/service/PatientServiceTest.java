@@ -1,6 +1,7 @@
 package com.medos.service;
 
 import com.medos.dto.PageResponse;
+import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Patient;
 import com.medos.exception.BusinessException;
@@ -74,7 +75,7 @@ class PatientServiceTest {
                 .build();
         when(patientRepository.save(any(Patient.class))).thenReturn(savedPatient);
 
-        Patient result = patientService.registerPatient(req);
+        PatientDTO result = patientService.registerPatient(req);
         assertNotNull(result);
         assertEquals("John Doe", result.getName());
         verify(consentRepository, times(1)).save(any());
@@ -105,7 +106,7 @@ class PatientServiceTest {
     void listPatients_withSearch_callsRepository() {
         Page<Patient> page = new PageImpl<>(Collections.emptyList());
         when(patientRepository.findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class))).thenReturn(page);
-        PageResponse<Patient> result = patientService.listPatients("john", 0, 20);
+        PageResponse<PatientDTO> result = patientService.listPatients("john", 0, 20);
         assertTrue(result.getContent().isEmpty());
         verify(patientRepository, times(1)).findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class));
     }
@@ -114,7 +115,7 @@ class PatientServiceTest {
     void listPatients_withoutSearch_returnsAll() {
         Page<Patient> page = new PageImpl<>(Collections.emptyList());
         when(patientRepository.findAll(any(PageRequest.class))).thenReturn(page);
-        PageResponse<Patient> result = patientService.listPatients(null, 0, 20);
+        PageResponse<PatientDTO> result = patientService.listPatients(null, 0, 20);
         assertTrue(result.getContent().isEmpty());
         verify(patientRepository, times(1)).findAll(any(PageRequest.class));
     }

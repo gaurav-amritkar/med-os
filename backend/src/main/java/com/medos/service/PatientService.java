@@ -1,10 +1,13 @@
 package com.medos.service;
 
 import com.medos.dto.PageResponse;
+import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Consent;
 import com.medos.entity.Patient;
 import com.medos.exception.BusinessException;
+import com.medos.exception.ResourceNotFoundException;
+import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
@@ -28,7 +31,7 @@ public class PatientService {
     private final AuditLogger auditLogger;
 
     @Transactional
-    public Patient registerPatient(PatientRegistrationRequest req) {
+    public PatientDTO registerPatient(PatientRegistrationRequest req) {
         if (!Boolean.TRUE.equals(req.getDpdpConsent())) {
             throw new BusinessException("DPDP consent is required for patient registration");
         }
@@ -66,10 +69,10 @@ public class PatientService {
         auditLogger.log("CREATE", "Patient", saved.getId().toString(),
                 null, "UHID=" + saved.getUhid());
 
-        return saved;
+        return EntityDtoMapper.toDTO(saved);
     }
 
-    public PageResponse<Patient> listPatients(String search, int page, int size) {
+    public PageResponse<PatientDTO> listPatients(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Patient> result;
         if (search != null && !search.isBlank()) {
@@ -77,22 +80,24 @@ public class PatientService {
         } else {
             result = patientRepository.findAll(pageable);
         }
-        return PageResponse.of(result);
+        return PageResponse.of(result.map(EntityDtoMapper::toDTO));
     }
 
     // Backward compatibility method
-    public List<Patient> listPatients(String search) {
+    public List<PatientDTO> listPatients(String search) {
         return listPatients(search, 0, Integer.MAX_VALUE).getContent();
     }
 
-    public Patient getPatient(UUID id) {
+    public PatientDTO getPatient(UUID id) {
         return patientRepository.findById(id)
-                .orElseThrow(() -> new com.medos.exception.ResourceNotFoundException("Patient", id.toString()));
+                .map(EntityDtoMapper::toDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient", id.toString()));
     }
 
-    public Patient getByUhid(String uhid) {
+    public PatientDTO getByUhid(String uhid) {
         return patientRepository.findByUhid(uhid)
-                .orElseThrow(() -> new com.medos.exception.ResourceNotFoundException("Patient UHID: " + uhid));
+                .map(EntityDtoMapper::toDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient UHID: " + uhid));
     }
 
     private String generateUhid() {

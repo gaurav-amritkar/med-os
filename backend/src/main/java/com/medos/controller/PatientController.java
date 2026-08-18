@@ -1,8 +1,8 @@
 package com.medos.controller;
 
 import com.medos.dto.PageResponse;
+import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
-import com.medos.entity.Patient;
 import com.medos.service.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,14 +22,14 @@ public class PatientController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
-    public ResponseEntity<Patient> registerPatient(@Valid @RequestBody PatientRegistrationRequest request) {
-        Patient patient = patientService.registerPatient(request);
+    public ResponseEntity<PatientDTO> registerPatient(@Valid @RequestBody PatientRegistrationRequest request) {
+        PatientDTO patient = patientService.registerPatient(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(patient);
     }
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<PageResponse<Patient>> listPatients(
+    public ResponseEntity<PageResponse<PatientDTO>> listPatients(
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -38,13 +38,13 @@ public class PatientController {
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Patient> getPatient(@PathVariable UUID id) {
+    public ResponseEntity<PatientDTO> getPatient(@PathVariable UUID id) {
         return ResponseEntity.ok(patientService.getPatient(id));
     }
 
     @GetMapping("/uhid/{uhid}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Patient> getByUhid(@PathVariable String uhid) {
+    public ResponseEntity<PatientDTO> getByUhid(@PathVariable String uhid) {
         return ResponseEntity.ok(patientService.getByUhid(uhid));
     }
 }
