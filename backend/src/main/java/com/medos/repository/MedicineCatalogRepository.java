@@ -1,6 +1,8 @@
 package com.medos.repository;
 
 import com.medos.entity.MedicineCatalog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,9 +16,18 @@ public interface MedicineCatalogRepository extends JpaRepository<MedicineCatalog
     List<MedicineCatalog> findByActiveTrue();
     List<MedicineCatalog> findByCategory(String category);
 
+    Page<MedicineCatalog> findByActiveTrue(Pageable pageable);
+    Page<MedicineCatalog> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
     @Query("SELECT m FROM MedicineCatalog m WHERE m.active = true AND " +
            "(LOWER(m.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(m.keywords) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(m.indications) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     List<MedicineCatalog> searchByKeyword(@Param("keyword") String keyword);
+
+    @Query("SELECT m FROM MedicineCatalog m WHERE m.active = true AND " +
+           "(LOWER(m.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(m.keywords) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "OR LOWER(m.indications) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<MedicineCatalog> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }

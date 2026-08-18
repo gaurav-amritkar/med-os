@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Patient;
 import com.medos.exception.BusinessException;
@@ -11,6 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -99,18 +103,19 @@ class PatientServiceTest {
 
     @Test
     void listPatients_withSearch_callsRepository() {
-        when(patientRepository.findByNameContainingIgnoreCase("john")).thenReturn(Collections.emptyList());
-        List<Patient> result = patientService.listPatients("john");
-        assertTrue(result.isEmpty());
-        verify(patientRepository, times(1)).findByNameContainingIgnoreCase("john");
+        Page<Patient> page = new PageImpl<>(Collections.emptyList());
+        when(patientRepository.findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class))).thenReturn(page);
+        PageResponse<Patient> result = patientService.listPatients("john", 0, 20);
+        assertTrue(result.getContent().isEmpty());
+        verify(patientRepository, times(1)).findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class));
     }
 
     @Test
     void listPatients_withoutSearch_returnsAll() {
-        List<Patient> dummy = Collections.emptyList();
-        when(patientRepository.findAll()).thenReturn(dummy);
-        List<Patient> result = patientService.listPatients(null);
-        assertSame(dummy, result);
-        verify(patientRepository, times(1)).findAll();
+        Page<Patient> page = new PageImpl<>(Collections.emptyList());
+        when(patientRepository.findAll(any(PageRequest.class))).thenReturn(page);
+        PageResponse<Patient> result = patientService.listPatients(null, 0, 20);
+        assertTrue(result.getContent().isEmpty());
+        verify(patientRepository, times(1)).findAll(any(PageRequest.class));
     }
 }

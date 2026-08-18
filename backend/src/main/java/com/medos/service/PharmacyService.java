@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.DispenseRequest;
 import com.medos.entity.*;
 import com.medos.exception.BusinessException;
@@ -8,6 +9,9 @@ import com.medos.repository.*;
 import com.medos.util.AuditLogger;
 import com.medos.util.MoneyUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,8 +33,37 @@ public class PharmacyService {
     private final PatientRepository patientRepository;
     private final AuditLogger auditLogger;
 
+    public PageResponse<MedicineCatalog> listAllMedicines(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<MedicineCatalog> result = medicineCatalogRepository.findByActiveTrue(pageable);
+        return PageResponse.of(result);
+    }
+
+    // Backward compatibility
     public List<MedicineCatalog> listAllMedicines() {
         return medicineCatalogRepository.findByActiveTrue();
+    }
+
+    public PageResponse<MedicineCatalog> searchMedicines(String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<MedicineCatalog> result = medicineCatalogRepository.searchByKeyword(keyword, pageable);
+        return PageResponse.of(result);
+    }
+
+    public PageResponse<MedicineCatalog> searchMedicinesByName(String name, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<MedicineCatalog> result = medicineCatalogRepository.findByNameContainingIgnoreCase(name, pageable);
+        return PageResponse.of(result);
+    }
+
+    public PageResponse<StockTransaction> getStockTransactions(UUID medicineId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        if (medicineId != null) {
+            Page<StockTransaction> result = stockTransactionRepository.findByMedicineId(medicineId, pageable);
+            return PageResponse.of(result);
+        }
+        Page<StockTransaction> result = stockTransactionRepository.findAll(pageable);
+        return PageResponse.of(result);
     }
 
     public MedicineCatalog getMedicine(UUID id) {

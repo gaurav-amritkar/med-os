@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Consent;
 import com.medos.entity.Patient;
@@ -8,6 +9,9 @@ import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,11 +69,20 @@ public class PatientService {
         return saved;
     }
 
-    public List<Patient> listPatients(String search) {
+    public PageResponse<Patient> listPatients(String search, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Patient> result;
         if (search != null && !search.isBlank()) {
-            return patientRepository.findByNameContainingIgnoreCase(search);
+            result = patientRepository.findByNameContainingIgnoreCase(search, pageable);
+        } else {
+            result = patientRepository.findAll(pageable);
         }
-        return patientRepository.findAll();
+        return PageResponse.of(result);
+    }
+
+    // Backward compatibility method
+    public List<Patient> listPatients(String search) {
+        return listPatients(search, 0, Integer.MAX_VALUE).getContent();
     }
 
     public Patient getPatient(UUID id) {

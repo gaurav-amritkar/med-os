@@ -1,6 +1,8 @@
 package com.medos.repository;
 
 import com.medos.entity.Patient;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -16,6 +18,10 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     Optional<Integer> findMaxUhidSequence();
 
     List<Patient> findByNameContainingIgnoreCase(String name);
+
+    Page<Patient> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    Page<Patient> findAll(Pageable pageable);
 
     List<Patient> findByDpdpConsentFalse();
 }

@@ -1,6 +1,8 @@
 package com.medos.repository;
 
 import com.medos.entity.StockTransaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -13,4 +15,7 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
     List<StockTransaction> findByPatientId(UUID patientId);
     List<StockTransaction> findByPrescriptionId(UUID prescriptionId);
     List<StockTransaction> findByTransactionTypeOrderByPerformedAtDesc(StockTransaction.TransactionType type);
+
+    Page<StockTransaction> findByMedicineId(UUID medicineId, Pageable pageable);
+    Page<StockTransaction> findAll(Pageable pageable);
 }

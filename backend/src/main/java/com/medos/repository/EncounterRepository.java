@@ -1,6 +1,8 @@
 package com.medos.repository;
 
 import com.medos.entity.Encounter;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -12,4 +14,8 @@ public interface EncounterRepository extends JpaRepository<Encounter, UUID> {
     List<Encounter> findByDoctorId(UUID doctorId);
     List<Encounter> findByStatus(Encounter.Status status);
     List<Encounter> findByPatientIdOrderByCreatedAtDesc(UUID patientId);
+
+    Page<Encounter> findByPatientId(UUID patientId, Pageable pageable);
+    Page<Encounter> findByDoctorId(UUID doctorId, Pageable pageable);
+    Page<Encounter> findAll(Pageable pageable);
 }

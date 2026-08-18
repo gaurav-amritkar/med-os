@@ -1,5 +1,6 @@
 package com.medos.controller;
 
+import com.medos.dto.PageResponse;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Patient;
 import com.medos.service.PatientService;
@@ -10,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,9 +29,11 @@ public class PatientController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Patient>> listPatients(
-            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(patientService.listPatients(search));
+    public ResponseEntity<PageResponse<Patient>> listPatients(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(patientService.listPatients(search, page, size));
     }
 
     @GetMapping("/{id}")
