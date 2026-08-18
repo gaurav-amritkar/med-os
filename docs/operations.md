@@ -275,6 +275,74 @@ Rotating the PII encryption key requires re-encrypting all encrypted fields:
 
 ---
 
+## 7b. Idempotency Keys
+
+### Overview
+Idempotency keys prevent duplicate operations for critical financial endpoints:
+- `POST /api/billing/payments`
+- `POST /api/billing/invoices`
+- `POST /api/pharmacy/dispense`
+
+### Usage
+
+**Client Request:**
+```http
+POST /api/billing/payments
+Idempotency-Key: unique-client-generated-uuid
+Content-Type: application/json
+
+{ "invoiceId": "...", "amount": 1000, "paymentMethod": "CASH" }
+```
+
+**Response (first request):**
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{ "paymentNumber": "PAY-123456", ... }
+```
+
+**Response (duplicate request with same key):**
+```http
+HTTP/1.1 200 OK
+Idempotency-Key-Replayed: true
+Content-Type: application/json
+
+{ "paymentNumber": "PAY-123456", ... }
+```
+
+### Configuration
+- Keys stored in Redis with 24-hour TTL
+- Key format: `idempotency:{endpoint}:{key}`
+- Automatically cleaned up after TTL expiry
+
+### Testing
+```bash
+# First request
+curl -X POST http://localhost:8080/api/billing/payments \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: test-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"invoiceId":"...","amount":100,"paymentMethod":"CASH"}'
+
+# Duplicate request - returns cached response
+curl -X POST http://localhost:8080/api/billing/payments \
+  -H "Authorization: Bearer <token>" \
+  -H "Idempotency-Key: test-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"invoiceId":"...","amount":100,"paymentMethod":"CASH"}'
+```
+
+### Operations Notes
+- Keys are automatically expired after 24 hours
+- Monitor Redis memory for idempotency key accumulation
+- If Redis is unavailable, requests without idempotency keys will be rejected for configured endpoints
+- To manually clear a key: `redis-cli DEL "idempotency:billing/payments:test-key-123"`
+
+---
+
+## 7c. Certificate Management
+
 ## 8. Incident Response
 
 ### Database Connection Exhaustion
