@@ -43,9 +43,9 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 | 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance |
 | 10 | Backup/restore runbook + Redis persistence policy | docs/devops |
 | 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs |
-| 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `...`) |
+| 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `185414f`) |
 | 13 | Standardize error contract + RBAC matrix test | api/testing |
-| 14 | Frontend hardening: token storage, error boundaries, states | security/testing |
+| 14 | ~~Frontend hardening: token storage, error boundaries, states~~ | security/testing | ✅ Done (commit `...`) |
 | 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops |
 | 16 | TLS termination + HSTS + docker secrets | devops |
 
