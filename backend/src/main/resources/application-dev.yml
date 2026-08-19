@@ -23,5 +23,6 @@ medos:
       secret: ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==
       expiration-ms: 36000000
       issuer: medos-hms-v3
+    pii-encryption-key: __REDACTED_44__
   ai:
     enabled: false

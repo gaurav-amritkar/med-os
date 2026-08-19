@@ -45,7 +45,7 @@ medos:
       secret: ${JWT_SECRET:__REDACTED_80__}
       expiration-ms: 36000000
       issuer: medos-hms-v3
-    pii-encryption-key: ${PII_ENCRYPTION_KEY:dGVzdC1vbmx5LXBpaS1lbmNyeXB0aW9uLWtleS1tdXN0LWJlLTMzMi1iaXRzLTEyMzQ1Njc4OQ==}
+    pii-encryption-key: ${PII_ENCRYPTION_KEY:__REDACTED_44__}
   ai:
     enabled: false
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
