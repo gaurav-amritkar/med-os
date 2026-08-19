@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class IdempotencyService {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<Object, Object> redisTemplate;
     private static final String KEY_PREFIX = "idempotency:";
     private static final Duration TTL = Duration.ofHours(24);
 
