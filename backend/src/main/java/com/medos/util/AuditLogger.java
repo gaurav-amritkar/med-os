@@ -2,6 +2,7 @@ package com.medos.util;
 
 import com.medos.entity.AuditLog;
 import com.medos.repository.AuditLogRepository;
+import com.medos.repository.UserRepository;
 import com.medos.security.CurrentUserProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -9,16 +10,27 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class AuditLogger {
 
     private final AuditLogRepository auditLogRepository;
+    private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
 
     public void log(String action, String entityType, String entityId, String oldValue, String newValue) {
+        UUID userId = currentUserProvider.getCurrentUserId();
+        
+        // Check if the user exists in the database to avoid FK constraint violation
+        // If user doesn't exist (e.g., token from old DB state), save with null user_id
+        if (userId != null && !userRepository.existsById(userId)) {
+            userId = null;
+        }
+        
         AuditLog log = AuditLog.builder()
-                .userId(currentUserProvider.getCurrentUserId())
+                .userId(userId)
                 .action(action)
                 .entityType(entityType)
                 .entityId(entityId == null ? null : parseUuid(entityId))
@@ -34,8 +46,8 @@ public class AuditLogger {
         log(action, entityType, entityId, null, null);
     }
 
-    private java.util.UUID parseUuid(String s) {
-        try { return java.util.UUID.fromString(s); } catch (Exception e) { return null; }
+    private UUID parseUuid(String s) {
+        try { return UUID.fromString(s); } catch (Exception e) { return null; }
     }
 
     private String getClientIp() {

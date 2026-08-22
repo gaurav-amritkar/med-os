@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,12 +38,16 @@ class PharmacyServiceTest {
     @Mock private ChargeRepository chargeRepository;
     @Mock private PatientRepository patientRepository;
     @Mock private AuditLogRepository auditLogRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private CurrentUserProvider currentUserProvider;
     private AuditLogger auditLogger; // real — uses mocked AuditLogRepository; Mockito cannot mock AuditLogger on JDK 26
     @InjectMocks private PharmacyService pharmacyService;
 
     @BeforeEach
     void wireAuditLogger() {
-        auditLogger = new AuditLogger(auditLogRepository, new CurrentUserProvider());
+        lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(UUID.randomUUID());
+        lenient().when(userRepository.existsById(any(UUID.class))).thenReturn(true);
+        auditLogger = new AuditLogger(auditLogRepository, userRepository, currentUserProvider);
         ReflectionTestUtils.setField(pharmacyService, "auditLogger", auditLogger);
     }
 
