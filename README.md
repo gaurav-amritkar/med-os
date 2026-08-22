@@ -123,6 +123,9 @@ docker compose up -d db     # start the DB
 
 ## API Endpoints
 
+### Idempotency
+`POST /api/pharmacy/dispense`, `POST /api/billing/invoices` and `POST /api/billing/payments` **require an `Idempotency-Key` header** (any unique string per logical operation, e.g. a UUID). Retrying with the same key returns the cached result with `Idempotency-Key-Replayed: true` instead of executing twice.
+
 ### Auth
 - `POST /api/auth/login` - Authenticate & get JWT
 

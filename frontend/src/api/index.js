@@ -1,12 +1,16 @@
 import client from './client';
 
+// Paginated list endpoints return PageResponse ({ content, ... }); the UI works with
+// plain arrays, so unwrap here. Tolerates a bare array for backward compatibility.
+const unwrapPage = ({ data }) => ({ data: Array.isArray(data) ? data : (data?.content ?? []) });
+
 export const authApi = {
   login: (credentials) => client.post('/auth/login', credentials),
   getMe: () => client.get('/users/me'),
 };
 
 export const patientApi = {
-  list: (search) => client.get('/patients', { params: { search } }),
+  list: (search) => client.get('/patients', { params: { search } }).then(unwrapPage),
   get: (id) => client.get(`/patients/${id}`),
   getByUhid: (uhid) => client.get(`/patients/uhid/${uhid}`),
   register: (data) => client.post('/patients', data),
@@ -15,7 +19,7 @@ export const patientApi = {
 export const encounterApi = {
   create: (data) => client.post('/encounters', data),
   get: (id) => client.get(`/encounters/${id}`),
-  listByPatient: (patientId) => client.get(`/encounters/patient/${patientId}`),
+  listByPatient: (patientId) => client.get(`/encounters/patient/${patientId}`).then(unwrapPage),
   sign: (id) => client.post(`/encounters/${id}/sign`),
   suggestMedicines: (data) => client.post('/encounters/suggest-medicines', data),
   addPrescription: (id, data) => client.post(`/encounters/${id}/prescriptions`, data),

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -105,7 +106,7 @@ public class BillingService {
                 .invoiceId(request.getInvoiceId())
                 .patientId(invoice.getPatientId())
                 .amount(request.getAmount())
-                .paymentMethod(Payment.PaymentMethod.valueOf(request.getPaymentMethod()))
+                .paymentMethod(parsePaymentMethod(request.getPaymentMethod()))
                 .transactionRef(request.getTransactionRef())
                 .status(Payment.Status.success)
                 .receivedAt(LocalDateTime.now())
@@ -129,6 +130,22 @@ public class BillingService {
         auditLogger.log("PAYMENT", "Payment", saved.getId().toString(),
                 null, "amount=" + request.getAmount() + " method=" + request.getPaymentMethod());
         return saved;
+    }
+
+    /**
+     * Payment methods are stored as lowercase enum constants; accept any casing from
+     * clients ("UPI", "Cash", "CARD") and reject unknown values with a 400 instead of
+     * letting valueOf() throw a raw 500.
+     */
+    private Payment.PaymentMethod parsePaymentMethod(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new BusinessException("paymentMethod is required");
+        }
+        try {
+            return Payment.PaymentMethod.valueOf(raw.trim().toLowerCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Invalid payment method: " + raw.trim());
+        }
     }
 
     public List<Invoice> getPatientInvoices(UUID patientId) {
