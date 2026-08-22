@@ -86,12 +86,26 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
         if (encrypted == null || encrypted.isBlank()) {
             return encrypted;
         }
-        try {
-            byte[] decoded = Base64.getDecoder().decode(encrypted);
-            if (decoded.length < IV_LENGTH + TAG_LENGTH) {
-                throw new IllegalStateException("Invalid encrypted data format");
-            }
 
+        // Legacy-plaintext tolerance: rows written before PII encryption was enabled hold
+        // raw plaintext, which is not valid ciphertext for this format. Our ciphertext is
+        // always valid Base64 decoding to at least IV + tag bytes; anything else is treated
+        // as legacy plaintext so pre-encryption data stays readable. Re-saving the record
+        // encrypts it. A value that LOOKS like ciphertext but fails to decrypt is a real
+        // key/corruption problem and still fails loudly.
+        byte[] decoded;
+        try {
+            decoded = Base64.getDecoder().decode(encrypted);
+        } catch (IllegalArgumentException e) {
+            log.warn("PII column holds non-Base64 legacy plaintext; returning as-is (re-save to encrypt)");
+            return encrypted;
+        }
+        if (decoded.length < IV_LENGTH + TAG_LENGTH) {
+            log.warn("PII column holds short legacy plaintext; returning as-is (re-save to encrypt)");
+            return encrypted;
+        }
+
+        try {
             // Extract IV (first 12 bytes)
             byte[] iv = new byte[IV_LENGTH];
             System.arraycopy(decoded, 0, iv, 0, IV_LENGTH);
@@ -108,7 +122,7 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
             return new String(plaintext, StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.error("PII decryption failed", e);
-            throw new IllegalStateException("Failed to decrypt PII field", e);
+            throw new IllegalStateException("Failed to decrypt PII field (wrong PII_ENCRYPTION_KEY or corrupted data)", e);
         }
     }
 

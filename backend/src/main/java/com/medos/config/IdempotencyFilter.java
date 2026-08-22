@@ -43,6 +43,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
     private static final String REPLAYED_HEADER = "Idempotency-Key-Replayed";
+    /** Marker stored for 2xx responses with an empty body (void endpoints). */
+    private static final String EMPTY_BODY = "";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -76,7 +78,11 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_OK);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setHeader(REPLAYED_HEADER, "true");
-            objectMapper.writeValue(response.getWriter(), cached.get());
+            // Void endpoints (e.g. dispense) are cached as an empty-string marker and
+            // replayed as a bare 200; anything else is the stored JSON body.
+            if (!(cached.get() instanceof String cachedBody) || !cachedBody.isEmpty()) {
+                objectMapper.writeValue(response.getWriter(), cached.get());
+            }
             return;
         }
 
@@ -86,10 +92,13 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, wrappedResponse);
             
-            // Cache successful responses (2xx)
+            // Cache successful responses (2xx), including empty bodies so that retrying
+            // a void operation (e.g. dispense) replays the success instead of re-executing it
             if (wrappedResponse.getStatus() >= 200 && wrappedResponse.getStatus() < 300) {
                 String body = wrappedResponse.getBodyAsString();
-                if (body != null && !body.isBlank()) {
+                if (body == null || body.isBlank()) {
+                    idempotencyService.storeResponse(getEndpointId(path), idempotencyKey, EMPTY_BODY);
+                } else {
                     Object responseObj = objectMapper.readValue(body, Object.class);
                     idempotencyService.storeResponse(getEndpointId(path), idempotencyKey, responseObj);
                 }
