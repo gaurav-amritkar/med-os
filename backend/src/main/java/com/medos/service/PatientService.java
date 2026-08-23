@@ -35,8 +35,8 @@ public class PatientService {
         if (!Boolean.TRUE.equals(req.getDpdpConsent())) {
             throw new BusinessException("DPDP consent is required for patient registration");
         }
-        if (req.getName() == null || req.getName().isBlank()) {
-            throw new BusinessException("Patient name is required");
+        if (req.getName() == null || req.getName().isBlank() || req.getName().trim().length() < 2) {
+            throw new BusinessException("Patient name is required (min 2 chars)");
         }
         if (req.getAge() == null || req.getAge() < 0 || req.getAge() > 150) {
             throw new BusinessException("Invalid patient age (0-150)");
@@ -102,6 +102,10 @@ public class PatientService {
 
     private String generateUhid() {
         Integer max = patientRepository.findMaxUhidSequence().orElse(0);
-        return String.format("UHID%06d", (max == null ? 0 : max) + 1);
+        String uhid = String.format("UHID%06d", (max == null ? 0 : max) + 1);
+        if (patientRepository.findByUhid(uhid).isPresent()) {
+            throw new BusinessException("Duplicate UHID detected: " + uhid);
+        }
+        return uhid;
     }
 }
