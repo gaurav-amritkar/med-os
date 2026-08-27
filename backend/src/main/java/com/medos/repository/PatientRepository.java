@@ -17,6 +17,9 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     @Query("SELECT MAX(CAST(SUBSTRING(p.uhid, 5) AS int)) FROM Patient p WHERE p.uhid LIKE 'UHID%'")
     Optional<Integer> findMaxUhidSequence();
 
+    @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
+    Long getNextUhidSeq();
+
     List<Patient> findByNameContainingIgnoreCase(String name);
 
     Page<Patient> findByNameContainingIgnoreCase(String name, Pageable pageable);

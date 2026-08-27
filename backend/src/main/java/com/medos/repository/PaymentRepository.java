@@ -4,6 +4,7 @@ import com.medos.entity.Payment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
@@ -18,4 +19,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Page<Payment> findByInvoiceId(UUID invoiceId, Pageable pageable);
     Page<Payment> findByPatientId(UUID patientId, Pageable pageable);
     Page<Payment> findAll(Pageable pageable);
+
+    @Query(value = "SELECT nextval('payment_number_seq')", nativeQuery = true)
+    Long getNextPaymentSeq();
 }

@@ -31,6 +31,7 @@ public class PharmacyService {
     private final PrescriptionRepository prescriptionRepository;
     private final ChargeRepository chargeRepository;
     private final PatientRepository patientRepository;
+    private final PatientBalanceService patientBalanceService;
     private final AuditLogger auditLogger;
 
     public PageResponse<MedicineCatalog> listAllMedicines(int page, int size) {
@@ -119,7 +120,7 @@ public class PharmacyService {
             throw new BusinessException("Prescription is already " + rx.getStatus());
         }
 
-        Patient patient = patientRepository.findById(request.getPatientId())
+        patientRepository.findById(request.getPatientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", request.getPatientId().toString()));
 
         int requiredQty = request.getQuantity();
@@ -192,7 +193,7 @@ public class PharmacyService {
         chargeRepository.save(charge);
 
         // Sync patient outstanding (auto-sync balance)
-        syncPatientBalance(request.getPatientId());
+        patientBalanceService.recalculateBalance(request.getPatientId());
 
         auditLogger.log("DISPENSE", "Prescription", request.getPrescriptionId().toString(),
                 "pending", "dispensed qty=" + requiredQty);
@@ -204,18 +205,5 @@ public class PharmacyService {
 
     public List<StockTransaction> getAllTransactions() {
         return stockTransactionRepository.findAll();
-    }
-
-    private void syncPatientBalance(UUID patientId) {
-        List<Charge> unbilled = chargeRepository.findByPatientIdAndStatus(patientId, Charge.Status.unbilled);
-        BigDecimal total = unbilled.stream()
-                .map(c -> c.getTotalAmount() != null ? c.getTotalAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Patient patient = patientRepository.findById(patientId).orElse(null);
-        if (patient != null) {
-            patient.setOutstanding(total);
-            patientRepository.save(patient);
-        }
     }
 }
