@@ -26,6 +26,7 @@ public class BillingService {
     private final ChargeRepository chargeRepository;
     private final PaymentRepository paymentRepository;
     private final PatientRepository patientRepository;
+    private final PatientBalanceService patientBalanceService;
     private final AuditLogger auditLogger;
 
     @Transactional
@@ -79,7 +80,7 @@ public class BillingService {
             chargeRepository.save(c);
         }
 
-        syncPatientBalance(request.getPatientId());
+        patientBalanceService.recalculateBalance(request.getPatientId());
 
         auditLogger.log("INVOICE", "Invoice", saved.getId().toString(),
                 null, "total=" + totalAmount + " charges=" + charges.size());
@@ -125,7 +126,7 @@ public class BillingService {
         }
         invoiceRepository.save(invoice);
 
-        syncPatientBalance(invoice.getPatientId());
+        patientBalanceService.recalculateBalance(invoice.getPatientId());
 
         auditLogger.log("PAYMENT", "Payment", saved.getId().toString(),
                 null, "amount=" + request.getAmount() + " method=" + request.getPaymentMethod());
@@ -165,32 +166,10 @@ public class BillingService {
     }
 
     private String generateInvoiceNumber() {
-        return "INV-" + System.currentTimeMillis() % 1000000;
+        return "INV-" + invoiceRepository.getNextInvoiceSeq();
     }
 
     private String generatePaymentNumber() {
-        return "PAY-" + System.currentTimeMillis() % 1000000;
-    }
-
-    private void syncPatientBalance(UUID patientId) {
-        List<Charge> allCharges = chargeRepository.findByPatientId(patientId);
-        BigDecimal totalBilled = allCharges.stream()
-                .filter(c -> c.getStatus() == Charge.Status.billed || c.getStatus() == Charge.Status.paid)
-                .map(c -> c.getTotalAmount() != null ? c.getTotalAmount() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, MoneyUtil::add);
-
-        List<Payment> payments = paymentRepository.findByPatientId(patientId);
-        BigDecimal totalPaid = payments.stream()
-                .filter(p -> p.getStatus() == Payment.Status.success)
-                .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, MoneyUtil::add);
-
-        BigDecimal outstanding = MoneyUtil.subtract(totalBilled, totalPaid);
-
-        Patient patient = patientRepository.findById(patientId).orElse(null);
-        if (patient != null) {
-            patient.setOutstanding(MoneyUtil.normalize(outstanding.max(BigDecimal.ZERO)));
-            patientRepository.save(patient);
-        }
+        return "PAY-" + paymentRepository.getNextPaymentSeq();
     }
 }

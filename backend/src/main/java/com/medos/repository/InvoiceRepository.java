@@ -21,4 +21,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM Invoice i WHERE i.id = :id")
     Optional<Invoice> findByIdForUpdate(@Param("id") UUID id);
+
+    @Query(value = "SELECT nextval('invoice_number_seq')", nativeQuery = true)
+    Long getNextInvoiceSeq();
 }

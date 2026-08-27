@@ -58,7 +58,7 @@ class PatientServiceTest {
         req.setBloodGroup("A+");
         req.setConsentPurpose("Treatment");
 
-        when(patientRepository.findMaxUhidSequence()).thenReturn(Optional.of(0));
+        when(patientRepository.getNextUhidSeq()).thenReturn(1L);
         Patient savedPatient = Patient.builder()
                 .id(UUID.randomUUID())
                 .uhid("UHID000001")
@@ -78,6 +78,7 @@ class PatientServiceTest {
         PatientDTO result = patientService.registerPatient(req);
         assertNotNull(result);
         assertEquals("John Doe", result.getName());
+        assertEquals("UHID000001", result.getUhid());
         verify(consentRepository, times(1)).save(any());
         verify(auditLogger, times(1)).log(eq("CREATE"), eq("Patient"), eq(savedPatient.getId().toString()), isNull(), anyString());
     }

@@ -28,6 +28,7 @@ public class AdmissionService {
     private final RoomRepository roomRepository;
     private final PatientRepository patientRepository;
     private final ChargeRepository chargeRepository;
+    private final PatientBalanceService patientBalanceService;
     private final AuditLogger auditLogger;
 
     @Transactional
@@ -112,6 +113,8 @@ public class AdmissionService {
                 .status(Charge.Status.unbilled)
                 .build();
         chargeRepository.save(charge);
+
+        patientBalanceService.recalculateBalance(admission.getPatientId());
 
         auditLogger.log("DISCHARGE", "Admission", admission.getId().toString(),
                 "admitted", "discharged days=" + daysAdmitted + " charges=" + roomCharges);

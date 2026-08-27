@@ -37,6 +37,7 @@ class PharmacyServiceTest {
     @Mock private PrescriptionRepository prescriptionRepository;
     @Mock private ChargeRepository chargeRepository;
     @Mock private PatientRepository patientRepository;
+    @Mock private PatientBalanceService patientBalanceService;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private UserRepository userRepository;
     @Mock private CurrentUserProvider currentUserProvider;
@@ -116,8 +117,6 @@ class PharmacyServiceTest {
                 .thenReturn(List.of(b1, b2));
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
-        when(chargeRepository.findByPatientIdAndStatus(PATIENT_ID, Charge.Status.unbilled))
-                .thenReturn(List.of());
 
         pharmacyService.dispense(dispenseRequest(15));
 
@@ -142,6 +141,7 @@ class PharmacyServiceTest {
 
         verify(stockTransactionRepository, times(1)).save(any(StockTransaction.class));
         verify(auditLogRepository, atLeastOnce()).save(any(com.medos.entity.AuditLog.class));
+        verify(patientBalanceService, times(1)).recalculateBalance(PATIENT_ID);
     }
 
     @Test
@@ -156,8 +156,6 @@ class PharmacyServiceTest {
                 .thenReturn(List.of(b1, b2));
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("5.00"))));
-        when(chargeRepository.findByPatientIdAndStatus(PATIENT_ID, Charge.Status.unbilled))
-                .thenReturn(List.of());
 
         pharmacyService.dispense(dispenseRequest(25));
 

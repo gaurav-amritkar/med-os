@@ -101,11 +101,6 @@ public class PatientService {
     }
 
     private String generateUhid() {
-        Integer max = patientRepository.findMaxUhidSequence().orElse(0);
-        String uhid = String.format("UHID%06d", (max == null ? 0 : max) + 1);
-        if (patientRepository.findByUhid(uhid).isPresent()) {
-            throw new BusinessException("Duplicate UHID detected: " + uhid);
-        }
-        return uhid;
+        return String.format("UHID%06d", patientRepository.getNextUhidSeq());
     }
 }
