@@ -80,3 +80,16 @@ management:
       enabled: true
     readinessState:
       enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    csrf:
+      enabled: false
+  show-actuator: false
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json

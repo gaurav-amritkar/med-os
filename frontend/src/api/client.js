@@ -5,8 +5,8 @@ import useLoadingStore from '../store/loadingStore';
 const baseURL = import.meta.env.VITE_API_URL
   ? (import.meta.env.VITE_API_URL.startsWith('/')
       ? import.meta.env.VITE_API_URL
-      : `${import.meta.env.VITE_API_URL}/api`)
-  : 'http://localhost:8080/api';
+      : `${import.meta.env.VITE_API_URL}/api/v1`)
+  : 'http://localhost:8080/api/v1';
 
 const client = axios.create({
   baseURL,

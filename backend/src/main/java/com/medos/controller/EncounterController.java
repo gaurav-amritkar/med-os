@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/encounters")
+@RequestMapping("/api/v1/encounters")
 @RequiredArgsConstructor
 public class EncounterController {
 

@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/pharmacy")
+@RequestMapping("/api/v1/pharmacy")
 @RequiredArgsConstructor
 public class PharmacyController {
 

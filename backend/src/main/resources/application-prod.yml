@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:db}:${DB_PORT:5432}/${DB_NAME:medos}
     username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -22,7 +22,7 @@ spring:
     redis:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD}
       timeout: 2000ms
   lifecycle:
     timeout-per-shutdown-phase: 30s
@@ -37,7 +37,7 @@ server:
 medos:
   security:
     jwt:
-      # REQUIRED in production — no fallback. Startup fails fast if JWT_SECRET is unset.
+      # REQUIRED in production — no fallback. Read from environment variable set by entrypoint script.
       # Generate with: openssl rand -base64 48
       secret: ${JWT_SECRET}
       expiration-ms: 36000000
@@ -46,9 +46,9 @@ medos:
   ai:
     enabled: false
   bootstrap:
-    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost,http://localhost:80,http://localhost:5173}
+    allowed-origins: ${CORS_ORIGINS}
 
 management:
   endpoints:

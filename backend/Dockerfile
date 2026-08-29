@@ -19,6 +19,11 @@ RUN apk add --no-cache curl
 
 # Run as non-root (least privilege)
 RUN addgroup -S appuser && adduser -S appuser -G appuser
+
+# Copy entrypoint script
+COPY --chown=appuser:appuser entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 USER appuser
 
 # Copy jar from builder
@@ -32,4 +37,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8080/manage/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/medos-backend.jar"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/medos-backend.jar"]

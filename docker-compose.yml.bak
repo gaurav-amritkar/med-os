@@ -14,7 +14,7 @@ services:
     volumes:
       - medos-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U medos -d medos"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -23,15 +23,21 @@ services:
 
   migrate:
     build:
-      context: ./caddy
+      context: ./database
       dockerfile: Dockerfile
       pull: true
     image: medos-migrations:local
     depends_on:
       db:
         condition: service_healthy
-    secrets:
-      - db-password
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${DB_NAME:-medos}
+      FLYWAY_USER: ${DB_USER:-medos}
+      FLYWAY_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      FLYWAY_CONNECT_RETRIES: 30
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_SCHEMA: public
+      FLYWAY_TABLE: flyway_schema_history
     networks: [medos-private]
     restart: "no"
 
@@ -41,13 +47,13 @@ services:
       dockerfile: Dockerfile
       pull: true
     image: medos-redis:local
-    secrets:
-      - redis-password
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     volumes:
       - medos-redis-data:/data
     networks: [medos-private]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a $(cat /run/secrets/redis-password) ping"]
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -71,15 +77,14 @@ services:
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-medos}
       DB_USER: ${DB_USER:-medos}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-    secrets:
-      - db-password
-      - redis-password
-      - jwt-secret
-      - pii-encryption-key
-      - bootstrap-admin-password
-      - cors-origins
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?PII_ENCRYPTION_KEY must be set in .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set in .env}
     networks: [medos-private]
 
   frontend:
@@ -96,19 +101,6 @@ services:
     networks: [medos-edge, medos-private]
     restart: unless-stopped
 
-  caddy:
-    build:
-      context: ./caddy
-      dockerfile: Dockerfile
-    image: medos-caddy:local
-    depends_on:
-      - frontend
-    ports:
-      - "80:80"
-      - "443:443"
-    networks: [medos-edge, medos-private]
-    restart: unless-stopped
-
 networks:
   medos-edge: {}
   medos-private:
@@ -117,17 +109,3 @@ networks:
 volumes:
   medos-db-data:
   medos-redis-data:
-
-secrets:
-  db-password:
-    file: ./secrets/db-password.txt
-  redis-password:
-    file: ./secrets/redis-password.txt
-  jwt-secret:
-    file: ./secrets/jwt-secret.txt
-  pii-encryption-key:
-    file: ./secrets/pii-encryption-key.txt
-  bootstrap-admin-password:
-    file: ./secrets/bootstrap-admin-password.txt
-  cors-origins:
-    file: ./secrets/cors-origins.txt
