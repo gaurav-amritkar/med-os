@@ -1,0 +1,19 @@
+:80 {
+    reverse_proxy frontend:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+:443 {
+    tls internal
+
+    reverse_proxy frontend:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto https
+    }
+}

@@ -49,10 +49,13 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/v1/auth/**").permitAll()
                 // Actuator: only health/info public; everything else under /manage requires ADMIN.
                 .requestMatchers("/manage/health", "/manage/info").permitAll()
                 .requestMatchers("/manage/**").hasRole("ADMIN")
+                // OpenAPI docs: swagger-ui and api-docs require ADMIN role.
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
+                .hasRole("ADMIN")
                 // WebSocket handshake is open; token is enforced at the STOMP CONNECT layer.
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/error").permitAll()

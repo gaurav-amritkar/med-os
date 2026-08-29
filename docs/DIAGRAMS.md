@@ -231,12 +231,49 @@ sequenceDiagram
 | **Balance** | `outstanding = SUM(charges) - SUM(payments)` (atomic) | `PatientBalanceService` |
 | **Rate limit** | Max 5 fails / 15 min per user + IP | `LoginRateLimiter` (Redis) |
 
+## API Versioning
+
+All REST endpoints are versioned under `/api/v1/...`.
+
+### Versioning Scheme
+
+- **Current version**: `v1`
+- **Base path**: `/api/v1/{domain}/{resource}`
+- **Example**: `POST /api/v1/encounters`, `GET /api/v1/patients/{id}`
+
+### When to bump the version
+
+| Change type | Action |
+|-------------|--------|
+| New endpoint | Add to current version |
+| New optional field | Add to current version |
+| New required field | Consider new version |
+| Breaking change (rename/remove field, change behavior) | New version `/api/v2/...` |
+
+### OpenAPI Documentation
+
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html` (requires `ADMIN` role)
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs` (requires `ADMIN` role)
+- The API docs include JWT Bearer authentication scheme — click "Authorize" and paste your token
+
+### Controllers by Domain
+
+| Controller | Base Path | Description |
+|------------|-----------|-------------|
+| `AuthController` | `/api/v1/auth` | Login |
+| `PatientController` | `/api/v1/patients` | Patient CRUD |
+| `EncounterController` | `/api/v1/encounters` | OPD encounters, prescriptions, AI suggestions |
+| `AdmissionController` | `/api/v1/admissions` | IPD admission/discharge, rooms |
+| `PharmacyController` | `/api/v1/pharmacy` | Medicine catalog, stock, FEFO dispense |
+| `BillingController` | `/api/v1/billing` | Invoices, payments |
+| `DashboardController` | `/api/v1/dashboard`, `/api/v1/notifications`, `/api/v1/users` | Dashboard stats, notifications |
+
 ## Docker Compose Topology
 
 ```mermaid
 flowchart LR
     BR[Browser] -->|:80| NGINX[nginx<br/>React SPA + proxy]
-    NGINX -->|/api/* | BE[backend:8080<br/>Spring Boot]
+    NGINX -->|/api/v1/*| BE[backend:8080<br/>Spring Boot]
     NGINX -->|/ws/*| BE
     BE -->|JDBC| PG[(db:5432<br/>PostgreSQL 16)]
     BE -->|Redis protocol| RD[(redis:6379<br/>Redis 7)]

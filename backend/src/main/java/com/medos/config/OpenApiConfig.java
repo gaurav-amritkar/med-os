@@ -35,9 +35,6 @@ public class OpenApiConfig {
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local dev"),
-                        new Server().url("https://api.medos.example.com").description("Production")))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName,
@@ -46,6 +43,9 @@ public class OpenApiConfig {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
-                                        .description("JWT Authorization header using the Bearer scheme. Enter your token without the 'Bearer ' prefix.")));
+                                        .description("JWT Authorization header using the Bearer scheme. Enter your token without the 'Bearer ' prefix.")))
+                .servers(List.of(
+                        new Server().url("http://localhost:8080").description("Local Development"),
+                        new Server().url("https://api.medos.example.com").description("Production")));
     }
 }
