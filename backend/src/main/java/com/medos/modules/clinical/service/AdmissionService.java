@@ -1,4 +1,4 @@
-package com.medos.service;
+package com.medos.modules.clinical.service;
 
 import com.medos.dto.AdmissionRequest;
 import com.medos.dto.DischargeRequest;
@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
+import com.medos.modules.billing.event.PatientBalanceEvent;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +30,7 @@ public class AdmissionService {
     private final RoomRepository roomRepository;
     private final PatientRepository patientRepository;
     private final ChargeRepository chargeRepository;
-    private final PatientBalanceService patientBalanceService;
+    private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
     @Transactional
@@ -114,7 +116,7 @@ public class AdmissionService {
                 .build();
         chargeRepository.save(charge);
 
-        patientBalanceService.recalculateBalance(admission.getPatientId());
+        eventPublisher.publishEvent(new PatientBalanceEvent(admission.getPatientId()));
 
         auditLogger.log("DISCHARGE", "Admission", admission.getId().toString(),
                 "admitted", "discharged days=" + daysAdmitted + " charges=" + roomCharges);
