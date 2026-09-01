@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,7 +58,7 @@ class BillingServiceConcurrencyTest {
     @Mock private ChargeRepository chargeRepository;
     @Mock private PaymentRepository paymentRepository;
     @Mock private PatientRepository patientRepository;
-    @Mock private PatientBalanceService patientBalanceService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private UserRepository userRepository;
     @Mock private CurrentUserProvider currentUserProvider;
