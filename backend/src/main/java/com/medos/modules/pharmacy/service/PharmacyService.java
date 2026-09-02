@@ -1,4 +1,4 @@
-package com.medos.service;
+package com.medos.modules.pharmacy.service;
 
 import com.medos.dto.PageResponse;
 import com.medos.dto.DispenseRequest;
@@ -20,6 +20,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
+import com.medos.modules.billing.event.PatientBalanceEvent;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +33,7 @@ public class PharmacyService {
     private final PrescriptionRepository prescriptionRepository;
     private final ChargeRepository chargeRepository;
     private final PatientRepository patientRepository;
-    private final PatientBalanceService patientBalanceService;
+    private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
     public PageResponse<MedicineCatalog> listAllMedicines(int page, int size) {
@@ -130,7 +132,12 @@ public class PharmacyService {
                 .findAvailableBatchesByFefoForUpdate(rx.getMedicineId(), LocalDate.now());
 
         if (batches.isEmpty()) {
-            throw new BusinessException("No stock available for medicine");
+        throw newBusinessException("No stock available for medicine");
+        }
+
+        int totalAvailable = batches.stream().mapToInt(MedicineBatch::getRemainingQty).sum();
+        if (totalAvailable < requiredQty) {
+        throw newBusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
         }
 
         int remaining = requiredQty;
@@ -157,10 +164,10 @@ public class PharmacyService {
             stockTransactionRepository.save(txn);
         }
 
-        if (remaining > 0) {
-            throw new BusinessException("Insufficient stock: need " + requiredQty
-                    + ", available " + (requiredQty - remaining));
-        }
+        if (remaining > 0){
+         throw new BusinessException("Insufficient stock: " + requiredQty
+         + ", available " + totalAvailable);
+         }
 
         // Update prescription status
         rx.setStatus(Prescription.Status.dispensed);
@@ -193,7 +200,7 @@ public class PharmacyService {
         chargeRepository.save(charge);
 
         // Sync patient outstanding (auto-sync balance)
-        patientBalanceService.recalculateBalance(request.getPatientId());
+        eventPublisher.publishEvent(new PatientBalanceEvent(request.getPatientId()));
 
         auditLogger.log("DISPENSE", "Prescription", request.getPrescriptionId().toString(),
                 "pending", "dispensed qty=" + requiredQty);

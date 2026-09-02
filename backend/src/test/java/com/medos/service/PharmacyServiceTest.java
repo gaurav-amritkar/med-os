@@ -8,6 +8,7 @@ import com.medos.repository.AuditLogRepository;
 import com.medos.repository.*;
 import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +38,7 @@ class PharmacyServiceTest {
     @Mock private PrescriptionRepository prescriptionRepository;
     @Mock private ChargeRepository chargeRepository;
     @Mock private PatientRepository patientRepository;
-    @Mock private PatientBalanceService patientBalanceService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private UserRepository userRepository;
     @Mock private CurrentUserProvider currentUserProvider;
@@ -141,7 +142,7 @@ class PharmacyServiceTest {
 
         verify(stockTransactionRepository, times(1)).save(any(StockTransaction.class));
         verify(auditLogRepository, atLeastOnce()).save(any(com.medos.entity.AuditLog.class));
-        verify(patientBalanceService, times(1)).recalculateBalance(PATIENT_ID);
+        verify(eventPublisher, times(1)).publishEvent(any(com.medos.event.PatientBalanceEvent.class));
     }
 
     @Test

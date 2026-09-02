@@ -1,4 +1,4 @@
-package com.medos.service;
+package com.medos.modules.billing.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

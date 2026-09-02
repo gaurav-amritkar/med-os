@@ -1,4 +1,4 @@
-package com.medos.service;
+package com.medos.modules.billing.service;
 
 import com.medos.dto.InvoiceRequest;
 import com.medos.dto.PaymentRequest;
@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +27,7 @@ public class BillingService {
     private final ChargeRepository chargeRepository;
     private final PaymentRepository paymentRepository;
     private final PatientRepository patientRepository;
-    private final PatientBalanceService patientBalanceService;
+    private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
     @Transactional
@@ -80,7 +81,7 @@ public class BillingService {
             chargeRepository.save(c);
         }
 
-        patientBalanceService.recalculateBalance(request.getPatientId());
+        eventPublisher.publishEvent(new com.medos.modules.billing.event.PatientBalanceEvent(request.getPatientId()));
 
         auditLogger.log("INVOICE", "Invoice", saved.getId().toString(),
                 null, "total=" + totalAmount + " charges=" + charges.size());
@@ -126,7 +127,7 @@ public class BillingService {
         }
         invoiceRepository.save(invoice);
 
-        patientBalanceService.recalculateBalance(invoice.getPatientId());
+        eventPublisher.publishEvent(new com.medos.modules.billing.event.PatientBalanceEvent(invoice.getPatientId()));
 
         auditLogger.log("PAYMENT", "Payment", saved.getId().toString(),
                 null, "amount=" + request.getAmount() + " method=" + request.getPaymentMethod());
