@@ -6,6 +6,7 @@ import com.medos.entity.Charge;
 import com.medos.entity.Invoice;
 import com.medos.entity.Patient;
 import com.medos.entity.Payment;
+import com.medos.modules.billing.service.BillingService;
 import com.medos.repository.*;
 import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;

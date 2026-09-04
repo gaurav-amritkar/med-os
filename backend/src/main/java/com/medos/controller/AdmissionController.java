@@ -4,7 +4,7 @@ import com.medos.dto.AdmissionRequest;
 import com.medos.dto.DischargeRequest;
 import com.medos.entity.Admission;
 import com.medos.entity.Room;
-import com.medos.service.AdmissionService;
+import com.medos.modules.clinical.service.AdmissionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

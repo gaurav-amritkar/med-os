@@ -1,6 +1,7 @@
 package com.medos.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -97,6 +98,10 @@ public class JwtTokenProvider {
 
     public String getRoleFromToken(String token) {
         Claims claims = parseToken(token);
-        return claims.get("role").toString();
+        Object role = claims.get("role");
+        if (role == null) {
+            throw new JwtException("Missing role claim in token");
+        }
+        return role.toString();
     }
 }

@@ -85,6 +85,19 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    void getRoleFromToken_throwsWhenRoleClaimMissing() {
+        // Build a token manually without role claim
+        String token = io.jsonwebtoken.Jwts.builder()
+                .subject("testuser")
+                .claim("uid", UUID.randomUUID().toString())
+                .claim("uname", "testuser")
+                // Note: no role claim
+                .signWith(io.jsonwebtoken.SignatureAlgorithm.HS256, java.util.Base64.getDecoder().decode(SECRET))
+                .compact();
+        assertThrows(JwtException.class, () -> tokenProvider.getRoleFromToken(token));
+    }
+
+    @Test
     void parseToken_withDifferentSecret_fails() {
         JwtTokenProvider other = new JwtTokenProvider();
         ReflectionTestUtils.setField(other, "jwtSecret", "ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZA==");

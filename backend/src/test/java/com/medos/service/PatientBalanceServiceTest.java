@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.modules.billing.service.PatientBalanceService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
