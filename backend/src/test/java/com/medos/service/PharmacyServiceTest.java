@@ -4,6 +4,7 @@ import com.medos.dto.DispenseRequest;
 import com.medos.entity.*;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
+import com.medos.modules.pharmacy.service.PharmacyService;
 import com.medos.repository.AuditLogRepository;
 import com.medos.repository.*;
 import com.medos.security.CurrentUserProvider;
@@ -88,6 +89,8 @@ class PharmacyServiceTest {
                 .build();
     }
 
+    private MedicineCatalog med = medicineWithPrice(new BigDecimal("10.00"));
+
     private MedicineCatalog medicineWithPrice(BigDecimal price) {
         MedicineCatalog m = new MedicineCatalog();
         m.setId(MEDICINE_ID);
@@ -142,7 +145,7 @@ class PharmacyServiceTest {
 
         verify(stockTransactionRepository, times(1)).save(any(StockTransaction.class));
         verify(auditLogRepository, atLeastOnce()).save(any(com.medos.entity.AuditLog.class));
-        verify(eventPublisher, times(1)).publishEvent(any(com.medos.event.PatientBalanceEvent.class));
+        verify(eventPublisher, times(1)).publishEvent(any(com.medos.modules.billing.event.PatientBalanceEvent.class));
     }
 
     @Test
@@ -189,6 +192,8 @@ class PharmacyServiceTest {
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1));
+        // Stock check happens before the medicine catalog lookup; this stub is unused.
+        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID)).thenReturn(Optional.of(med));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> pharmacyService.dispense(dispenseRequest(20)));
@@ -197,6 +202,8 @@ class PharmacyServiceTest {
         verify(chargeRepository, never()).save(any(Charge.class));
         // Batch was still reduced before the failure (documented behavior).
         assertEquals(0, b1.getRemainingQty());
+        // Medicine lookup happens only after stock is satisfied; assert it was never reached.
+        verify(medicineCatalogRepository, never()).findById(any(UUID.class));
     }
 
     @Test
