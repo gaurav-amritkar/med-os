@@ -139,7 +139,7 @@ class RbacMatrixTest {
     @Test
     void rbac_patients_post_create() throws Exception {
         // admin, receptionist: 201 | others: 403
-        testEndpoint("POST", "/api/patients",
+        testEndpoint("POST", "/api/v1/patients",
                 new String[]{"admin", "receptionist"},
                 new String[]{"doctor", "nurse", "pharmacist", "billing"},
                 new com.medos.dto.PatientRegistrationRequest());
@@ -148,7 +148,7 @@ class RbacMatrixTest {
     @Test
     void rbac_patients_get_list() throws Exception {
         // all authenticated: 200 | unauthenticated: 401
-        testEndpoint("GET", "/api/patients",
+        testEndpoint("GET", "/api/v1/patients",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -157,7 +157,7 @@ class RbacMatrixTest {
     @Test
     void rbac_patients_get_by_id() throws Exception {
         // all authenticated: 200 (if exists) / 404 | unauthenticated: 401
-        testEndpoint("GET", "/api/patients/" + UUID.randomUUID(),
+        testEndpoint("GET", "/api/v1/patients/" + UUID.randomUUID(),
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -168,7 +168,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_post_create() throws Exception {
         // admin, doctor, nurse: 201 | others: 403
-        testEndpoint("POST", "/api/encounters",
+        testEndpoint("POST", "/api/v1/encounters",
                 new String[]{"admin", "doctor", "nurse"},
                 new String[]{"receptionist", "pharmacist", "billing"},
                 new com.medos.dto.EncounterRequest());
@@ -177,7 +177,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_get_by_id() throws Exception {
         // all authenticated: 200/404
-        testEndpoint("GET", "/api/encounters/" + UUID.randomUUID(),
+        testEndpoint("GET", "/api/v1/encounters/" + UUID.randomUUID(),
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -186,7 +186,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_post_sign() throws Exception {
         // admin, doctor: 200 | others: 403
-        testEndpoint("POST", "/api/encounters/" + UUID.randomUUID() + "/sign",
+        testEndpoint("POST", "/api/v1/encounters/" + UUID.randomUUID() + "/sign",
                 new String[]{"admin", "doctor"},
                 new String[]{"nurse", "receptionist", "pharmacist", "billing"},
                 null);
@@ -195,7 +195,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_post_prescriptions() throws Exception {
         // admin, doctor: 201 | others: 403
-        testEndpoint("POST", "/api/encounters/" + UUID.randomUUID() + "/prescriptions",
+        testEndpoint("POST", "/api/v1/encounters/" + UUID.randomUUID() + "/prescriptions",
                 new String[]{"admin", "doctor"},
                 new String[]{"nurse", "receptionist", "pharmacist", "billing"},
                 new com.medos.dto.PrescriptionRequest());
@@ -204,7 +204,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_get_pending_prescriptions() throws Exception {
         // admin, pharmacist: 200 | others: 403
-        testEndpoint("GET", "/api/encounters/prescriptions/pending",
+        testEndpoint("GET", "/api/v1/encounters/prescriptions/pending",
                 new String[]{"admin", "pharmacist"},
                 new String[]{"doctor", "nurse", "receptionist", "billing"},
                 null);
@@ -213,7 +213,7 @@ class RbacMatrixTest {
     @Test
     void rbac_encounters_post_suggest_medicines() throws Exception {
         // admin, doctor: 200 | others: 403
-        testEndpoint("POST", "/api/encounters/suggest-medicines",
+        testEndpoint("POST", "/api/v1/encounters/suggest-medicines",
                 new String[]{"admin", "doctor"},
                 new String[]{"nurse", "receptionist", "pharmacist", "billing"},
                 new com.medos.dto.AiSuggestRequest());
@@ -224,7 +224,7 @@ class RbacMatrixTest {
     @Test
     void rbac_pharmacy_get_medicines() throws Exception {
         // all authenticated: 200
-        testEndpoint("GET", "/api/pharmacy/medicines",
+        testEndpoint("GET", "/api/v1/pharmacy/medicines",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -233,7 +233,7 @@ class RbacMatrixTest {
     @Test
     void rbac_pharmacy_post_medicines() throws Exception {
         // admin, pharmacist: 201 | others: 403
-        testEndpoint("POST", "/api/pharmacy/medicines",
+        testEndpoint("POST", "/api/v1/pharmacy/medicines",
                 new String[]{"admin", "pharmacist"},
                 new String[]{"doctor", "nurse", "receptionist", "billing"},
                 new com.medos.entity.MedicineCatalog());
@@ -242,7 +242,7 @@ class RbacMatrixTest {
     @Test
     void rbac_pharmacy_post_stock_in() throws Exception {
         // admin, pharmacist: 201 | others: 403
-        testEndpoint("POST", "/api/pharmacy/medicines/" + UUID.randomUUID() + "/stock-in?batchNo=B1&expiryDate=2025-12-31&quantity=100",
+        testEndpoint("POST", "/api/v1/pharmacy/medicines/" + UUID.randomUUID() + "/stock-in?batchNo=B1&expiryDate=2025-12-31&quantity=100",
                 new String[]{"admin", "pharmacist"},
                 new String[]{"doctor", "nurse", "receptionist", "billing"},
                 null);
@@ -251,7 +251,7 @@ class RbacMatrixTest {
     @Test
     void rbac_pharmacy_post_dispense() throws Exception {
         // admin, pharmacist: 200 | others: 403
-        testEndpoint("POST", "/api/pharmacy/dispense",
+        testEndpoint("POST", "/api/v1/pharmacy/dispense",
                 new String[]{"admin", "pharmacist"},
                 new String[]{"doctor", "nurse", "receptionist", "billing"},
                 new com.medos.dto.DispenseRequest());
@@ -260,7 +260,7 @@ class RbacMatrixTest {
     @Test
     void rbac_pharmacy_get_transactions() throws Exception {
         // admin, pharmacist: 200 | others: 403
-        testEndpoint("GET", "/api/pharmacy/transactions",
+        testEndpoint("GET", "/api/v1/pharmacy/transactions",
                 new String[]{"admin", "pharmacist"},
                 new String[]{"doctor", "nurse", "receptionist", "billing"},
                 null);
@@ -271,7 +271,7 @@ class RbacMatrixTest {
     @Test
     void rbac_admissions_post_admit() throws Exception {
         // admin, doctor, nurse: 201 | others: 403
-        testEndpoint("POST", "/api/admissions",
+        testEndpoint("POST", "/api/v1/admissions",
                 new String[]{"admin", "doctor", "nurse"},
                 new String[]{"receptionist", "pharmacist", "billing"},
                 new com.medos.dto.AdmissionRequest());
@@ -280,7 +280,7 @@ class RbacMatrixTest {
     @Test
     void rbac_admissions_put_discharge() throws Exception {
         // admin, doctor: 200 | others: 403
-        testEndpoint("PUT", "/api/admissions/" + UUID.randomUUID() + "/discharge",
+        testEndpoint("PUT", "/api/v1/admissions/" + UUID.randomUUID() + "/discharge",
                 new String[]{"admin", "doctor"},
                 new String[]{"nurse", "receptionist", "pharmacist", "billing"},
                 new com.medos.dto.DischargeRequest());
@@ -289,7 +289,7 @@ class RbacMatrixTest {
     @Test
     void rbac_admissions_get_active() throws Exception {
         // all authenticated: 200
-        testEndpoint("GET", "/api/admissions/active",
+        testEndpoint("GET", "/api/v1/admissions/active",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -298,7 +298,7 @@ class RbacMatrixTest {
     @Test
     void rbac_admissions_get_rooms() throws Exception {
         // all authenticated: 200
-        testEndpoint("GET", "/api/admissions/rooms",
+        testEndpoint("GET", "/api/v1/admissions/rooms",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -309,7 +309,7 @@ class RbacMatrixTest {
     @Test
     void rbac_billing_post_invoices() throws Exception {
         // admin, billing: 201 | others: 403
-        testEndpoint("POST", "/api/billing/invoices",
+        testEndpoint("POST", "/api/v1/billing/invoices",
                 new String[]{"admin", "billing"},
                 new String[]{"doctor", "nurse", "receptionist", "pharmacist"},
                 new com.medos.dto.InvoiceRequest());
@@ -318,7 +318,7 @@ class RbacMatrixTest {
     @Test
     void rbac_billing_get_patient_invoices() throws Exception {
         // all authenticated: 200
-        testEndpoint("GET", "/api/billing/patients/" + UUID.randomUUID() + "/invoices",
+        testEndpoint("GET", "/api/v1/billing/patients/" + UUID.randomUUID() + "/invoices",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -327,7 +327,7 @@ class RbacMatrixTest {
     @Test
     void rbac_billing_get_unbilled() throws Exception {
         // all authenticated: 200
-        testEndpoint("GET", "/api/billing/patients/" + UUID.randomUUID() + "/unbilled",
+        testEndpoint("GET", "/api/v1/billing/patients/" + UUID.randomUUID() + "/unbilled",
                 new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing"},
                 new String[]{},
                 null);
@@ -336,7 +336,7 @@ class RbacMatrixTest {
     @Test
     void rbac_billing_post_payments() throws Exception {
         // admin, billing: 201 | others: 403
-        testEndpoint("POST", "/api/billing/payments",
+        testEndpoint("POST", "/api/v1/billing/payments",
                 new String[]{"admin", "billing"},
                 new String[]{"doctor", "nurse", "receptionist", "pharmacist"},
                 new com.medos.dto.PaymentRequest());

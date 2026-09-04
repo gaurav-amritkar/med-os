@@ -59,11 +59,11 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleDenied_returns403() {
-        ResponseEntity<ApiError> response = handler.handleDenied(new AccessDeniedException("denied"), req("/api/billing"));
+    void handleAccessDenied_returns403() {
+        ResponseEntity<ApiError> response = handler.handleAccessDenied(new AccessDeniedException("denied"), req("/api/billing"));
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
         assertEquals(403, response.getBody().getStatus());
-        assertEquals("Access denied", response.getBody().getMessage());
+        assertEquals("denied", response.getBody().getMessage());
     }
 
     @Test

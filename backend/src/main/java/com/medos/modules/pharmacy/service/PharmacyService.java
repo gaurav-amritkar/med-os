@@ -132,13 +132,10 @@ public class PharmacyService {
                 .findAvailableBatchesByFefoForUpdate(rx.getMedicineId(), LocalDate.now());
 
         if (batches.isEmpty()) {
-        throw newBusinessException("No stock available for medicine");
+            throw new BusinessException("No stock available for medicine");
         }
 
         int totalAvailable = batches.stream().mapToInt(MedicineBatch::getRemainingQty).sum();
-        if (totalAvailable < requiredQty) {
-        throw newBusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
-        }
 
         int remaining = requiredQty;
         int dispensedFromBatches = 0;
@@ -164,14 +161,9 @@ public class PharmacyService {
             stockTransactionRepository.save(txn);
         }
 
-        if (remaining > 0){
-         throw new BusinessException("Insufficient stock: " + requiredQty
-         + ", available " + totalAvailable);
-         }
-
-        // Update prescription status
-        rx.setStatus(Prescription.Status.dispensed);
-        prescriptionRepository.save(rx);
+        if (remaining > 0) {
+            throw new BusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
+        }
 
         // Auto-generate charge for billing
         MedicineCatalog med = medicineCatalogRepository.findById(rx.getMedicineId())
@@ -183,6 +175,10 @@ public class PharmacyService {
         BigDecimal gstAmount = lineItem[1];
         BigDecimal totalAmount = lineItem[2];
         BigDecimal gstPercent = MoneyUtil.GST_RATE_PHARMACY;
+
+        // Mark prescription as dispensed
+        rx.setStatus(Prescription.Status.dispensed);
+        prescriptionRepository.save(rx);
 
         Charge charge = Charge.builder()
                 .patientId(request.getPatientId())

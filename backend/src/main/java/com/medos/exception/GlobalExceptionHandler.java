@@ -20,6 +20,18 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        ApiError err = ApiError.of(
+            HttpStatus.FORBIDDEN.value(),
+            HttpStatus.FORBIDDEN.getReasonPhrase(),
+            "FORBIDDEN",
+            ex.getMessage(),
+            req.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err);
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest req) {
         log.warn("Business exception: {}", ex.getMessage());
@@ -56,18 +68,6 @@ public class GlobalExceptionHandler {
             req.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(err);
-    }
-
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiError> handleDenied(AccessDeniedException ex, HttpServletRequest req) {
-        ApiError err = ApiError.of(
-            HttpStatus.FORBIDDEN.value(),
-            HttpStatus.FORBIDDEN.getReasonPhrase(),
-            "FORBIDDEN",
-            "Access denied",
-            req.getRequestURI()
-        );
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
