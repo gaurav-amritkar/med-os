@@ -4,7 +4,7 @@ import com.medos.dto.DispenseRequest;
 import com.medos.entity.MedicineBatch;
 import com.medos.entity.MedicineCatalog;
 import com.medos.entity.StockTransaction;
-import com.medos.service.PharmacyService;
+import com.medos.modules.pharmacy.service.PharmacyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

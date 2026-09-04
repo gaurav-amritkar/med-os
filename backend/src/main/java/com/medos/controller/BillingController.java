@@ -5,7 +5,7 @@ import com.medos.dto.PaymentRequest;
 import com.medos.entity.Charge;
 import com.medos.entity.Invoice;
 import com.medos.entity.Payment;
-import com.medos.service.BillingService;
+import com.medos.modules.billing.service.BillingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
