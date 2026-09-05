@@ -32,7 +32,7 @@ CREATE TABLE patients (
     phone VARCHAR(20),
     email VARCHAR(128),
     address TEXT,
-    blood_group VARCHAR(8),
+    blood_group VARCHAR(16),
     dpdp_consent BOOLEAN DEFAULT FALSE,
     dpdp_consent_at TIMESTAMP,
     outstanding DECIMAL(12,2) DEFAULT 0,

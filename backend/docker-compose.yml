@@ -24,7 +24,7 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    build: .
     ports:
       - "8080:8080"
     environment:
@@ -39,18 +39,10 @@ services:
       REDIS_PASSWORD: ""
       JWT_SECRET: ZGV2LW9ubHktc2VjcmV0LW11c3QtYmUtb3ZlcnJpZGRlbi1pbi1wcm9kLTAxMjM0NTY3ODlhYmNkZWY=
       PII_ENCRYPTION_KEY: BYGPPmPlkYrqHnzpBLYGXHsEkcB2p1xl3Gl4BUWL2jM=
-      BOOTSTRAP_ADMIN_PASSWORD: "Admin@123"
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:80
+      BOOTSTRAP_ADMIN_PASSWORD: ""
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-
-  frontend:
-    image: med-os-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      backend:
-        condition: service_started
