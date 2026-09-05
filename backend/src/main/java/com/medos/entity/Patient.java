@@ -45,7 +45,7 @@ public class Patient {
     @Convert(converter = EncryptionUtil.class)
     private String address;
 
-    @Column(name = "blood_group", length = 8)
+    @Column(name = "blood_group", length = 16)
     @Convert(converter = EncryptionUtil.class)
     private String bloodGroup;
 
