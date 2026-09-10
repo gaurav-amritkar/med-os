@@ -19,6 +19,9 @@ public class Prescription {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Column(name = "encounter_id", nullable = false, columnDefinition = "uuid")
     private UUID encounterId;
 

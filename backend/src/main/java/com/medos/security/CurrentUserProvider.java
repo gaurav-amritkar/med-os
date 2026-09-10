@@ -1,6 +1,6 @@
 package com.medos.security;
 
-import com.medos.entity.User;
+import com.medos.entity.TenantUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -27,7 +27,7 @@ public class CurrentUserProvider {
         return auth == null ? null : auth.getName();
     }
 
-    public boolean hasRole(User.Role... roles) {
+    public boolean hasRole(TenantUser.UserRole... roles) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) return false;
         List<String> userAuthorities = auth.getAuthorities().stream()

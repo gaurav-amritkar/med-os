@@ -79,10 +79,7 @@ public class DashboardController {
 
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> listUsers(@RequestParam(required = false) User.Role role) {
-        if (role != null) {
-            return ResponseEntity.ok(userRepository.findByRole(role));
-        }
+    public ResponseEntity<List<User>> listUsers() {
         return ResponseEntity.ok(userRepository.findByActiveTrue());
     }
 }

@@ -50,11 +50,14 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(UUID userId, String username, String role) {
+    public String generateToken(UUID userId, String username, String role, UUID tenantId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("uid", userId.toString());
         claims.put("role", role);
         claims.put("uname", username);
+        if (tenantId != null) {
+            claims.put("tenantId", tenantId.toString());
+        }
 
         Date now = new Date();
         Date expiry = new Date(now.getTime() + jwtExpirationMs);

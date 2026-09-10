@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Claims claims = tokenProvider.parseToken(token);
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
                     String role = claims.get("role").toString();
+
+                    if (claims.get("tenantId") != null) {
+                        com.medos.security.TenantContext.setTenantId(UUID.fromString(claims.get("tenantId").toString()));
+                    }
 
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             uid, null,

@@ -31,12 +31,9 @@ public class User {
     @Column(unique = true, length = 128)
     private String email;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32)
-    private Role role;
-
     @Column(length = 128)
     private String specialization;
+
 
     @Column(nullable = false)
     private Boolean active = true;
@@ -51,9 +48,5 @@ public class User {
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
         if (active == null) active = true;
-    }
-
-    public enum Role {
-        admin, doctor, nurse, receptionist, pharmacist, billing
     }
 }

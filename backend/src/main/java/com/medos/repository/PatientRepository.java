@@ -12,6 +12,8 @@ import java.util.UUID;
 
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, UUID> {
+    Optional<Patient> findByTenantIdAndUhid(UUID tenantId, String uhid);
+    List<Patient> findByTenantId(UUID tenantId);
     Optional<Patient> findByUhid(String uhid);
 
     @Query("SELECT MAX(CAST(SUBSTRING(p.uhid, 5) AS int)) FROM Patient p WHERE p.uhid LIKE 'UHID%'")
@@ -19,6 +21,9 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
     Long getNextUhidSeq();
+
+    @Query(value = "SELECT nextval('uhid_seq')", nativeQuery = true)
+    Long getNextPatientSeq();
 
     List<Patient> findByNameContainingIgnoreCase(String name);
 

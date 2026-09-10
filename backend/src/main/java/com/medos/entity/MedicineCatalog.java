@@ -20,6 +20,9 @@ public class MedicineCatalog {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Column(unique = true, nullable = false, length = 128)
     private String name;
 
