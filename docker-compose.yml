@@ -40,7 +40,7 @@ services:
       JWT_SECRET: ZGV2LW9ubHktc2VjcmV0LW11c3QtYmUtb3ZlcnJpZGRlbi1pbi1wcm9kLTAxMjM0NTY3ODlhYmNkZWY=
       PII_ENCRYPTION_KEY: BYGPPmPlkYrqHnzpBLYGXHsEkcB2p1xl3Gl4BUWL2jM=
       BOOTSTRAP_ADMIN_PASSWORD: "Admin@123"
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:80
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:5173,http://localhost:3000,http://localhost
     depends_on:
       db:
         condition: service_healthy
