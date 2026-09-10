@@ -18,9 +18,13 @@ const client = axios.create({
  */
 client.interceptors.request.use(
   (config) => {
-    const token = useAuthStore.getState().getToken();
+    const { token, tenantId } = useAuthStore.getState();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Add tenantId header if available
+    if (tenantId) {
+      config.headers['X-Tenant-Id'] = tenantId;
     }
     // Start global loading
     useLoadingStore.getState().startLoading();
@@ -42,13 +46,13 @@ client.interceptors.response.use(
   },
   (error) => {
     useLoadingStore.getState().stopLoading();
-    
+
     if (error.response?.status === 401) {
       // Token expired or invalid - logout and redirect
       useAuthStore.getState().logout();
       window.location.href = '/login';
     }
-    
+
     return Promise.reject(error);
   }
 );
