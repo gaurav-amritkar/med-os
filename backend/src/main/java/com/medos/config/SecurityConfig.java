@@ -49,7 +49,7 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/api/v1/onboarding/register").permitAll()
                 // Actuator: only health/info public; everything else under /manage requires ADMIN.
                 .requestMatchers("/manage/health", "/manage/info").permitAll()
                 .requestMatchers("/manage/**").hasRole("ADMIN")
