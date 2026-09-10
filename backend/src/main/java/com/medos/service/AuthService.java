@@ -2,8 +2,10 @@ package com.medos.service;
 
 import com.medos.dto.LoginRequest;
 import com.medos.dto.LoginResponse;
+import com.medos.entity.TenantUser;
 import com.medos.entity.User;
 import com.medos.exception.BusinessException;
+import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import com.medos.security.JwtTokenProvider;
 import com.medos.security.LoginRateLimiter;
@@ -14,12 +16,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final TenantUserRepository tenantUserRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final LoginRateLimiter rateLimiter;
@@ -53,7 +58,13 @@ public class AuthService {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        String token = tokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole().name());
+        // Get primary tenant and role for this user
+        List<TenantUser> tenantUsers = tenantUserRepository.findByUserId(user.getId());
+        TenantUser.UserRole role = tenantUsers.isEmpty() ?
+                TenantUser.UserRole.admin : tenantUsers.get(0).getRole();
+        UUID tenantId = tenantUsers.isEmpty() ? null : tenantUsers.get(0).getTenant().getId();
+
+        String token = tokenProvider.generateToken(user.getId(), user.getUsername(), role.name(), tenantId);
 
         return new LoginResponse(
                 token,
@@ -61,7 +72,7 @@ public class AuthService {
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
-                user.getRole().name(),
+                role.name(),
                 user.getSpecialization()
         );
     }

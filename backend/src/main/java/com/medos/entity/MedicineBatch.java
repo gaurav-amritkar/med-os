@@ -22,6 +22,9 @@ public class MedicineBatch {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;

@@ -20,6 +20,9 @@ public class Payment {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Column(name = "payment_number", unique = true, nullable = false, length = 32)
     private String paymentNumber;
 

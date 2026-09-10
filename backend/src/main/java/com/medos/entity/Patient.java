@@ -24,6 +24,9 @@ public class Patient {
     @Column(unique = true, nullable = false, length = 32)
     private String uhid;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Column(nullable = false, length = 128)
     @Convert(converter = EncryptionUtil.class)
     private String name;

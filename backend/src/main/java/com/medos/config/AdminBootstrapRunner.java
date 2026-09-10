@@ -36,8 +36,9 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        boolean adminExists = userRepository.findByRole(User.Role.admin)
-                .stream().anyMatch(User::getActive);
+        boolean adminExists = userRepository.findByUsername("admin")
+                .map(u -> u.getActive())
+                .orElse(false);
 
         if (adminExists) {
             return;
@@ -71,7 +72,6 @@ public class AdminBootstrapRunner implements ApplicationRunner {
                             .passwordHash(passwordEncoder.encode(bootstrapPassword))
                             .fullName("System Administrator")
                             .email("admin@medos.local")
-                            .role(User.Role.admin)
                             .active(true)
                             .build();
                     userRepository.save(admin);
