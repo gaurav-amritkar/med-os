@@ -33,15 +33,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String token = extractToken(request);
-        if (StringUtils.hasText(token)) {
-            try {
+        try {
+            if (StringUtils.hasText(token)) {
                 if (tokenProvider.validateToken(token)) {
                     Claims claims = tokenProvider.parseToken(token);
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
                     String role = claims.get("role").toString();
 
                     if (claims.get("tenantId") != null) {
-                        com.medos.security.TenantContext.setTenantId(UUID.fromString(claims.get("tenantId").toString()));
+                        TenantContext.setTenantId(UUID.fromString(claims.get("tenantId").toString()));
                     }
 
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
@@ -53,12 +53,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else {
                     log.warn("Rejected invalid/expired JWT on {} {}", request.getMethod(), request.getRequestURI());
                 }
-            } catch (Exception e) {
-                // Never leak token internals — log a sanitized message only.
-                log.warn("JWT parsing failed on {} {}: {}", request.getMethod(), request.getRequestURI(), e.getClass().getSimpleName());
             }
+            filterChain.doFilter(request, response);
+        } catch (Exception e) {
+            // Never leak token internals — log a sanitized message only.
+            log.warn("JWT parsing failed on {} {}: {}", request.getMethod(), request.getRequestURI(), e.getClass().getSimpleName());
+        } finally {
+            SecurityContextHolder.clearContext();
+            TenantContext.clear();
         }
-        filterChain.doFilter(request, response);
     }
 
     private String extractToken(HttpServletRequest request) {
