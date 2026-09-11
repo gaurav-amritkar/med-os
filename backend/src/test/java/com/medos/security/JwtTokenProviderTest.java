@@ -28,8 +28,9 @@ class JwtTokenProviderTest {
     @Test
     void generateToken_emitsValidSignedTokenWithClaims() {
         UUID userId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
 
-        String token = tokenProvider.generateToken(userId, "doctor", "doctor");
+        String token = tokenProvider.generateToken(userId, "doctor", "doctor", tenantId);
 
         assertNotNull(token);
         Claims claims = tokenProvider.parseToken(token);
@@ -38,17 +39,18 @@ class JwtTokenProviderTest {
         assertEquals(userId.toString(), claims.get("uid"));
         assertEquals("doctor", claims.get("role"));
         assertEquals("doctor", claims.get("uname"));
+        assertEquals(tenantId.toString(), claims.get("tenantId"));
     }
 
     @Test
     void validateToken_acceptsValidToken() {
-        String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin");
+        String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin", null);
         assertTrue(tokenProvider.validateToken(token));
     }
 
     @Test
     void validateToken_rejectsTamperedToken() {
-        String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin");
+        String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin", null);
         String tampered = token.substring(0, token.length() - 4) + "AAAA";
         assertFalse(tokenProvider.validateToken(tampered));
     }
@@ -67,20 +69,20 @@ class JwtTokenProviderTest {
 
     @Test
     void getUsernameFromToken_returnsSubject() {
-        String token = tokenProvider.generateToken(UUID.randomUUID(), "nurse", "nurse");
+        String token = tokenProvider.generateToken(UUID.randomUUID(), "nurse", "nurse", null);
         assertEquals("nurse", tokenProvider.getUsernameFromToken(token));
     }
 
     @Test
     void getUserIdFromToken_parsesUidClaim() {
         UUID userId = UUID.randomUUID();
-        String token = tokenProvider.generateToken(userId, "billing", "billing");
+        String token = tokenProvider.generateToken(userId, "billing", "billing", null);
         assertEquals(userId, tokenProvider.getUserIdFromToken(token));
     }
 
     @Test
     void getRoleFromToken_returnsRoleClaim() {
-        String token = tokenProvider.generateToken(UUID.randomUUID(), "pharmacy", "pharmacist");
+        String token = tokenProvider.generateToken(UUID.randomUUID(), "pharmacy", "pharmacist", null);
         assertEquals("pharmacist", tokenProvider.getRoleFromToken(token));
     }
 
@@ -103,7 +105,7 @@ class JwtTokenProviderTest {
         ReflectionTestUtils.setField(other, "jwtSecret", "ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZA==");
         ReflectionTestUtils.setField(other, "jwtExpirationMs", 3600000L);
         ReflectionTestUtils.setField(other, "issuer", "medos-test");
-        String token = other.generateToken(UUID.randomUUID(), "admin", "admin");
+        String token = other.generateToken(UUID.randomUUID(), "admin", "admin", null);
 
         // A token signed with a different key fails signature verification (SignatureException is a JwtException).
         assertThrows(JwtException.class, () -> tokenProvider.parseToken(token));
