@@ -2,8 +2,10 @@ package com.medos.service;
 
 import com.medos.dto.LoginRequest;
 import com.medos.dto.LoginResponse;
+import com.medos.entity.TenantUser;
 import com.medos.entity.User;
 import com.medos.exception.BusinessException;
+import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import com.medos.security.JwtTokenProvider;
 import com.medos.security.LoginRateLimiter;
@@ -16,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +30,7 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     @Mock private UserRepository userRepository;
+    @Mock private TenantUserRepository tenantUserRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider tokenProvider;
     @Mock private LoginRateLimiter rateLimiter;
@@ -40,24 +44,25 @@ class AuthServiceTest {
         when(rateLimiter.isBlocked(anyString())).thenReturn(false);
     }
 
-    private User activeUser(String username, User.Role role) {
-        return User.builder()
+    private User activeUser(String username) {
+        User user = User.builder()
                 .id(UUID.randomUUID())
                 .username(username)
                 .passwordHash("$2a$10$hashed")
                 .fullName("Dr " + username)
-                .role(role)
                 .active(true)
                 .specialization("General")
                 .build();
+        lenient().when(tenantUserRepository.findByUserId(user.getId())).thenReturn(List.of());
+        return user;
     }
 
     @Test
     void login_success_returnsResponseWithToken() {
-        User user = activeUser("admin", User.Role.admin);
+        User user = activeUser("admin");
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "$2a$10$hashed")).thenReturn(true);
-        when(tokenProvider.generateToken(user.getId(), "admin", "admin"))
+        when(tokenProvider.generateToken(user.getId(), "admin", "admin", null))
                 .thenReturn("jwt-token");
 
         LoginResponse response = authService.login(new LoginRequest() {{
@@ -68,7 +73,7 @@ class AuthServiceTest {
         assertEquals(EXPIRATION_MS / 1000L, response.getExpiresIn());
         assertEquals(user.getId(), response.getUserId());
         assertEquals("admin", response.getUsername());
-        assertEquals(user.getRole().name(), response.getRole());
+        assertEquals("admin", response.getRole());
         assertNotNull(user.getLastLogin());
         verify(userRepository).save(user);
     }
@@ -82,24 +87,24 @@ class AuthServiceTest {
                 () -> authService.login(login("ghost", "x")));
         assertEquals(401, ex.getStatus().value());
         verifyNoInteractions(passwordEncoder);
-        verify(tokenProvider, never()).generateToken(any(), any(), any());
+        verify(tokenProvider, never()).generateToken(any(), any(), any(), any());
     }
 
     @Test
     void login_wrongPassword_throwsUnauthorized() {
-        User user = activeUser("doctor", User.Role.doctor);
+        User user = activeUser("doctor");
         when(userRepository.findByUsername("doctor")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", user.getPasswordHash())).thenReturn(false);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> authService.login(login("doctor", "wrong")));
         assertEquals(401, ex.getStatus().value());
-        verify(tokenProvider, never()).generateToken(any(), any(), any());
+        verify(tokenProvider, never()).generateToken(any(), any(), any(), any());
     }
 
     @Test
     void login_inactiveUser_throwsForbidden() {
-        User user = activeUser("nurse", User.Role.nurse);
+        User user = activeUser("nurse");
         user.setActive(false);
         when(userRepository.findByUsername("nurse")).thenReturn(Optional.of(user));
 
@@ -111,12 +116,12 @@ class AuthServiceTest {
 
     @Test
     void login_fallsBackToEmailLookup() {
-        User user = activeUser("reception", User.Role.receptionist);
+        User user = activeUser("reception");
         user.setEmail("reception@medos.test");
         when(userRepository.findByUsername("reception@medos.test")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("reception@medos.test")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
-        when(tokenProvider.generateToken(any(), any(), any())).thenReturn("tok");
+        when(tokenProvider.generateToken(any(), any(), any(), any())).thenReturn("tok");
 
         LoginResponse response = authService.login(login("reception@medos.test", "password"));
 
@@ -135,7 +140,7 @@ class AuthServiceTest {
 
     @Test
     void login_wrongPassword_recordsFailure() {
-        User user = activeUser("doctor", User.Role.doctor);
+        User user = activeUser("doctor");
         when(userRepository.findByUsername("doctor")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", user.getPasswordHash())).thenReturn(false);
 
@@ -145,10 +150,10 @@ class AuthServiceTest {
 
     @Test
     void login_success_resetsFailureCounter() {
-        User user = activeUser("admin", User.Role.admin);
+        User user = activeUser("admin");
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "$2a$10$hashed")).thenReturn(true);
-        when(tokenProvider.generateToken(any(), any(), any())).thenReturn("tok");
+        when(tokenProvider.generateToken(any(), any(), any(), any())).thenReturn("tok");
 
         authService.login(login("admin", "password"));
         verify(rateLimiter).reset("admin");

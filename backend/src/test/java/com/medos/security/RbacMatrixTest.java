@@ -1,6 +1,10 @@
 package com.medos.security;
 
+import com.medos.entity.Tenant;
+import com.medos.entity.TenantUser;
 import com.medos.entity.User;
+import com.medos.repository.TenantRepository;
+import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,6 +67,12 @@ class RbacMatrixTest {
     private UserRepository userRepository;
 
     @Autowired
+    private TenantRepository tenantRepository;
+
+    @Autowired
+    private TenantUserRepository tenantUserRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -77,40 +87,57 @@ class RbacMatrixTest {
 
     @BeforeEach
     void setUp() {
-        // Clean up and create test users for each role
+        tenantUserRepository.deleteAll();
+        tenantRepository.deleteAll();
         userRepository.deleteAll();
 
-        createUser("admin", "admin", User.Role.admin);
-        createUser("doctor", "doctor", User.Role.doctor);
-        createUser("nurse", "nurse", User.Role.nurse);
-        createUser("reception", "reception", User.Role.receptionist);
-        createUser("pharmacy", "pharmacy", User.Role.pharmacist);
-        createUser("billing", "billing", User.Role.billing);
+        Tenant tenant = Tenant.builder()
+                .name("RBAC Test Tenant")
+                .type(Tenant.TenantType.HOSPITAL)
+                .slug("rbac-test")
+                .active(true)
+                .build();
+        tenantRepository.save(tenant);
 
-        // Generate tokens
-        adminToken = getToken("admin", User.Role.admin);
-        doctorToken = getToken("doctor", User.Role.doctor);
-        nurseToken = getToken("nurse", User.Role.nurse);
-        receptionistToken = getToken("reception", User.Role.receptionist);
-        pharmacistToken = getToken("pharmacy", User.Role.pharmacist);
-        billingToken = getToken("billing", User.Role.billing);
+        createUser("admin", "admin", TenantUser.UserRole.admin);
+        createUser("doctor", "doctor", TenantUser.UserRole.doctor);
+        createUser("nurse", "nurse", TenantUser.UserRole.nurse);
+        createUser("reception", "reception", TenantUser.UserRole.receptionist);
+        createUser("pharmacy", "pharmacy", TenantUser.UserRole.pharmacist);
+        createUser("billing", "billing", TenantUser.UserRole.billing);
+
+        adminToken = getToken("admin");
+        doctorToken = getToken("doctor");
+        nurseToken = getToken("nurse");
+        receptionistToken = getToken("reception");
+        pharmacistToken = getToken("pharmacy");
+        billingToken = getToken("billing");
     }
 
-    private void createUser(String username, String password, User.Role role) {
+    private void createUser(String username, String password, TenantUser.UserRole role) {
         User user = User.builder()
                 .username(username)
                 .passwordHash(passwordEncoder.encode(password))
                 .fullName(username + " user")
                 .email(username + "@test.com")
-                .role(role)
                 .active(true)
                 .build();
         userRepository.save(user);
+
+        tenantUserRepository.save(TenantUser.builder()
+                .user(user)
+                .tenant(tenantRepository.findAll().iterator().next())
+                .role(role)
+                .build());
     }
 
-    private String getToken(String username, User.Role role) {
+    private String getToken(String username) {
         User user = userRepository.findByUsername(username).orElseThrow();
-        return tokenProvider.generateToken(user.getId(), username, role.name().toLowerCase());
+        TenantUser tenantUser = tenantUserRepository
+                .findByUserIdAndTenantId(user.getId(), tenantRepository.findAll().iterator().next().getId())
+                .orElseThrow();
+        return tokenProvider.generateToken(
+                user.getId(), username, tenantUser.getRole().name(), tenantUser.getTenant().getId());
     }
 
     private MvcResult performRequest(String method, String url, String token, Object body) throws Exception {

@@ -20,11 +20,10 @@ import java.util.UUID;
  * <p>Single statement instead of streaming charges + payments into Java
  * and writing the patient row back, so the recalc scales and avoids N+1.
  *
- * <p>Uses {@link Propagation#REQUIRES_NEW} so the async event listener
- * (which runs on its own thread without a parent transaction) can still
- * execute the recalc. Synchronous callers running inside an existing
- * transaction get the same behaviour as before: the recalc is committed
- * in a separate transaction after the originating write commits.
+ * <p>Uses {@link Propagation#MANDATORY} so the recalc only runs inside an
+ * existing transaction. The async event listener that triggers it is itself
+ * {@code @Transactional}, so the change is committed atomically with the
+ * originating write.
  */
 @Service
 public class PatientBalanceService {
@@ -32,7 +31,7 @@ public class PatientBalanceService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.MANDATORY)
     public void recalculateBalance(UUID patientId) {
         entityManager.createNativeQuery("""
                 UPDATE patients p
