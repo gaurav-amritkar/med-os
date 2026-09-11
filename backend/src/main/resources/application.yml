@@ -15,6 +15,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        session_factory:
+          statement_inspector: com.medos.config.TenantStatementInspector
     open-in-view: false
     show-sql: false
   data:
