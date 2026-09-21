@@ -9,6 +9,10 @@ export const authApi = {
   getMe: () => client.get('/users/me'),
 };
 
+export const onboardingApi = {
+  registerTenant: (data) => client.post('/onboarding/register', data),
+};
+
 export const patientApi = {
   list: (search) => client.get('/patients', { params: { search } }).then(unwrapPage),
   get: (id) => client.get(`/patients/${id}`),

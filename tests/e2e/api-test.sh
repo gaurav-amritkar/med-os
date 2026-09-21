@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 BASE_URL="${BASE_URL:-http://localhost:8080}"
-API_URL="$BASE_URL/api"
+API_URL="$BASE_URL/api/v1"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$TEST_DIR/../.." && pwd)"
 LOG_DIR="$TEST_DIR/logs"
@@ -267,6 +267,8 @@ test_patients() {
     log_test "Patient APIs"
     local token="$TOKEN_ADMIN"
     local reception_token="$TOKEN_RECEPTION"
+    local run_id
+    run_id="$(date +%s)"
     
     # List patients (all authenticated)
     local response
@@ -318,10 +320,11 @@ test_patients() {
         "name": "Test Patient",
         "age": 30,
         "gender": "male",
-        "phone": "9999999999",
-        "email": "test@example.com",
+        "phone": "9999'"${run_id: -6}"'",
+        "email": "test-'"$run_id"'@example.com",
         "bloodGroup": "O+",
-        "address": "Test Address"
+        "address": "Test Address",
+        "dpdpConsent": true
     }'
     
     response=$(api_call POST "/patients" "$new_patient" "$reception_token" 201)
@@ -961,10 +964,10 @@ test_health() {
     log_test "Health Check APIs"
     
     # Public health endpoint
-    local response
-    response=$(curl -sf "$BASE_URL/manage/health" 2>/dev/null)
+    local status
+    status=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/manage/health" 2>/dev/null || true)
     
-    if [[ $? -eq 0 ]]; then
+    if [[ "$status" == "200" ]]; then
         log_success "Health check endpoint"
         record_test "Health check" "PASS"
         ((TESTS_PASSED++))
@@ -975,9 +978,9 @@ test_health() {
     fi
     
     # Info endpoint (public)
-    response=$(curl -sf "$BASE_URL/manage/info" 2>/dev/null)
+    status=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/manage/info" 2>/dev/null || true)
     
-    if [[ $? -eq 0 ]]; then
+    if [[ "$status" == "200" ]]; then
         log_success "Info endpoint"
         record_test "Info endpoint" "PASS"
         ((TESTS_PASSED++))

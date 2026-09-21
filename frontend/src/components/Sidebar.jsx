@@ -9,6 +9,7 @@ const navItems = {
     { to: '/admissions', label: 'IPD / Wards', icon: '▣' },
     { to: '/pharmacy', label: 'Pharmacy', icon: '⬡' },
     { to: '/billing', label: 'Billing', icon: '₿' },
+    { to: '/onboarding', label: 'Onboarding', icon: '➕' },
   ],
   doctor: [
     { to: '/', label: 'Dashboard', icon: '◉' },
@@ -105,7 +106,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   padding: '11px 14px',
                   borderRadius: 'var(--radius-sm)',
                   color: active ? 'var(--text-white)' : 'var(--text-muted)',
-                  background: active ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                  background: active ? 'var(--primary-glow)' : 'transparent',
                   transition: 'all 0.2s',
                   fontSize: '0.9rem',
                   fontWeight: active ? 600 : 400,

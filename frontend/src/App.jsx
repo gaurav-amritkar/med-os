@@ -8,6 +8,7 @@ import Encounters from './pages/Encounters';
 import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
+import Onboarding from './pages/Onboarding';
 import useAuthStore from './store/authStore';
 
 function Root() {
@@ -21,6 +22,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/onboarding" element={<Onboarding />} />
 
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />

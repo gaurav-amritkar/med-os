@@ -9,7 +9,7 @@ export default function Header({ onMenuClick }) {
       left: 'var(--sidebar-width)',
       right: 0,
       height: 'var(--header-height)',
-      background: 'rgba(6, 6, 11, 0.8)',
+      background: 'var(--surface-solid)',
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
       borderBottom: '1px solid var(--border)',
