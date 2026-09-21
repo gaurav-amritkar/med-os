@@ -73,7 +73,8 @@ public class AuthService {
                 user.getUsername(),
                 user.getFullName(),
                 role.name(),
-                user.getSpecialization()
+                user.getSpecialization(),
+                tenantId
         );
     }
 }

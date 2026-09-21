@@ -57,7 +57,7 @@ export default function Login() {
         left: '-10%',
         width: '500px',
         height: '500px',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.15), transparent 70%)',
+        background: 'radial-gradient(circle, var(--primary-glow), transparent 70%)',
         borderRadius: '50%',
         pointerEvents: 'none',
       }} />
@@ -67,7 +67,7 @@ export default function Login() {
         right: '-10%',
         width: '400px',
         height: '400px',
-        background: 'radial-gradient(circle, rgba(34,211,238,0.1), transparent 70%)',
+        background: 'radial-gradient(circle, var(--info-bg), transparent 70%)',
         borderRadius: '50%',
         pointerEvents: 'none',
       }} />
@@ -75,7 +75,7 @@ export default function Login() {
       <div className="card" style={{ width: '100%', maxWidth: 420, padding: 40 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-1px' }}>
-            MED<span style={{ color: '#22d3ee' }}>OS</span>
+            MED<span style={{ color: 'var(--info)' }}>OS</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>
             Hospital Management System v3.0

@@ -9,6 +9,11 @@ spring:
     hikari:
       maximum-pool-size: 10
       connection-timeout: 20000
+  sql:
+    init:
+      # Idempotent sequence bootstrap (see db/sequences.sql); runs on every boot
+      mode: always
+      schema-locations: classpath:db/sequences.sql
   jpa:
     hibernate:
       ddl-auto: update

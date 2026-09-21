@@ -34,11 +34,11 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
 
-    // Endpoints that require idempotency keys
+    // Endpoints that require idempotency keys (must match controller request mappings)
     private static final Set<String> IDEMPOTENT_ENDPOINTS = Set.of(
-            "/api/billing/payments",
-            "/api/billing/invoices",
-            "/api/pharmacy/dispense"
+            "/api/v1/billing/payments",
+            "/api/v1/billing/invoices",
+            "/api/v1/pharmacy/dispense"
     );
 
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
@@ -114,7 +114,10 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     }
 
     private String getEndpointId(String path) {
-        // Convert path to endpoint identifier (e.g., "/api/billing/payments" -> "billing/payments")
+        // Convert path to endpoint identifier (e.g., "/api/v1/billing/payments" -> "billing/payments")
+        if (path.startsWith("/api/v1/")) {
+            return path.substring("/api/v1/".length());
+        }
         if (path.startsWith("/api/")) {
             return path.substring(5); // Remove "/api/"
         }
