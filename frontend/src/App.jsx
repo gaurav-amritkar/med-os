@@ -10,6 +10,7 @@ import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
 import Onboarding from './pages/Onboarding';
 import IconGallery from './pages/IconGallery';
+import ToastContainer from './components/ToastContainer';
 import useAuthStore from './store/authStore';
 
 function Root() {
@@ -21,6 +22,12 @@ function Root() {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* Mounted at app level, not inside Layout: /login and /onboarding sit
+          outside the shell, and a failed sign-in is the single most important
+          message the product emits. A live region scoped to one route means
+          the authentication error is never announced. */}
+      <ToastContainer />
+
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/onboarding" element={<Onboarding />} />
