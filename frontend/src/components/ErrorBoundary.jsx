@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import Icon from './icons';
 
 /**
  * Error Boundary component to catch JavaScript errors anywhere in the component tree.
@@ -15,86 +16,61 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    this.setState({
-      error: error,
-      errorInfo: errorInfo
-    });
-    
-    // Log error to console (in production, send to error reporting service)
+    this.setState({ error, errorInfo });
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // If custom fallback is provided, render it
-      if (this.props.fallback) {
-        return this.props.fallback(this.state.error, this.resetErrorBoundary);
-      }
-      
-      // Default fallback UI
-      return (
-        <div style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 20,
-          background: 'var(--bg-deep)',
-          color: 'var(--text)'
-        }}>
-          <div className="card" style={{ maxWidth: 500, padding: 32, textAlign: 'center' }}>
-            <div style={{
-              width: 80, height: 80, margin: '0 auto 24',
-              borderRadius: '50%', background: 'rgba(239,68,68,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: 12 }}>Something went wrong</h2>
-            <p style={{ color: 'var(--text-dim)', marginBottom: 24, lineHeight: 1.6 }}>
-              We're sorry, but an unexpected error occurred. Our team has been notified.
-            </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button 
-                className="btn-primary"
-                onClick={this.resetErrorBoundary}
-              >
-                Try Again
-              </button>
-              <button 
-                className="btn-secondary"
-                onClick={() => window.location.href = '/login'}
-              >
-                Go to Login
-              </button>
-            </div>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <details style={{ marginTop: 24, textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                <summary>Error Details (Development)</summary>
-                <pre style={{ 
-                  marginTop: 12, padding: 12, background: 'var(--surface-2)', 
-                  borderRadius: 'var(--radius-sm)', overflow: 'auto', maxHeight: 200 
-                }}>
-                  {this.state.error?.toString()}
-                  {this.state.errorInfo?.componentStack && `\n\n${this.state.errorInfo.componentStack}`}
-                </pre>
-              </details>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
   }
 
   resetErrorBoundary = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
   };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    if (this.props.fallback) {
+      return this.props.fallback(this.state.error, this.resetErrorBoundary);
+    }
+
+    return (
+      <div className="error-screen">
+        <div className="card error-card">
+          <div className="error-icon">
+            <Icon name="alert" size={36} />
+          </div>
+
+          <h2>This page stopped working</h2>
+          <p className="error-copy">
+            Reload the page to try again. If it keeps happening, tell your
+            system administrator.
+          </p>
+
+          <div className="error-actions">
+            <button type="button" className="btn-primary" onClick={this.resetErrorBoundary}>
+              Try again
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => { window.location.href = '/login'; }}
+            >
+              Go to sign in
+            </button>
+          </div>
+
+          {import.meta.env.DEV && this.state.error && (
+            <details className="error-details">
+              <summary>Error details (development only)</summary>
+              <pre>
+                {this.state.error?.toString()}
+                {this.state.errorInfo?.componentStack &&
+                  `\n\n${this.state.errorInfo.componentStack}`}
+              </pre>
+            </details>
+          )}
+        </div>
+      </div>
+    );
+  }
 }
 
 export default ErrorBoundary;

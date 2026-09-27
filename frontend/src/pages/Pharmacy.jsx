@@ -103,7 +103,7 @@ export default function Pharmacy() {
               <label>Quantity to Dispense</label>
               <input type="number" min={1} value={dispenseQty} onChange={(e) => setDispenseQty(parseInt(e.target.value) || 1)} />
             </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: 16 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--ink-faint)', marginBottom: 16 }}>
               System will auto-deduct using FEFO (First-Expired-First-Out) and post charges to patient ledger.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
@@ -121,18 +121,18 @@ export default function Pharmacy() {
               <h3>Pending Rx</h3>
             </div>
             {pendingRx.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.85rem' }}>No pending prescriptions</div>
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-faint)', fontSize: '0.85rem' }}>No pending prescriptions</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {pendingRx.map((rx) => (
                   <div key={rx.id} style={{
                     padding: '10px 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
                     fontSize: '0.85rem',
                   }}>
-                    <div style={{ fontWeight: 500, color: 'var(--text-white)' }}>Rx: {rx.medicineId?.slice(0, 8)}</div>
-                    <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{rx.dosage} {rx.frequency}</div>
+                    <div style={{ fontWeight: 500, color: 'var(--ink)' }}>Rx: {rx.medicineId?.slice(0, 8)}</div>
+                    <div style={{ color: 'var(--ink-faint)', fontSize: '0.8rem' }}>{rx.dosage} {rx.frequency}</div>
                     <button className="btn-success btn-sm" style={{ marginTop: 6, width: '100%', justifyContent: 'center' }}
                       onClick={() => { setDispenseRx(rx); setDispenseQty(1); }}>
                       Dispense
@@ -169,7 +169,7 @@ export default function Pharmacy() {
                   }}
                   onClick={() => selectMedicine(m)}>
                   {m.name}
-                  <span style={{ marginLeft: 'auto', color: 'var(--text-dim)', fontSize: '0.75rem' }}>₹{m.unitPrice}</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--ink-faint)', fontSize: '0.75rem' }}>₹{m.unitPrice}</span>
                 </button>
               ))}
             </div>
@@ -187,8 +187,8 @@ export default function Pharmacy() {
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div>
-                  <h3 style={{ color: 'var(--text-white)', fontSize: '1.1rem' }}>{selectedMed.name}</h3>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                  <h3 style={{ color: 'var(--ink)', fontSize: '1.1rem' }}>{selectedMed.name}</h3>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
                     {selectedMed.genericName} • {selectedMed.manufacturer} • {selectedMed.category} • ₹{selectedMed.unitPrice}/{selectedMed.unit}
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export default function Pharmacy() {
                     {batches.map((b) => (
                       <tr key={b.id}>
                         <td style={{ fontFamily: 'monospace' }}>{b.batchNo}</td>
-                        <td style={isExpiringSoon(b.expiryDate) ? { color: 'var(--danger)' } : {}}>
+                        <td style={isExpiringSoon(b.expiryDate) ? { color: 'var(--critical)' } : {}}>
                           {b.expiryDate}
                           {isExpiringSoon(b.expiryDate) && <span className="badge badge-danger" style={{ marginLeft: 8 }}>Expiring</span>}
                         </td>
@@ -218,7 +218,7 @@ export default function Pharmacy() {
                         <td>{b.supplier || '-'}</td>
                       </tr>
                     ))}
-                    {batches.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No batches. Add stock.</td></tr>}
+                    {batches.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No batches. Add stock.</td></tr>}
                   </tbody>
                 </table>
               )}
@@ -231,11 +231,11 @@ export default function Pharmacy() {
                       <tr key={t.id}>
                         <td>{new Date(t.performedAt).toLocaleDateString()}</td>
                         <td><span className={`badge badge-${t.transactionType === 'in' ? 'success' : t.transactionType === 'out' ? 'danger' : 'warning'}`}>{t.transactionType}</span></td>
-                        <td style={{ color: t.quantity < 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{t.quantity}</td>
+                        <td style={{ color: t.quantity < 0 ? 'var(--critical)' : 'var(--normal)', fontWeight: 600 }}>{t.quantity}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{t.referenceNo || '-'}</td>
                       </tr>
                     ))}
-                    {transactions.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No transactions</td></tr>}
+                    {transactions.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No transactions</td></tr>}
                   </tbody>
                 </table>
               )}

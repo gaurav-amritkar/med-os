@@ -80,7 +80,7 @@ export default function Admissions() {
       nicu: { bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.3)' },
       operation: { bg: 'rgba(236,72,153,0.1)', border: 'rgba(236,72,153,0.3)' },
     };
-    return colors[type] || { bg: 'rgba(255,255,255,0.05)', border: 'var(--border)' };
+    return colors[type] || { bg: 'rgba(255,255,255,0.05)', border: 'var(--line)' };
   };
 
   return (
@@ -97,11 +97,11 @@ export default function Admissions() {
         </div>
         <div className="stat-card" style={{ flex: 1 }}>
           <div className="stat-label">Occupied</div>
-          <div className="stat-value" style={{ color: 'var(--danger)' }}>{rooms.filter(r => r.occupied).length}</div>
+          <div className="stat-value" style={{ color: 'var(--critical)' }}>{rooms.filter(r => r.occupied).length}</div>
         </div>
         <div className="stat-card" style={{ flex: 1 }}>
           <div className="stat-label">Available</div>
-          <div className="stat-value" style={{ color: 'var(--success)' }}>{rooms.filter(r => !r.occupied).length}</div>
+          <div className="stat-value" style={{ color: 'var(--normal)' }}>{rooms.filter(r => !r.occupied).length}</div>
         </div>
         <div className="stat-card" style={{ flex: 1 }}>
           <div className="stat-label">Active IPD</div>
@@ -110,7 +110,7 @@ export default function Admissions() {
       </div>
 
       <div className="card">
-        <h3 style={{ color: 'var(--text-white)', marginBottom: 16 }}>Room Occupancy Map</h3>
+        <h3 style={{ color: 'var(--ink)', marginBottom: 16 }}>Room Occupancy Map</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
           {rooms.map((room) => {
             const admission = getAdmissionPatient(room.id);
@@ -118,31 +118,31 @@ export default function Admissions() {
             return (
               <div key={room.id} style={{
                 padding: 16,
-                borderRadius: 'var(--radius-sm)',
-                border: `1px solid ${room.occupied ? colors.border : 'var(--border)'}`,
+                borderRadius: 'var(--r-sm)',
+                border: `1px solid ${room.occupied ? colors.border : 'var(--line)'}`,
                 background: room.occupied ? colors.bg : 'var(--surface)',
                 cursor: room.occupied ? 'default' : 'pointer',
                 transition: 'all 0.2s',
               }}
               onClick={() => !room.occupied && openAdmit(room)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-white)', fontSize: '0.9rem' }}>{room.roomNumber}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '0.9rem' }}>{room.roomNumber}</span>
                   <span className={`badge ${room.occupied ? 'badge-danger' : 'badge-success'}`}>
                     {room.occupied ? 'Occupied' : 'Available'}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--ink-faint)' }}>
                   {room.ward} • {room.roomType.replace('_', ' ')}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--ink-faint)' }}>
                   ₹{room.dailyRate}/day
                 </div>
                 {admission && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-white)', fontWeight: 500 }}>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--ink)', fontWeight: 500 }}>
                       {getPatientName(admission.patientId)}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)' }}>
                       Since: {new Date(admission.admissionDate).toLocaleDateString()}
                     </div>
                     <button className="btn-ghost btn-sm" style={{ marginTop: 6, width: '100%', justifyContent: 'center', fontSize: '0.75rem' }}
@@ -195,11 +195,11 @@ export default function Admissions() {
               <button className="btn-ghost btn-sm" onClick={() => setDischarging(null)}>✕</button>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: 'var(--text-white)', fontWeight: 500 }}>Patient: {getPatientName(discharging.patientId)}</div>
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+              <div style={{ color: 'var(--ink)', fontWeight: 500 }}>Patient: {getPatientName(discharging.patientId)}</div>
+              <div style={{ color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
                 Room: {rooms.find(r => r.id === discharging.roomId)?.roomNumber}
               </div>
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+              <div style={{ color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
                 Admitted: {new Date(discharging.admissionDate).toLocaleDateString()}
               </div>
             </div>
@@ -208,7 +208,7 @@ export default function Admissions() {
               <textarea value={dischargeDiagnosis} onChange={(e) => setDischargeDiagnosis(e.target.value)}
                 rows={3} placeholder="Enter discharge diagnosis" required />
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginBottom: 16 }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--ink-faint)', marginBottom: 16 }}>
               Room charges will be auto-calculated and posted to patient billing ledger.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>

@@ -24,14 +24,14 @@ const initial = {
 };
 
 const fmt = {
-  label: { fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, display: 'block' },
+  label: { fontSize: '0.8rem', fontWeight: 600, color: 'var(--ink-muted)', marginBottom: 6, display: 'block' },
   input: {
     width: '100%',
     padding: '10px 12px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--border)',
-    background: 'var(--surface-solid)',
-    color: 'var(--text)',
+    borderRadius: 'var(--r-sm)',
+    border: '1px solid var(--line)',
+    background: 'var(--surface)',
+    color: 'var(--ink)',
     fontSize: '0.9rem',
     outline: 'none',
   },
@@ -39,16 +39,16 @@ const fmt = {
     width: 'min(620px, 92vw)',
     margin: '48px auto',
     padding: 28,
-    borderRadius: 'var(--radius-md)',
-    background: 'var(--surface-solid)',
-    border: '1px solid var(--border)',
-    boxShadow: 'var(--shadow-sm)',
+    borderRadius: 'var(--r-md)',
+    background: 'var(--surface)',
+    border: '1px solid var(--line)',
+    boxShadow: 'var(--shadow-1)',
   },
-  heading: { margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' },
-  sub: { margin: '6px 0 24px', fontSize: '0.85rem', color: 'var(--text-muted)' },
+  heading: { margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--ink)' },
+  sub: { margin: '6px 0 24px', fontSize: '0.85rem', color: 'var(--ink-muted)' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
   full: { gridColumn: '1 / -1' },
-  section: { marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--border)' },
+  section: { marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--line)' },
 };
 
 function Field({ label, grid, ...rest }) {
@@ -91,7 +91,7 @@ export default function Onboarding() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'var(--bg-deep)',
+        background: 'var(--canvas)',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
@@ -106,7 +106,7 @@ export default function Onboarding() {
               height: 52,
               margin: '0 auto 14px',
               borderRadius: 14,
-              background: 'var(--primary)',
+              background: 'var(--action)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -144,7 +144,7 @@ export default function Onboarding() {
           </div>
 
           <div style={fmt.section}>
-            <h2 style={{ fontSize: '1rem', margin: '0 0 14px', color: 'var(--text)' }}>First Admin Account</h2>
+            <h2 style={{ fontSize: '1rem', margin: '0 0 14px', color: 'var(--ink)' }}>First Admin Account</h2>
             <div style={fmt.grid}>
               <Field label="Username" value={form.adminUsername} onChange={set('adminUsername')} required />
               <Field label="Full Name" value={form.adminFullName} onChange={set('adminFullName')} />
@@ -160,9 +160,9 @@ export default function Onboarding() {
               marginTop: 24,
               width: '100%',
               padding: '12px 16px',
-              borderRadius: 'var(--radius-sm)',
+              borderRadius: 'var(--r-sm)',
               border: 'none',
-              background: loading ? 'var(--text-dim)' : 'var(--primary)',
+              background: loading ? 'var(--ink-faint)' : 'var(--action)',
               color: 'white',
               fontSize: '0.95rem',
               fontWeight: 600,
@@ -173,9 +173,9 @@ export default function Onboarding() {
           </button>
         </form>
 
-        <p style={{ marginTop: 20, textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+        <p style={{ marginTop: 20, textAlign: 'center', fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
           Already have an account?{' '}
-          <Link to="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+          <Link to="/login" style={{ color: 'var(--action)', fontWeight: 600 }}>
             Sign in
           </Link>
         </p>

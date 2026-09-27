@@ -90,13 +90,13 @@ export default function Patients() {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }} className="profile-header">
             <div>
-              <h3 style={{ color: 'var(--text-white)', fontSize: '1.2rem', marginBottom: 4 }}>
+              <h3 style={{ color: 'var(--ink)', fontSize: '1.2rem', marginBottom: 4 }}>
                 {selectedPatient.name}
-                <span style={{ color: 'var(--text-dim)', fontWeight: 400, marginLeft: 8 }}>
+                <span style={{ color: 'var(--ink-faint)', fontWeight: 400, marginLeft: 8 }}>
                   ({selectedPatient.gender}, {selectedPatient.age})
                 </span>
               </h3>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
                 {selectedPatient.uhid} • {selectedPatient.phone} • {selectedPatient.email}
               </div>
               <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }} className="badges-row">
@@ -132,7 +132,7 @@ export default function Patients() {
                     <td><span className={`badge badge-${e.status === 'signed' ? 'success' : e.status === 'open' ? 'warning' : 'default'}`}>{e.status}</span></td>
                   </tr>
                 ))}
-                {patientEncounters.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No encounters</td></tr>}
+                {patientEncounters.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No encounters</td></tr>}
               </tbody>
             </table>
           )}
@@ -150,24 +150,24 @@ export default function Patients() {
                     <td><span className={`badge badge-${inv.status === 'paid' ? 'success' : inv.status === 'issued' ? 'warning' : inv.status === 'partially_paid' ? 'info' : 'default'}`}>{inv.status}</span></td>
                   </tr>
                 ))}
-                {patientInvoices.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No invoices</td></tr>}
+                {patientInvoices.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No invoices</td></tr>}
               </tbody>
             </table>
           )}
 
           {profileTab === 'history' && (
-            <div style={{ padding: 20, color: 'var(--text-dim)' }}>Full medical history view coming soon.</div>
+            <div style={{ padding: 20, color: 'var(--ink-faint)' }}>Full medical history view coming soon.</div>
           )}
         </div>
       ) : (
         <div className="card">
-          {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)' }}>Loading patients...</div> : (
+          {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)' }}>Loading patients...</div> : (
             <table>
               <thead><tr><th>UHID</th><th>Name</th><th>Age/Gender</th><th>Phone</th><th>Blood</th><th>DPDP</th><th>Outstanding</th><th></th></tr></thead>
               <tbody>
                 {patients.map((p) => (
                   <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => openPatientProfile(p)}>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{p.uhid}</td>
+                    <td style={{ fontFamily: 'monospace', color: 'var(--action)' }}>{p.uhid}</td>
                     <td style={{ fontWeight: 500 }}>{p.name}</td>
                     <td>{p.age}/{p.gender?.[0]?.toUpperCase()}</td>
                     <td>{p.phone}</td>
@@ -180,7 +180,7 @@ export default function Patients() {
                     </td>
                   </tr>
                 ))}
-                {patients.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>No patients found. Register a new patient.</td></tr>}
+                {patients.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--ink-faint)' }}>No patients found. Register a new patient.</td></tr>}
               </tbody>
             </table>
           )}

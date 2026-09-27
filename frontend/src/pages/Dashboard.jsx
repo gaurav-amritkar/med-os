@@ -30,11 +30,11 @@ export default function Dashboard() {
 
   const statCards = [
     { label: 'Active Admissions', value: stats?.activeAdmissions || 0, desc: 'Currently in care', color: 'var(--info)' },
-    { label: 'Today VIP Appts', value: stats?.todayAppointments || 0, desc: 'Scheduled for today', color: 'var(--success)' },
-    { label: 'Open Encounters', value: stats?.openEncounters || 0, desc: 'Pending physician sign-off', color: 'var(--warning)' },
-    { label: 'Total Patients', value: stats?.totalPatients || 0, desc: 'All registered patients', color: 'var(--primary)' },
-    { label: 'Pending Invoices', value: stats?.pendingInvoices || 0, desc: 'Awaiting payment', color: 'var(--danger)' },
-    { label: 'Expiring Stock', value: stats?.expiringStockCount || 0, desc: 'Items expiring in 30d', color: 'var(--warning)' },
+    { label: 'Today VIP Appts', value: stats?.todayAppointments || 0, desc: 'Scheduled for today', color: 'var(--normal)' },
+    { label: 'Open Encounters', value: stats?.openEncounters || 0, desc: 'Pending physician sign-off', color: 'var(--urgent)' },
+    { label: 'Total Patients', value: stats?.totalPatients || 0, desc: 'All registered patients', color: 'var(--action)' },
+    { label: 'Pending Invoices', value: stats?.pendingInvoices || 0, desc: 'Awaiting payment', color: 'var(--critical)' },
+    { label: 'Expiring Stock', value: stats?.expiringStockCount || 0, desc: 'Items expiring in 30d', color: 'var(--urgent)' },
   ];
 
   return (
@@ -46,7 +46,7 @@ export default function Dashboard() {
 
       <div className="grid-3" style={{ marginBottom: 32 }}>
         {loading ? (
-          <div className="stat-card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--text-dim)' }}>
+          <div className="stat-card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--ink-faint)' }}>
             Loading analytics...
           </div>
         ) : statCards.map((s) => (
@@ -95,16 +95,16 @@ export default function Dashboard() {
               {notifications.map((n) => (
                 <div key={n.id} style={{
                   padding: '12px 0',
-                  borderBottom: '1px solid var(--border-light)',
+                  borderBottom: '1px solid var(--rule)',
                   fontSize: '0.85rem',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontWeight: 500, color: 'var(--text-white)' }}>{n.title}</span>
+                    <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{n.title}</span>
                     <span className={`badge badge-${n.type === 'critical' ? 'danger' : n.type === 'warning' ? 'warning' : n.type === 'success' ? 'success' : 'info'}`}>
                       {n.type}
                     </span>
                   </div>
-                  <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>{n.message}</div>
+                  <div style={{ color: 'var(--ink-faint)', fontSize: '0.8rem' }}>{n.message}</div>
                 </div>
               ))}
             </div>
