@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "medicine_batches",
         uniqueConstraints = @UniqueConstraint(columnNames = {"medicine_id", "batch_no"}))
 @Getter
@@ -15,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MedicineBatch {
+public class MedicineBatch implements TenantOwned {
 
     @Id
     @GeneratedValue

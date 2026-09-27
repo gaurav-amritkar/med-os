@@ -1,10 +1,14 @@
 package com.medos.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.InvalidClaimException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.SignatureException;
+import io.jsonwebtoken.io.Decoders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +30,15 @@ public class JwtTokenProvider {
 
     @Value("${medos.security.jwt.issuer}")
     private String issuer;
+
+    public enum TokenValidationResult {
+        VALID,
+        EXPIRED,
+        INVALID_SIGNATURE,
+        MALFORMED,
+        WRONG_ISSUER,
+        WRONG_KEY
+    }
 
     @PostConstruct
     void validateConfig() {
@@ -81,12 +94,20 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
-    public boolean validateToken(String token) {
+    public TokenValidationResult validateToken(String token) {
         try {
             parseToken(token);
-            return true;
+            return TokenValidationResult.VALID;
+        } catch (ExpiredJwtException e) {
+            return TokenValidationResult.EXPIRED;
+        } catch (SignatureException e) {
+            return TokenValidationResult.INVALID_SIGNATURE;
+        } catch (MalformedJwtException e) {
+            return TokenValidationResult.MALFORMED;
+        } catch (InvalidClaimException e) {
+            return TokenValidationResult.WRONG_ISSUER;
         } catch (Exception e) {
-            return false;
+            return TokenValidationResult.WRONG_KEY;
         }
     }
 
@@ -107,4 +128,5 @@ public class JwtTokenProvider {
         }
         return role.toString();
     }
+
 }

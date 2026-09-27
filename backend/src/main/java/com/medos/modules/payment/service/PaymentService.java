@@ -114,8 +114,6 @@ public class PaymentService {
     public List<Payment> getInvoicePayments(UUID invoiceId) {
         return paymentRepository.findByInvoiceId(invoiceId);
     }
-
-    /** Sequence-backed payment number — monotonic across concurrent requests. */
     private String generatePaymentNumber() {
         return String.format("PAY-%06d", paymentRepository.getNextPaymentSeq());
     }

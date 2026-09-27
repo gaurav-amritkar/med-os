@@ -45,26 +45,25 @@ class JwtTokenProviderTest {
     @Test
     void validateToken_acceptsValidToken() {
         String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin", null);
-        assertTrue(tokenProvider.validateToken(token));
+        assertEquals(JwtTokenProvider.TokenValidationResult.VALID, tokenProvider.validateToken(token));
     }
 
     @Test
     void validateToken_rejectsTamperedToken() {
         String token = tokenProvider.generateToken(UUID.randomUUID(), "admin", "admin", null);
         String tampered = token.substring(0, token.length() - 4) + "AAAA";
-        assertFalse(tokenProvider.validateToken(tampered));
+        assertEquals(JwtTokenProvider.TokenValidationResult.INVALID_SIGNATURE, tokenProvider.validateToken(tampered));
     }
 
     @Test
     void validateToken_rejectsGarbage() {
-        assertFalse(tokenProvider.validateToken("not-a-jwt"));
+        assertEquals(JwtTokenProvider.TokenValidationResult.MALFORMED, tokenProvider.validateToken("not-a-jwt"));
     }
 
     @Test
     void validateToken_rejectsEmptyAndNull() {
-        assertFalse(tokenProvider.validateToken(""));
-        // validateToken wraps parse in try/catch and returns false on any failure, including null.
-        assertFalse(tokenProvider.validateToken(null));
+        assertEquals(JwtTokenProvider.TokenValidationResult.MALFORMED, tokenProvider.validateToken(""));
+        assertEquals(JwtTokenProvider.TokenValidationResult.MALFORMED, tokenProvider.validateToken(null));
     }
 
     @Test

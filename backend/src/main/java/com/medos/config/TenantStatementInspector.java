@@ -77,7 +77,9 @@ public class TenantStatementInspector implements StatementInspector {
         }
         if (min == Integer.MAX_VALUE) min = sql.length();
 
-        String predicate = alias + ".tenant_id = '" + tenantIdValue + "'";
+        // Escape single quotes in tenantIdValue to prevent SQL injection
+        String safeTenantId = tenantIdValue.replace("'", "''");
+        String predicate = alias + ".tenant_id = '" + safeTenantId + "'";
         StringBuilder sb = new StringBuilder(sql.length() + 40);
         sb.append(sql, 0, aliasEnd);
         if (whereIdx >= 0 && whereIdx == min) {

@@ -35,7 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = extractToken(request);
         try {
             if (StringUtils.hasText(token)) {
-                if (tokenProvider.validateToken(token)) {
+                if (tokenProvider.validateToken(token) == JwtTokenProvider.TokenValidationResult.VALID) {
                     Claims claims = tokenProvider.parseToken(token);
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
                     String role = claims.get("role").toString();
@@ -59,8 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Never leak token internals — log a sanitized message only.
             log.warn("JWT parsing failed on {} {}: {}", request.getMethod(), request.getRequestURI(), e.getClass().getSimpleName());
         } finally {
-            SecurityContextHolder.clearContext();
             TenantContext.clear();
+            SecurityContextHolder.clearContext();
         }
     }
 

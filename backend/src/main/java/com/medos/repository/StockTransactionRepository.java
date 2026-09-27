@@ -16,6 +16,7 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
     List<StockTransaction> findByPrescriptionId(UUID prescriptionId);
     List<StockTransaction> findByTransactionTypeOrderByPerformedAtDesc(StockTransaction.TransactionType type);
 
+    List<StockTransaction> findByMedicineIdOrderByPerformedAtDesc(UUID medicineId);
     Page<StockTransaction> findByMedicineId(UUID medicineId, Pageable pageable);
     Page<StockTransaction> findAll(Pageable pageable);
 }

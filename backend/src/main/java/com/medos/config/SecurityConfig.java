@@ -61,8 +61,10 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             )
+            // Register the JWT filter first so it can serve as a positioned anchor;
+            // idempotency then runs after authentication (replay check is post-auth).
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(idempotencyFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(idempotencyFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 
@@ -74,7 +76,10 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isEmpty())
                 .toList());
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
+        cfg.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "Idempotency-Key",
+                "X-Requested-With", "Accept", "Origin", "X-Tenant-Id"
+        ));
         cfg.setExposedHeaders(List.of("Authorization"));
         cfg.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

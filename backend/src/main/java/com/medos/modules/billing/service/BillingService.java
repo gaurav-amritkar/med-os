@@ -2,22 +2,28 @@ package com.medos.modules.billing.service;
 
 import com.medos.dto.InvoiceRequest;
 import com.medos.dto.PaymentRequest;
-import com.medos.entity.*;
+import com.medos.entity.Charge;
+import com.medos.entity.Invoice;
+import com.medos.entity.Patient;
+import com.medos.entity.Payment;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
-import com.medos.repository.*;
+import com.medos.repository.ChargeRepository;
+import com.medos.repository.InvoiceRepository;
+import com.medos.repository.PatientRepository;
+import com.medos.modules.billing.event.PatientBalanceEvent;
+import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import com.medos.util.MoneyUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
-import org.springframework.context.ApplicationEventPublisher;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +31,19 @@ public class BillingService {
 
     private final InvoiceRepository invoiceRepository;
     private final ChargeRepository chargeRepository;
-    private final PaymentRepository paymentRepository;
     private final PatientRepository patientRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final CurrentUserProvider currentUserProvider;
+    private final com.medos.modules.payment.service.PaymentService paymentService;
 
+    /**
+     * Generates an invoice from the patient's unbilled charges.
+     *
+     * <p>Marks the charges as {@code billed} and links them to the invoice via
+     * {@code charge.invoiceId}, so {@code getChargesByInvoice} returns the lines
+     * that make up the invoice.
+     */
     @Transactional
     public Invoice generateInvoice(InvoiceRequest request) {
         Patient patient = patientRepository.findById(request.getPatientId())
@@ -42,12 +56,12 @@ public class BillingService {
                     .filter(c -> c.getStatus() == Charge.Status.unbilled)
                     .toList();
             if (charges.isEmpty()) {
-                throw new BusinessException("No unbilled charges found for the given IDs");
+                throw new BusinessException("No unbilled charges found for patient");
             }
         } else {
             charges = chargeRepository.findByPatientIdAndStatus(request.getPatientId(), Charge.Status.unbilled);
             if (charges.isEmpty()) {
-                throw new BusinessException("No unbilled charges for patient");
+                throw new BusinessException("No unbilled charges found for patient");
             }
         }
 
@@ -55,99 +69,52 @@ public class BillingService {
                 .map(Charge::getAmount)
                 .reduce(BigDecimal.ZERO, MoneyUtil::add);
         BigDecimal gstTotal = charges.stream()
-                .map(c -> c.getGstAmount() != null ? c.getGstAmount() : BigDecimal.ZERO)
+                .map(Charge::getGstAmount)
                 .reduce(BigDecimal.ZERO, MoneyUtil::add);
-        BigDecimal discount = request.getDiscount() != null ? request.getDiscount() : BigDecimal.ZERO;
-        BigDecimal totalAmount = MoneyUtil.subtract(MoneyUtil.add(subtotal, gstTotal), discount);
+        BigDecimal totalAmount = charges.stream()
+                .map(Charge::getTotalAmount)
+                .reduce(BigDecimal.ZERO, MoneyUtil::add);
 
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(generateInvoiceNumber())
                 .patientId(request.getPatientId())
+                .tenantId(patient.getTenantId())
                 .invoiceDate(LocalDateTime.now())
-                .subtotal(MoneyUtil.normalize(subtotal))
-                .gstTotal(MoneyUtil.normalize(gstTotal))
-                .discount(MoneyUtil.normalize(discount))
-                .totalAmount(MoneyUtil.normalize(totalAmount))
-                .paidAmount(BigDecimal.ZERO)
+                .subtotal(subtotal)
+                .gstTotal(gstTotal)
+                .totalAmount(totalAmount)
                 .status(Invoice.Status.issued)
+                .generatedBy(currentUserProvider.getCurrentUserId())
                 .notes(request.getNotes())
                 .build();
-        Invoice saved = invoiceRepository.save(invoice);
 
-        // Link charges to invoice
-        for (Charge c : charges) {
-            c.setInvoiceId(saved.getId());
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        charges.forEach(c -> {
             c.setStatus(Charge.Status.billed);
-            chargeRepository.save(c);
-        }
+            c.setInvoiceId(savedInvoice.getId());
+        });
+        chargeRepository.saveAll(charges);
 
-        eventPublisher.publishEvent(new com.medos.modules.billing.event.PatientBalanceEvent(request.getPatientId()));
+        auditLogger.log("INVOICE_GENERATED", "Invoice", savedInvoice.getId().toString(),
+                null, "amount=" + totalAmount.stripTrailingZeros().toPlainString() + " charges=" + charges.size());
 
-        auditLogger.log("INVOICE", "Invoice", saved.getId().toString(),
-                null, "total=" + totalAmount + " charges=" + charges.size());
-        return saved;
-    }
+        // Balance counts billed|paid charges vs payments — invoicing moves charges
+        // into the counted set, so refresh the patient's outstanding balance.
+        eventPublisher.publishEvent(new PatientBalanceEvent(request.getPatientId()));
 
+        return savedInvoice;
+    }    /**
+     * Records a payment against an invoice.
+     *
+     * @deprecated payment processing moved to the payment bounded context —
+     *             use {@link com.medos.modules.payment.service.PaymentService#processPayment}.
+     *             Kept only until remaining callers are migrated.
+     */
+    @Deprecated(forRemoval = true)
     @Transactional
     public Payment recordPayment(PaymentRequest request) {
-        // Lock invoice for update to prevent concurrent payment issues
-        Invoice invoice = invoiceRepository.findByIdForUpdate(request.getInvoiceId())
-                .orElseThrow(() -> new ResourceNotFoundException("Invoice", request.getInvoiceId().toString()));
-        if (invoice.getStatus() == Invoice.Status.paid) {
-            throw new BusinessException("Invoice is already fully paid");
-        }
-
-        BigDecimal newPaid = invoice.getPaidAmount().add(request.getAmount());
-        if (newPaid.compareTo(invoice.getTotalAmount()) > 0) {
-            throw new BusinessException(
-                    "Payment exceeds invoice balance. Pending: " + invoice.getTotalAmount().subtract(invoice.getPaidAmount()));
-        }
-
-        Payment payment = Payment.builder()
-                .paymentNumber(generatePaymentNumber())
-                .invoiceId(request.getInvoiceId())
-                .patientId(invoice.getPatientId())
-                .amount(request.getAmount())
-                .paymentMethod(parsePaymentMethod(request.getPaymentMethod()))
-                .transactionRef(request.getTransactionRef())
-                .status(Payment.Status.success)
-                .receivedAt(LocalDateTime.now())
-                .notes(request.getNotes())
-                .build();
-        Payment saved = paymentRepository.save(payment);
-
-        invoice.setPaidAmount(newPaid);
-        if (newPaid.compareTo(invoice.getTotalAmount()) >= 0) {
-            invoice.setStatus(Invoice.Status.paid);
-            // Mark all charges as paid
-            List<Charge> charges = chargeRepository.findByInvoiceId(invoice.getId());
-            charges.forEach(c -> { c.setStatus(Charge.Status.paid); chargeRepository.save(c); });
-        } else {
-            invoice.setStatus(Invoice.Status.partially_paid);
-        }
-        invoiceRepository.save(invoice);
-
-        eventPublisher.publishEvent(new com.medos.modules.billing.event.PatientBalanceEvent(invoice.getPatientId()));
-
-        auditLogger.log("PAYMENT", "Payment", saved.getId().toString(),
-                null, "amount=" + request.getAmount() + " method=" + request.getPaymentMethod());
-        return saved;
-    }
-
-    /**
-     * Payment methods are stored as lowercase enum constants; accept any casing from
-     * clients ("UPI", "Cash", "CARD") and reject unknown values with a 400 instead of
-     * letting valueOf() throw a raw 500.
-     */
-    private Payment.PaymentMethod parsePaymentMethod(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new BusinessException("paymentMethod is required");
-        }
-        try {
-            return Payment.PaymentMethod.valueOf(raw.trim().toLowerCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Invalid payment method: " + raw.trim());
-        }
+        return paymentService.processPayment(request);
     }
 
     public List<Invoice> getPatientInvoices(UUID patientId) {
@@ -159,18 +126,19 @@ public class BillingService {
     }
 
     public List<Charge> getChargesByInvoice(UUID invoiceId) {
-        return chargeRepository.findByInvoiceId(invoiceId);
+        return chargeRepository.findByInvoiceIdOrderByPaidAtDesc(invoiceId);
     }
 
     public List<Payment> getPaymentsByInvoice(UUID invoiceId) {
-        return paymentRepository.findByInvoiceId(invoiceId);
+        return paymentService.getInvoicePayments(invoiceId);
     }
 
+    /**
+     * Sequence-backed invoice number — monotonic across concurrent requests,
+     * replacing the old System.currentTimeMillis() generator that produced
+     * duplicates when two invoices were created in the same millisecond.
+     */
     private String generateInvoiceNumber() {
-        return "INV-" + invoiceRepository.getNextInvoiceSeq();
-    }
-
-    private String generatePaymentNumber() {
-        return "PAY-" + paymentRepository.getNextPaymentSeq();
+        return String.format("INV-%06d", invoiceRepository.getNextInvoiceSeq());
     }
 }
