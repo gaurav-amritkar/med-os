@@ -6,11 +6,13 @@ import com.medos.repository.UserRepository;
 import com.medos.security.CurrentUserProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Component
 @RequiredArgsConstructor
@@ -19,6 +21,12 @@ public class AuditLogger {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
+
+    @Async
+    public CompletableFuture<Void> logAsync(String action, String entityType, String entityId, String oldValue, String newValue) {
+        log(action, entityType, entityId, oldValue, newValue);
+        return CompletableFuture.completedFuture(null);
+    }
 
     public void log(String action, String entityType, String entityId, String oldValue, String newValue) {
         UUID userId = currentUserProvider.getCurrentUserId();

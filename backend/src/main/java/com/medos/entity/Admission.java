@@ -7,13 +7,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "admissions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Admission {
+public class Admission implements TenantOwned {
 
     @Id
     @GeneratedValue

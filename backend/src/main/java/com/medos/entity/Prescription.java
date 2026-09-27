@@ -6,13 +6,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "prescriptions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Prescription {
+public class Prescription implements TenantOwned {
 
     @Id
     @GeneratedValue
@@ -52,6 +53,9 @@ public class Prescription {
 
     @Column(name = "prescribed_at")
     private LocalDateTime prescribedAt;
+
+    @Column(name = "dispensed_at")
+    private LocalDateTime dispensedAt;
 
     @PrePersist
     protected void onCreate() {

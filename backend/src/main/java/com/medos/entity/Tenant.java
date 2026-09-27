@@ -30,6 +30,9 @@ public class Tenant {
     private Boolean active;
 
     @ElementCollection
+    @CollectionTable(name = "tenant_settings", joinColumns = @JoinColumn(name = "tenant_id"))
+    @MapKeyColumn(name = "config_key", length = 64)
+    @Column(name = "config_value", columnDefinition = "TEXT")
     private Map<String, String> config;
 
     public enum TenantType {

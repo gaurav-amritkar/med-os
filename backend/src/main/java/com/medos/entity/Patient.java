@@ -8,26 +8,31 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "patients")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Patient {
+public class Patient implements TenantOwned {
 
     @Id
     @GeneratedValue
     @Column(columnDefinition = "uuid")
     private UUID id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     @Column(unique = true, nullable = false, length = 32)
     private String uhid;
 
-    @Column(name = "tenant_id", columnDefinition = "uuid")
+    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
     private UUID tenantId;
 
-    @Column(nullable = false, length = 128)
+    @Column(nullable = false, columnDefinition = "TEXT") // TEXT: AES-GCM output exceeds varchar(128)
     @Convert(converter = EncryptionUtil.class)
     private String name;
 
@@ -36,11 +41,11 @@ public class Patient {
     @Column(length = 16)
     private String gender;
 
-    @Column(length = 20)
+    @Column(columnDefinition = "TEXT") // TEXT: Base64(IV+ct+tag) ~60 chars exceeds varchar(20)
     @Convert(converter = EncryptionUtil.class)
     private String phone;
 
-    @Column(length = 128)
+    @Column(columnDefinition = "TEXT") // TEXT: AES-GCM output exceeds varchar(128)
     @Convert(converter = EncryptionUtil.class)
     private String email;
 
@@ -48,7 +53,7 @@ public class Patient {
     @Convert(converter = EncryptionUtil.class)
     private String address;
 
-    @Column(name = "blood_group", length = 16)
+    @Column(name = "blood_group", columnDefinition = "TEXT")
     @Convert(converter = EncryptionUtil.class)
     private String bloodGroup;
 

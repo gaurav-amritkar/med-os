@@ -66,6 +66,12 @@ public class DispenseService {
 
         int totalAvailable = batches.stream().mapToInt(MedicineBatch::getRemainingQty).sum();
 
+        // Validate total availability BEFORE mutating any batches — prevents partial
+        // stock deduction when the last batch has insufficient stock (#32).
+        if (totalAvailable < requiredQty) {
+            throw new BusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
+        }
+
         int remaining = requiredQty;
 
         for (MedicineBatch batch : batches) {
@@ -88,9 +94,8 @@ public class DispenseService {
             stockTransactionRepository.save(txn);
         }
 
-        if (remaining > 0) {
-            throw new BusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
-        }
+        // With the pre-check above, remaining should always be 0 here.
+        assert remaining == 0 : "Expected all stock to be deducted; remaining=" + remaining;
 
         // Auto-generate charge for billing.
         MedicineCatalog med = medicineCatalogRepository.findById(rx.getMedicineId())

@@ -6,13 +6,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "opd_queue")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class OpdQueue {
+public class OpdQueue implements TenantOwned {
 
     @Id
     @GeneratedValue

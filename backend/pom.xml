@@ -60,6 +60,13 @@
             <version>2.5.0</version>
         </dependency>
 
+        <!-- Flyway owns the schema (see database/README.md); Hibernate only validates.
+             Boot 3.2 manages Flyway 9.x, which includes PostgreSQL support in flyway-core. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

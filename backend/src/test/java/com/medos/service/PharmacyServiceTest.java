@@ -4,12 +4,12 @@ import com.medos.dto.DispenseRequest;
 import com.medos.entity.*;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
-import com.medos.modules.pharmacy.service.PharmacyService;
+import com.medos.modules.pharmacy.service.DispenseService;
+import com.medos.modules.pharmacy.service.InventoryService;
 import com.medos.repository.AuditLogRepository;
 import com.medos.repository.*;
 import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
-import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -30,6 +31,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * Covers the pharmacy bounded contexts: {@link DispenseService} (FEFO
+ * dispensing + charge posting) and {@link InventoryService} (stock-in).
+ */
 @ExtendWith(MockitoExtension.class)
 class PharmacyServiceTest {
 
@@ -44,14 +49,17 @@ class PharmacyServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private CurrentUserProvider currentUserProvider;
     private AuditLogger auditLogger; // real — uses mocked AuditLogRepository; Mockito cannot mock AuditLogger on JDK 26
-    @InjectMocks private PharmacyService pharmacyService;
+
+    @InjectMocks private DispenseService dispenseService;
+    @InjectMocks private InventoryService inventoryService;
 
     @BeforeEach
     void wireAuditLogger() {
         lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(UUID.randomUUID());
         lenient().when(userRepository.existsById(any(UUID.class))).thenReturn(true);
         auditLogger = new AuditLogger(auditLogRepository, userRepository, currentUserProvider);
-        ReflectionTestUtils.setField(pharmacyService, "auditLogger", auditLogger);
+        ReflectionTestUtils.setField(dispenseService, "auditLogger", auditLogger);
+        ReflectionTestUtils.setField(inventoryService, "auditLogger", auditLogger);
     }
 
     private static final UUID MEDICINE_ID = UUID.randomUUID();
@@ -122,7 +130,7 @@ class PharmacyServiceTest {
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
 
-        pharmacyService.dispense(dispenseRequest(15));
+        dispenseService.dispense(dispenseRequest(15));
 
         // FEFO: should consume entirely from the oldest-expiring batch.
         assertEquals(5, b1.getRemainingQty());
@@ -161,7 +169,7 @@ class PharmacyServiceTest {
         when(medicineCatalogRepository.findById(MEDICINE_ID))
                 .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("5.00"))));
 
-        pharmacyService.dispense(dispenseRequest(25));
+        dispenseService.dispense(dispenseRequest(25));
 
         assertEquals(0, b1.getRemainingQty());
         assertEquals(35, b2.getRemainingQty());
@@ -176,7 +184,7 @@ class PharmacyServiceTest {
                 .thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> pharmacyService.dispense(dispenseRequest(5)));
+                () -> dispenseService.dispense(dispenseRequest(5)));
         assertEquals(400, ex.getStatus().value());
         verify(prescriptionRepository, never()).save(any(Prescription.class));
         verify(chargeRepository, never()).save(any(Charge.class));
@@ -186,8 +194,8 @@ class PharmacyServiceTest {
     void dispense_insufficientStock_acrossBatchesThrows() {
         LocalDate today = LocalDate.now();
         MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 5);
-        // b1 partially fulfills; service mutates batch, saves txn, then throws.
-        // We assert it throws and the prescription is NOT marked dispensed.
+        // With the pre-check fix (#32), total available is validated BEFORE any
+        // batch mutations — so b1 should remain unchanged when stock is insufficient.
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
@@ -196,12 +204,12 @@ class PharmacyServiceTest {
         lenient().when(medicineCatalogRepository.findById(MEDICINE_ID)).thenReturn(Optional.of(med));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> pharmacyService.dispense(dispenseRequest(20)));
+                () -> dispenseService.dispense(dispenseRequest(20)));
         assertTrue(ex.getMessage().contains("Insufficient stock"));
         verify(prescriptionRepository, never()).save(any(Prescription.class));
         verify(chargeRepository, never()).save(any(Charge.class));
-        // Batch was still reduced before the failure (documented behavior).
-        assertEquals(0, b1.getRemainingQty());
+        // Batch NOT mutated — pre-check prevents partial deduction (#32 fix).
+        assertEquals(5, b1.getRemainingQty());
         // Medicine lookup happens only after stock is satisfied; assert it was never reached.
         verify(medicineCatalogRepository, never()).findById(any(UUID.class));
     }
@@ -213,7 +221,7 @@ class PharmacyServiceTest {
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(rx));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> pharmacyService.dispense(dispenseRequest(1)));
+                () -> dispenseService.dispense(dispenseRequest(1)));
         assertTrue(ex.getMessage().contains("already"));
         verifyNoInteractions(medicineBatchRepository);
     }
@@ -223,7 +231,7 @@ class PharmacyServiceTest {
         when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> pharmacyService.dispense(dispenseRequest(1)));
+                () -> dispenseService.dispense(dispenseRequest(1)));
         verifyNoInteractions(medicineBatchRepository);
     }
 
@@ -233,7 +241,7 @@ class PharmacyServiceTest {
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> pharmacyService.dispense(dispenseRequest(1)));
+                () -> dispenseService.dispense(dispenseRequest(1)));
         verifyNoInteractions(medicineBatchRepository);
     }
 
@@ -249,7 +257,7 @@ class PharmacyServiceTest {
             return b;
         });
 
-        MedicineBatch result = pharmacyService.addStock(
+        MedicineBatch result = inventoryService.addStock(
                 medicineId, "LOT-A", expiry, 50, new BigDecimal("12.50"), "Acme");
 
         assertEquals("LOT-A", result.getBatchNo());

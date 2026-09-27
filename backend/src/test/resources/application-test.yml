@@ -11,6 +11,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
     open-in-view: false
+  sql:
+    init:
+      # H2 has no sequences by default; UHID/invoice/payment numbering uses nextval().
+      # Idempotent script, shared with the prod/dev profiles.
+      mode: always
+      schema-locations: classpath:db/sequences.sql
   data:
     redis:
       host: localhost

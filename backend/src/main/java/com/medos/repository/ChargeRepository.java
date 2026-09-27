@@ -4,6 +4,8 @@ import com.medos.entity.Charge;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
@@ -12,6 +14,9 @@ import java.util.UUID;
 public interface ChargeRepository extends JpaRepository<Charge, UUID> {
     List<Charge> findByPatientId(UUID patientId);
     List<Charge> findByInvoiceId(UUID invoiceId);
+
+    @Query("SELECT c FROM Charge c WHERE c.invoice.id = :invoiceId ORDER BY c.paidAt DESC")
+    List<Charge> findByInvoiceIdOrderByPaidAtDesc(@Param("invoiceId") UUID invoiceId);
     List<Charge> findByStatus(Charge.Status status);
     List<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status);
     List<Charge> findByEncounterId(UUID encounterId);

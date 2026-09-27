@@ -7,10 +7,12 @@ import com.medos.entity.Invoice;
 import com.medos.entity.Patient;
 import com.medos.entity.Payment;
 import com.medos.modules.billing.service.BillingService;
+import com.medos.modules.payment.service.PaymentService;
 import com.medos.repository.*;
 import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -63,6 +65,7 @@ class BillingServiceConcurrencyTest {
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private UserRepository userRepository;
     @Mock private CurrentUserProvider currentUserProvider;
+    @Mock private PaymentService paymentService;
     private AuditLogger auditLogger;
     @InjectMocks private BillingService billingService;
 
@@ -127,8 +130,15 @@ class BillingServiceConcurrencyTest {
         }
     }
 
+    /**
+     * Payment numbering now lives in the payment bounded context
+     * ({@link PaymentService}); assert uniqueness against the real service.
+     */
     @Test
     void recordPayment_underConcurrency_producesUniquePaymentNumbers() throws Exception {
+        PaymentService paymentService = new PaymentService(
+                paymentRepository, invoiceRepository, currentUserProvider, eventPublisher, auditLogger);
+
         AtomicLong seq = new AtomicLong(1L);
         when(paymentRepository.getNextPaymentSeq()).thenAnswer(inv -> seq.getAndIncrement());
 
@@ -161,7 +171,7 @@ class BillingServiceConcurrencyTest {
                 req.setAmount(new BigDecimal("10.00"));
                 req.setPaymentMethod("CASH");
                 req.setTransactionRef("TX-" + i);
-                futures.add(CompletableFuture.supplyAsync(() -> billingService.recordPayment(req), pool));
+                futures.add(CompletableFuture.supplyAsync(() -> paymentService.processPayment(req), pool));
             }
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
 

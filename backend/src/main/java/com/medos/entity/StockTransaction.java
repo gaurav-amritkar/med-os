@@ -6,13 +6,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "stock_transactions")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StockTransaction {
+public class StockTransaction implements TenantOwned {
 
     @Id
     @GeneratedValue

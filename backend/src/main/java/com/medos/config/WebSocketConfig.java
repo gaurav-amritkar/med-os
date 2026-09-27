@@ -61,7 +61,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 if (token != null && token.startsWith("Bearer ")) {
                     token = token.substring(7);
                 }
-                if (token == null || !tokenProvider.validateToken(token)) {
+                if (token == null || tokenProvider.validateToken(token) != JwtTokenProvider.TokenValidationResult.VALID) {
                     // Reject the connection — anonymous clients must not reach the broker.
                     throw new IllegalArgumentException("Missing or invalid Authorization token on WebSocket CONNECT");
                 }

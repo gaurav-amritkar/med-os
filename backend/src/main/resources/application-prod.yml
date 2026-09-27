@@ -16,7 +16,9 @@ spring:
       schema-locations: classpath:db/sequences.sql
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway owns the schema; Hibernate validates it never mutates it.
+      # See database/README.md and database/migrations/V2__initial_schema.sql.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -63,7 +65,7 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: never
+      show-details: when_authorized
       probes:
         enabled: true
   health:
