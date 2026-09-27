@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import ToastContainer from './ToastContainer';
 import PatientBanner from './PatientBanner';
 
 export default function Layout() {
@@ -31,8 +30,6 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-
-      <ToastContainer />
     </>
   );
 }

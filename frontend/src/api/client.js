@@ -56,8 +56,19 @@ client.interceptors.response.use(
   (error) => {
     useLoadingStore.getState().stopLoading();
 
-    if (error.response?.status === 401) {
-      // Token expired or invalid - logout and redirect
+    const status = error.response?.status;
+    const url = error.config?.url ?? '';
+    const isLoginAttempt = url.includes('/auth/login');
+    const hadSession = Boolean(useAuthStore.getState().token);
+
+    // A 401 on the sign-in form means the credentials were wrong. That is a
+    // form outcome for the caller to render, not an expired session.
+    //
+    // Treating every 401 as an expiry caused window.location below to run
+    // before Login's catch block, so the error toast was destroyed by a full
+    // page reload before it could be seen or announced. It also logged out a
+    // user who had never signed in.
+    if (status === 401 && !isLoginAttempt && hadSession) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
     }
