@@ -58,3 +58,6 @@ env/
 # Local config overrides
 **/src/main/resources/application-local.yml
 **/src/main/resources/application-local.properties
+
+# Agent scratch space (design-companion mockups and session state)
+.superpowers/
