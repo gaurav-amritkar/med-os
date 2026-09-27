@@ -9,6 +9,7 @@ import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
 import Onboarding from './pages/Onboarding';
+import IconGallery from './pages/IconGallery';
 import useAuthStore from './store/authStore';
 
 function Root() {
@@ -35,6 +36,10 @@ export default function App() {
           <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Admissions /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
         </Route>
+
+        {/* Dev-only: inspection page for the hand-authored icon set. Stripped
+            from production builds by the import.meta.env.DEV guard. */}
+        {import.meta.env.DEV && <Route path="/icons" element={<IconGallery />} />}
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

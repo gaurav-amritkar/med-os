@@ -81,7 +81,7 @@ export default function Billing() {
       <div style={{ display: 'flex', gap: 20 }} className="billing-layout">
         <div style={{ width: 300, flexShrink: 0 }}>
           <div className="card">
-            <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>Patients</h3>
+            <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
             <input placeholder="Search..." style={{ marginBottom: 12 }}
               onChange={async (e) => {
                 if (e.target.value.length > 2) {
@@ -103,8 +103,8 @@ export default function Billing() {
                   }}
                   onClick={() => selectPatient(p)}>
                   <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{p.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                    Outstanding: <span style={{ color: (p.outstanding || 0) > 0 ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)' }}>
+                    Outstanding: <span style={{ color: (p.outstanding || 0) > 0 ? 'var(--critical)' : 'var(--normal)', fontWeight: 600 }}>
                       ₹{p.outstanding || 0}
                     </span>
                   </div>
@@ -124,15 +124,15 @@ export default function Billing() {
               <div className="card" style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div>
-                    <h3 style={{ color: 'var(--text-white)' }}>{selectedPatient.name}</h3>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
-                      {selectedPatient.uhid} • Outstanding: <strong style={{ color: 'var(--danger)' }}>₹{selectedPatient.outstanding || 0}</strong>
+                    <h3 style={{ color: 'var(--ink)' }}>{selectedPatient.name}</h3>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
+                      {selectedPatient.uhid} • Outstanding: <strong style={{ color: 'var(--critical)' }}>₹{selectedPatient.outstanding || 0}</strong>
                     </div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <h4 style={{ color: 'var(--text-white)', fontSize: '0.95rem' }}>
+                  <h4 style={{ color: 'var(--ink)', fontSize: '0.95rem' }}>
                     Unbilled Charges ({unbilledCharges.length})
                   </h4>
                   {unbilledCharges.length > 0 && (
@@ -162,7 +162,7 @@ export default function Billing() {
                       </tr>
                     ))}
                     {unbilledCharges.length === 0 && (
-                      <tr><td colSpan={showInvoiceModal ? 7 : 6} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>
+                      <tr><td colSpan={showInvoiceModal ? 7 : 6} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>
                         No unbilled charges. Pharmacy dispenses and room charges are auto-posted here.
                       </td></tr>
                     )}
@@ -171,17 +171,17 @@ export default function Billing() {
               </div>
 
               <div className="card">
-                <h3 style={{ color: 'var(--text-white)', marginBottom: 16, fontSize: '0.95rem' }}>Invoices</h3>
+                <h3 style={{ color: 'var(--ink)', marginBottom: 16, fontSize: '0.95rem' }}>Invoices</h3>
                 <table>
                   <thead><tr><th>Invoice #</th><th>Date</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {invoices.map((inv) => (
                       <tr key={inv.id}>
-                        <td style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{inv.invoiceNumber}</td>
+                        <td style={{ fontFamily: 'monospace', color: 'var(--action)' }}>{inv.invoiceNumber}</td>
                         <td>{new Date(inv.invoiceDate).toLocaleDateString()}</td>
                         <td style={{ fontWeight: 600 }}>₹{inv.totalAmount}</td>
-                        <td style={{ color: 'var(--success)' }}>₹{inv.paidAmount}</td>
-                        <td style={{ color: inv.totalAmount - inv.paidAmount > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                        <td style={{ color: 'var(--normal)' }}>₹{inv.paidAmount}</td>
+                        <td style={{ color: inv.totalAmount - inv.paidAmount > 0 ? 'var(--critical)' : 'var(--normal)' }}>
                           ₹{inv.totalAmount - inv.paidAmount}
                         </td>
                         <td><span className={`badge badge-${inv.status === 'paid' ? 'success' : inv.status === 'partially_paid' ? 'warning' : inv.status === 'issued' ? 'info' : 'default'}`}>{inv.status}</span></td>
@@ -198,7 +198,7 @@ export default function Billing() {
                         </td>
                       </tr>
                     ))}
-                    {invoices.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>No invoices yet</td></tr>}
+                    {invoices.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No invoices yet</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -214,7 +214,7 @@ export default function Billing() {
               <h2>Generate Invoice</h2>
               <button className="btn-ghost btn-sm" onClick={() => setShowInvoiceModal(false)}>✕</button>
             </div>
-            <p style={{ marginBottom: 16, color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+            <p style={{ marginBottom: 16, color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
               Select charges to bill, then generate a GST-compliant invoice.
             </p>
             <div className="form-group">
@@ -222,7 +222,7 @@ export default function Billing() {
               <input type="number" min={0} value={invoiceDiscount}
                 onChange={(e) => setInvoiceDiscount(parseFloat(e.target.value) || 0)} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
               <span>{selectedCharges.length} charges selected</span>
               <span>
                 Total: ₹{unbilledCharges.filter(c => selectedCharges.includes(c.id)).reduce((s, c) => s + parseFloat(c.totalAmount), 0)}
@@ -248,7 +248,7 @@ export default function Billing() {
               <h2>Record Payment</h2>
               <button className="btn-ghost btn-sm" onClick={() => setShowPaymentModal(null)}>✕</button>
             </div>
-            <div style={{ marginBottom: 16, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+            <div style={{ marginBottom: 16, fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
               Invoice: {showPaymentModal.invoiceNumber}<br />
               Total: ₹{showPaymentModal.totalAmount} • Pending: ₹{showPaymentModal.totalAmount - showPaymentModal.paidAmount}
             </div>

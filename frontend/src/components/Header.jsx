@@ -1,76 +1,38 @@
 import useAuthStore from '../store/authStore';
+import Icon from './icons';
 
-export default function Header({ onMenuClick }) {
+export default function Header({ onMenuClick, navOpen }) {
   const { user, logout } = useAuthStore();
+  const initial = user?.fullName?.[0] || user?.username?.[0] || 'U';
+
   return (
-    <header style={{
-      position: 'fixed',
-      top: 0,
-      left: 'var(--sidebar-width)',
-      right: 0,
-      height: 'var(--header-height)',
-      background: 'var(--surface-solid)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      borderBottom: '1px solid var(--border)',
-      zIndex: 'var(--z-header)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      padding: '0 28px',
-      gap: 16,
-    }}>
-      {/* Hamburger — visible only on mobile via CSS */}
+    <header className="topbar">
       <button
+        type="button"
         onClick={onMenuClick}
-        className="btn-ghost btn-icon hamburger-btn"
-        aria-label="Toggle menu"
-        style={{ marginRight: 'auto' }}
+        className="btn-secondary btn-icon hamburger-btn"
+        aria-label="Toggle navigation"
+        aria-expanded={navOpen ? 'true' : 'false'}
+        aria-controls="primary-nav"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
+        <Icon name="menu" size={20} />
       </button>
 
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-      }}>
-        <div className="user-info" style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-white)' }}>
-            {user?.fullName || user?.username}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'capitalize' }}>
-            {user?.role}
-          </div>
+      <div className="topbar__identity">
+        <div className="user-info">
+          <div className="topbar__name">{user?.fullName || user?.username}</div>
+          {user?.role && <div className="topbar__role">{user.role}</div>}
         </div>
-        <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: '50%',
-          background: 'var(--primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 700,
-          color: 'white',
-          fontSize: '0.85rem',
-          flexShrink: 0,
-        }}>
-          {user?.fullName?.[0] || user?.username?.[0] || 'U'}
-        </div>
-        <button
-          onClick={logout}
-          className="btn-ghost btn-sm logout-btn"
-          title="Logout"
-          style={{ marginLeft: 4 }}
-        >
-          ← Exit
-        </button>
       </div>
+
+      <div className="topbar__avatar" aria-hidden="true">
+        {initial}
+      </div>
+
+      <button type="button" onClick={logout} className="btn-secondary btn-sm logout-btn">
+        <Icon name="logout" size={16} />
+        Exit
+      </button>
     </header>
   );
 }

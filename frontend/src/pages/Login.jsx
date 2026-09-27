@@ -47,7 +47,7 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'var(--bg-deep)',
+      background: 'var(--canvas)',
       position: 'relative',
       overflow: 'hidden',
     }}>
@@ -57,7 +57,7 @@ export default function Login() {
         left: '-10%',
         width: '500px',
         height: '500px',
-        background: 'radial-gradient(circle, var(--primary-glow), transparent 70%)',
+        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
         borderRadius: '50%',
         pointerEvents: 'none',
       }} />
@@ -67,17 +67,17 @@ export default function Login() {
         right: '-10%',
         width: '400px',
         height: '400px',
-        background: 'radial-gradient(circle, var(--info-bg), transparent 70%)',
+        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
         borderRadius: '50%',
         pointerEvents: 'none',
       }} />
 
       <div className="card" style={{ width: '100%', maxWidth: 420, padding: 40 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-1px' }}>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--action)', letterSpacing: '-1px' }}>
             MED<span style={{ color: 'var(--info)' }}>OS</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>
             Hospital Management System v3.0
           </div>
         </div>
@@ -125,16 +125,16 @@ export default function Login() {
         <div style={{
           marginTop: 28,
           padding: 16,
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--surface-2)',
+          borderRadius: 'var(--r-sm)',
+          background: 'var(--sunken)',
           fontSize: '0.75rem',
-          color: 'var(--text-dim)',
+          color: 'var(--ink-faint)',
           lineHeight: 1.7,
         }}>
-          <strong style={{ color: 'var(--text-muted)' }}>Local Login Setup:</strong><br />
-          Fresh database: sign in as <strong style={{ color: 'var(--text-muted)' }}>admin</strong> with your
-          <strong style={{ color: 'var(--text-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
-          Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--text-muted)' }}>password</strong>.
+          <strong style={{ color: 'var(--ink-muted)' }}>Local Login Setup:</strong><br />
+          Fresh database: sign in as <strong style={{ color: 'var(--ink-muted)' }}>admin</strong> with your
+          <strong style={{ color: 'var(--ink-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
+          Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--ink-muted)' }}>password</strong>.
         </div>
       </div>
     </div>

@@ -109,7 +109,7 @@ export default function Encounters() {
 
       <div className="grid-2 encounter-layout" style={{ gridTemplateColumns: selectedPatient ? '320px 1fr' : '1fr' }}>
         <div className="card">
-          <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>Patients</h3>
+          <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
           <input placeholder="Search patients..." style={{ marginBottom: 12 }}
             onChange={async (e) => {
               if (e.target.value.length > 2) {
@@ -129,7 +129,7 @@ export default function Encounters() {
                 }}
                 onClick={() => startEncounter(p)}>
                 <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{p.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{p.uhid} • {p.gender}, {p.age}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)' }}>{p.uhid} • {p.gender}, {p.age}</div>
               </button>
             ))}
           </div>
@@ -139,7 +139,7 @@ export default function Encounters() {
           <div>
             {!activeEncounter ? (
               <div className="card">
-                <h3 style={{ marginBottom: 16, color: 'var(--text-white)' }}>New Encounter: {selectedPatient.name}</h3>
+                <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>New Encounter: {selectedPatient.name}</h3>
                 <div className="grid-2 vitals-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
                   {Object.entries({ bp: 'BP (mmHg)', pulse: 'Pulse (/min)', temp: 'Temp (°F)', spo2: 'SpO2 (%)', weight: 'Weight (kg)' }).map(([k, label]) => (
                     <div key={k} className="form-group">
@@ -164,8 +164,8 @@ export default function Encounters() {
               <div className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
                   <div>
-                    <h3 style={{ color: 'var(--text-white)' }}>Active Encounter</h3>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                    <h3 style={{ color: 'var(--ink)' }}>Active Encounter</h3>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--ink-faint)' }}>
                       Started: {new Date(activeEncounter.createdAt).toLocaleString()} • Status: <span className={`badge badge-${activeEncounter.status === 'open' ? 'warning' : 'success'}`}>{activeEncounter.status}</span>
                     </div>
                   </div>
@@ -181,7 +181,7 @@ export default function Encounters() {
                 </div>
 
                 <div style={{ marginBottom: 20 }}>
-                  <h4 style={{ color: 'var(--text-white)', marginBottom: 8, fontSize: '0.95rem' }}>AI Medicine Advisor</h4>
+                  <h4 style={{ color: 'var(--ink)', marginBottom: 8, fontSize: '0.95rem' }}>AI Medicine Advisor</h4>
                   <div style={{ display: 'flex', gap: 12 }} className="search-row">
                     <input placeholder="Describe condition for AI suggestions..." value={diagnosis}
                       onChange={(e) => setDiagnosis(e.target.value)} />
@@ -195,16 +195,16 @@ export default function Encounters() {
                       {aiSuggestions.map((s) => (
                         <div key={s.medicineId} style={{
                           padding: '12px 16px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--line)',
+                          borderRadius: 'var(--r-sm)',
                           background: 'var(--surface)',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
                         }} className="ai-suggestion-item">
                           <div>
-                            <div style={{ fontWeight: 500, color: 'var(--text-white)', fontSize: '0.9rem' }}>{s.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
+                            <div style={{ fontWeight: 500, color: 'var(--ink)', fontSize: '0.9rem' }}>{s.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--ink-faint)' }}>
                               {s.genericName} • {s.dosage || ''} {s.frequency || ''} • ₹{s.unitPrice}
                             </div>
                             {s.rationale && <div style={{ fontSize: '0.75rem', color: 'var(--info)', marginTop: 2 }}>{s.rationale}</div>}
@@ -220,7 +220,7 @@ export default function Encounters() {
                 </div>
 
                 <div>
-                  <h4 style={{ color: 'var(--text-white)', marginBottom: 8, fontSize: '0.95rem' }}>Manual Prescription</h4>
+                  <h4 style={{ color: 'var(--ink)', marginBottom: 8, fontSize: '0.95rem' }}>Manual Prescription</h4>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }} className="rx-manual-row">
                     <div style={{ flex: 2, minWidth: 180 }}>
                       <label>Medicine</label>
@@ -258,7 +258,7 @@ export default function Encounters() {
 
                 {prescriptions.length > 0 && (
                   <div style={{ marginTop: 20 }}>
-                    <h4 style={{ color: 'var(--text-white)', marginBottom: 8, fontSize: '0.95rem' }}>Current Prescriptions</h4>
+                    <h4 style={{ color: 'var(--ink)', marginBottom: 8, fontSize: '0.95rem' }}>Current Prescriptions</h4>
                     <table>
                       <thead><tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Status</th></tr></thead>
                       <tbody>
