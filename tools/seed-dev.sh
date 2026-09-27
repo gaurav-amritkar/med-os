@@ -22,5 +22,5 @@ if [[ "${1:-}" == "--local" ]]; then
 fi
 
 echo "Seeding dev data into the 'medos-db' container..."
-docker compose exec -T db psql -U "${DB_USER:-postgres}" -d "${DB_NAME:-medos}" -v ON_ERROR_STOP=1 -f - < "$SQL_FILE"
+docker compose exec -T db psql -U "${DB_USER:-medos}" -d "${DB_NAME:-medos}" -v ON_ERROR_STOP=1 -f - < "$SQL_FILE"
 echo "Done. Demo users: admin/doctor/nurse/reception/pharmacy/billing — all password 'password'."

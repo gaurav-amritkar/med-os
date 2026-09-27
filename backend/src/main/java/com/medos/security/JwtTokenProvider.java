@@ -106,6 +106,9 @@ public class JwtTokenProvider {
             return TokenValidationResult.MALFORMED;
         } catch (InvalidClaimException e) {
             return TokenValidationResult.WRONG_ISSUER;
+        } catch (IllegalArgumentException e) {
+            // JJWT asserts on null/empty token arguments before any parsing occurs.
+            return TokenValidationResult.MALFORMED;
         } catch (Exception e) {
             return TokenValidationResult.WRONG_KEY;
         }

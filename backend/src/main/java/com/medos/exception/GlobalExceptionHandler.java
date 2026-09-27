@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
@@ -83,6 +84,19 @@ public class GlobalExceptionHandler {
             "Invalid request parameters",
             req.getRequestURI(),
             errors
+        );
+        return ResponseEntity.badRequest().body(err);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest req) {
+        log.warn("Malformed request body: {}", ex.getMessage());
+        ApiError err = ApiError.of(
+            HttpStatus.BAD_REQUEST.value(),
+            HttpStatus.BAD_REQUEST.getReasonPhrase(),
+            "MALFORMED_REQUEST",
+            "Malformed JSON request body",
+            req.getRequestURI()
         );
         return ResponseEntity.badRequest().body(err);
     }

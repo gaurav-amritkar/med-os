@@ -15,7 +15,7 @@ public interface ChargeRepository extends JpaRepository<Charge, UUID> {
     List<Charge> findByPatientId(UUID patientId);
     List<Charge> findByInvoiceId(UUID invoiceId);
 
-    @Query("SELECT c FROM Charge c WHERE c.invoice.id = :invoiceId ORDER BY c.paidAt DESC")
+    @Query("SELECT c FROM Charge c WHERE c.invoiceId = :invoiceId ORDER BY c.createdAt DESC")
     List<Charge> findByInvoiceIdOrderByPaidAtDesc(@Param("invoiceId") UUID invoiceId);
     List<Charge> findByStatus(Charge.Status status);
     List<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status);

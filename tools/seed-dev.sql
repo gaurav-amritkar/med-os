@@ -54,12 +54,12 @@ FROM demo_roles r
 JOIN users u ON u.username = r.username
 ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role;
 
-INSERT INTO patients (id, tenant_id, uhid, name, age, gender, phone, email, blood_group, dpdp_consent, dpdp_consent_at) VALUES
-('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'UHID000001', 'Rahul Mehta', 34, 'male', '9876543210', 'rahul@example.com', 'B+', TRUE, CURRENT_TIMESTAMP),
-('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000001', 'UHID000002', 'Anita Joshi', 28, 'female', '9876543211', 'anita@example.com', 'O+', TRUE, CURRENT_TIMESTAMP),
-('00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000001', 'UHID000003', 'Suresh Reddy', 62, 'male', '9876543212', 'suresh@example.com', 'A+', TRUE, CURRENT_TIMESTAMP),
-('00000000-0000-4000-8000-000000000204', '00000000-0000-4000-8000-000000000001', 'UHID000004', 'Kavita Nair', 45, 'female', '9876543213', 'kavita@example.com', 'AB+', TRUE, CURRENT_TIMESTAMP),
-('00000000-0000-4000-8000-000000000205', '00000000-0000-4000-8000-000000000001', 'UHID000005', 'Aman Khan', 22, 'male', '9876543214', 'aman@example.com', 'O-', FALSE, NULL)
+INSERT INTO patients (id, tenant_id, uhid, name, age, gender, phone, email, blood_group, dpdp_consent, dpdp_consent_at, version) VALUES
+('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'UHID000001', 'Rahul Mehta', 34, 'male', '9876543210', 'rahul@example.com', 'B+', TRUE, CURRENT_TIMESTAMP, 0),
+('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000001', 'UHID000002', 'Anita Joshi', 28, 'female', '9876543211', 'anita@example.com', 'O+', TRUE, CURRENT_TIMESTAMP, 0),
+('00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000001', 'UHID000003', 'Suresh Reddy', 62, 'male', '9876543212', 'suresh@example.com', 'A+', TRUE, CURRENT_TIMESTAMP, 0),
+('00000000-0000-4000-8000-000000000204', '00000000-0000-4000-8000-000000000001', 'UHID000004', 'Kavita Nair', 45, 'female', '9876543213', 'kavita@example.com', 'AB+', TRUE, CURRENT_TIMESTAMP, 0),
+('00000000-0000-4000-8000-000000000205', '00000000-0000-4000-8000-000000000001', 'UHID000005', 'Aman Khan', 22, 'male', '9876543214', 'aman@example.com', 'O-', FALSE, NULL, 0)
 ON CONFLICT (uhid) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
   name = EXCLUDED.name,
@@ -70,3 +70,28 @@ ON CONFLICT (uhid) DO UPDATE SET
   blood_group = EXCLUDED.blood_group,
   dpdp_consent = EXCLUDED.dpdp_consent,
   dpdp_consent_at = EXCLUDED.dpdp_consent_at;
+
+-- IPD room inventory (master data; no API exists to create rooms).
+-- version column is NOT NULL (optimistic locking, V2) — default 0.
+INSERT INTO rooms (id, tenant_id, room_number, ward, room_type, daily_rate, capacity, occupied, floor, version) VALUES
+('00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000001', 'G-101', 'General Ward A', 'general', 1500.00, 1, FALSE, 1, 0),
+('00000000-0000-4000-8000-000000000302', '00000000-0000-4000-8000-000000000001', 'G-102', 'General Ward A', 'general', 1500.00, 1, FALSE, 1, 0),
+('00000000-0000-4000-8000-000000000303', '00000000-0000-4000-8000-000000000001', 'S-201', 'Semi-Private Wing', 'semi_private', 3000.00, 1, FALSE, 2, 0),
+('00000000-0000-4000-8000-000000000304', '00000000-0000-4000-8000-000000000001', 'P-301', 'Private Wing', 'private_room', 5000.00, 1, FALSE, 3, 0),
+('00000000-0000-4000-8000-000000000305', '00000000-0000-4000-8000-000000000001', 'ICU-01', 'Intensive Care', 'icu', 12000.00, 1, FALSE, 4, 0)
+ON CONFLICT (room_number) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  ward = EXCLUDED.ward,
+  room_type = EXCLUDED.room_type,
+  daily_rate = EXCLUDED.daily_rate,
+  capacity = EXCLUDED.capacity,
+  floor = EXCLUDED.floor;
+
+-- Keep uhid_seq safely above every seeded patient UHID (V1 creates it with
+-- START WITH 1). Without this, the first API-registered patient gets UHID000001
+-- and dies on patients_uhid_key. Dev-only script; fresh prod DBs are unaffected.
+SELECT setval('uhid_seq',
+  GREATEST(
+    5,
+    COALESCE((SELECT MAX(NULLIF(regexp_replace(uhid, '\D', '', 'g'), '')::bigint) FROM patients), 0)
+  ));
