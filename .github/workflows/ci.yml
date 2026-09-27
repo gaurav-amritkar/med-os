@@ -67,6 +67,7 @@ jobs:
       DB_PASSWORD: ci-database-password
       REDIS_PASSWORD: ci-redis-password
       JWT_SECRET: __REDACTED_64__
+      PII_ENCRYPTION_KEY: __REDACTED_44__
       CORS_ORIGINS: http://localhost:8080
     steps:
       - uses: actions/checkout@v4
