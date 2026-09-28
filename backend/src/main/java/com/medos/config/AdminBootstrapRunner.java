@@ -1,6 +1,10 @@
 package com.medos.config;
 
+import com.medos.entity.Tenant;
+import com.medos.entity.TenantUser;
 import com.medos.entity.User;
+import com.medos.repository.TenantRepository;
+import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -10,17 +14,29 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Bootstraps the first admin account for production deployments.
+ * Bootstraps the first admin account and the hospital it administers.
  *
  * Flyway no longer ships any users (V3 removes the demo accounts), so a fresh
  * production database has no way to log in. Deployments set
  * {@code BOOTSTRAP_ADMIN_PASSWORD} (one-time) and this runner creates the
  * {@code admin} user on first startup only.
  *
- * If no admin exists and the env var is unset, startup logs a clear error —
- * the operator must rotate in a bootstrap password before the system can be used.
+ * <p>A tenant is created alongside the user, and the user is made an admin of
+ * it. This is not optional: {@code patients.tenant_id} is NOT NULL, and
+ * {@code TenantEntityListener} stamps that column from the tenant claim in the
+ * JWT. An admin with no tenant membership produces a token with no tenant, so
+ * every tenant-scoped insert fails with a not-null violation. An administrator
+ * who does not belong to a hospital is also not a meaningful record in a
+ * hospital system.
+ *
+ * <p>Tenant identity is configurable so a hospital can be named correctly on
+ * first boot rather than being renamed later.
+ *
+ * <p>If no admin exists and the password env var is unset, startup logs a clear
+ * error — the operator must set a bootstrap password before the system is used.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,13 +44,24 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AdminBootstrapRunner.class);
 
+    private static final String DEFAULT_TENANT_SLUG = "primary";
+
     private final UserRepository userRepository;
+    private final TenantRepository tenantRepository;
+    private final TenantUserRepository tenantUserRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${medos.bootstrap.admin-password:}")
     private String bootstrapPassword;
 
+    @Value("${medos.bootstrap.tenant-name:MedOS Hospital}")
+    private String bootstrapTenantName;
+
+    @Value("${medos.bootstrap.tenant-slug:primary}")
+    private String bootstrapTenantSlug;
+
     @Override
+    @Transactional
     public void run(ApplicationArguments args) {
         boolean adminExists = userRepository.findByUsername("admin")
                 .map(u -> u.getActive())
@@ -60,24 +87,43 @@ public class AdminBootstrapRunner implements ApplicationRunner {
 
         // A legacy/inactive 'admin' may exist (e.g. deactivated demo account).
         // Reactivate it with the bootstrap password instead of violating the unique username.
-        userRepository.findByUsername("admin").ifPresentOrElse(
-                existing -> {
+        User admin = userRepository.findByUsername("admin")
+                .map(existing -> {
                     existing.setActive(true);
                     existing.setPasswordHash(passwordEncoder.encode(bootstrapPassword));
-                    userRepository.save(existing);
-                },
-                () -> {
-                    User admin = User.builder()
-                            .username("admin")
-                            .passwordHash(passwordEncoder.encode(bootstrapPassword))
-                            .fullName("System Administrator")
-                            .email("admin@medos.local")
-                            .active(true)
-                            .build();
-                    userRepository.save(admin);
-                }
-        );
+                    return userRepository.save(existing);
+                })
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .username("admin")
+                        .passwordHash(passwordEncoder.encode(bootstrapPassword))
+                        .fullName("System Administrator")
+                        .email("admin@medos.local")
+                        .active(true)
+                        .build()));
 
-        log.warn("Created/activated initial admin user 'admin'. The bootstrap password should now be rotated/removed.");
+        // The hospital itself. Reuse the existing tenant on a re-run so a
+        // partially-completed bootstrap does not create a second hospital.
+        String slug = bootstrapTenantSlug == null || bootstrapTenantSlug.isBlank()
+                ? DEFAULT_TENANT_SLUG
+                : bootstrapTenantSlug.trim();
+
+        Tenant tenant = tenantRepository.findBySlug(slug)
+                .orElseGet(() -> tenantRepository.save(Tenant.builder()
+                        .name(bootstrapTenantName)
+                        .slug(slug)
+                        .type(Tenant.TenantType.HOSPITAL)
+                        .active(true)
+                        .build()));
+
+        if (tenantUserRepository.findByUserIdAndTenantId(admin.getId(), tenant.getId()).isEmpty()) {
+            tenantUserRepository.save(TenantUser.builder()
+                    .user(admin)
+                    .tenant(tenant)
+                    .role(TenantUser.UserRole.admin)
+                    .build());
+        }
+
+        log.warn("Created/activated initial admin user 'admin' as administrator of tenant '{}' (slug '{}'). "
+                + "The bootstrap password should now be rotated/removed.", tenant.getName(), tenant.getSlug());
     }
 }

@@ -14,12 +14,53 @@ export default function Encounters() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [medicines, setMedicines] = useState([]);
+  const [openEncounters, setOpenEncounters] = useState([]);
   const addToast = useToastStore((s) => s.addToast);
+
+  const loadOpenEncounters = () =>
+    encounterApi
+      .list({ status: 'open', size: 50 })
+      .then(({ data }) => setOpenEncounters(data || []))
+      .catch(() => {});
 
   useEffect(() => {
     patientApi.list().then(({ data }) => setPatients(data)).catch(() => {});
     pharmacyApi.listMedicines().then(({ data }) => setMedicines(data)).catch(() => {});
+    loadOpenEncounters();
   }, []);
+
+  /**
+   * Reopen an encounter that is already in progress so it can be reviewed and
+   * signed off. Loading the encounter is enough: the detail pane and the sign
+   * action both key off activeEncounter.
+   */
+  const resumeEncounter = async (row) => {
+    try {
+      const { data } = await encounterApi.get(row.id);
+      setActiveEncounter(data);
+      // patientName/patientUhid come from the worklist row, not from
+      // getEncounter, which returns the encounter alone.
+      setSelectedPatient({
+        id: data.patientId,
+        name: row.patientName,
+        uhid: row.patientUhid,
+      });
+      setDiagnosis(data.diagnosis || '');
+      setChiefComplaint(data.chiefComplaint || '');
+      if (data.vitalsJson) {
+        try {
+          setVitals(JSON.parse(data.vitalsJson));
+        } catch {
+          /* vitals were not stored as JSON; leave the form empty */
+        }
+      }
+      const { data: rx } = await encounterApi.listPrescriptions(row.id);
+      setPrescriptions(rx || []);
+      addToast(`Reopened encounter for ${row.patientName ?? 'patient'}`, 'info');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not open encounter', 'critical');
+    }
+  };
 
   const startEncounter = async (patient) => {
     setSelectedPatient(patient);
@@ -95,6 +136,7 @@ export default function Encounters() {
       const { data } = await encounterApi.sign(activeEncounter.id);
       setActiveEncounter(data);
       addToast('Encounter signed', 'success');
+      loadOpenEncounters();
     } catch (err) {
       addToast(err.response?.data?.message || 'Error', 'critical');
     }
@@ -106,6 +148,65 @@ export default function Encounters() {
         <h1>OPD / Encounters</h1>
         <p>Manage patient encounters, vitals, and prescriptions</p>
       </div>
+
+      {openEncounters.length > 0 && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="card-header">
+            <h3>
+              Awaiting sign-off
+              <span className="badge badge-warning" style={{ marginLeft: 8 }}>
+                {openEncounters.length}
+              </span>
+            </h3>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={loadOpenEncounters}
+            >
+              Refresh
+            </button>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>UHID</th>
+                <th>Complaint</th>
+                <th>Started</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {openEncounters.map((e) => (
+                <tr key={e.id}>
+                  <td>{e.patientName || 'Unknown patient'}</td>
+                  <td>
+                    <span className="uid">{e.patientUhid}</span>
+                  </td>
+                  <td>{e.chiefComplaint || '—'}</td>
+                  <td>
+                    <span className="num">
+                      {e.createdAt
+                        ? new Date(e.createdAt).toLocaleString('en-IN')
+                        : '—'}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      className="btn-primary btn-sm"
+                      onClick={() => resumeEncounter(e)}
+                    >
+                      Resume and sign
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="grid-2 encounter-layout" style={{ gridTemplateColumns: selectedPatient ? '320px 1fr' : '1fr' }}>
         <div className="card">

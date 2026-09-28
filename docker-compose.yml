@@ -21,8 +21,8 @@ services:
 
   migrate:
     build:
-      context: ./database
-      dockerfile: migrations.Dockerfile
+      context: .
+      dockerfile: database/migrations.Dockerfile
       pull: true
     image: medos-migrations:local
     depends_on:
@@ -60,8 +60,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       pull: true
     image: medos-backend:local
     depends_on:

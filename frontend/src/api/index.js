@@ -1,4 +1,5 @@
 import client from './client';
+import { withIdempotencyKey } from './idempotency';
 
 // Paginated list endpoints return PageResponse ({ content, ... }); the UI works with
 // plain arrays, so unwrap here. Tolerates a bare array for backward compatibility.
@@ -21,6 +22,10 @@ export const patientApi = {
 };
 
 export const encounterApi = {
+  // Worklist: status filter, `mine` restricts to encounters this clinician
+  // started. Without this there is no way back to an encounter you already
+  // started, since the only other routes are by id and by patient.
+  list: (params = {}) => client.get('/encounters', { params }).then(unwrapPage),
   create: (data) => client.post('/encounters', data),
   get: (id) => client.get(`/encounters/${id}`),
   listByPatient: (patientId) => client.get(`/encounters/patient/${patientId}`).then(unwrapPage),
@@ -36,7 +41,10 @@ export const pharmacyApi = {
   getMedicine: (id) => client.get(`/pharmacy/medicines/${id}`),
   getBatches: (id) => client.get(`/pharmacy/medicines/${id}/batches`),
   addStock: (id, data) => client.post(`/pharmacy/medicines/${id}/stock-in`, null, { params: data }),
-  dispense: (data) => client.post('/pharmacy/dispense', data),
+  // The backend requires Idempotency-Key here. Pass the same key to retry the
+  // same dispense safely; omit it for a new operation.
+  dispense: (data, idempotencyKey) =>
+    client.post('/pharmacy/dispense', data, withIdempotencyKey({ idempotencyKey })),
   getTransactions: (medicineId) => client.get('/pharmacy/transactions', { params: { medicineId } }),
 };
 
@@ -50,11 +58,14 @@ export const admissionApi = {
 };
 
 export const billingApi = {
-  createInvoice: (data) => client.post('/billing/invoices', data),
+  // Both require Idempotency-Key; see pharmacyApi.dispense.
+  createInvoice: (data, idempotencyKey) =>
+    client.post('/billing/invoices', data, withIdempotencyKey({ idempotencyKey })),
   getInvoices: (patientId) => client.get(`/billing/patients/${patientId}/invoices`),
   getUnbilled: (patientId) => client.get(`/billing/patients/${patientId}/unbilled`),
   getInvoiceCharges: (invoiceId) => client.get(`/billing/invoices/${invoiceId}/charges`),
-  recordPayment: (data) => client.post('/billing/payments', data),
+  recordPayment: (data, idempotencyKey) =>
+    client.post('/billing/payments', data, withIdempotencyKey({ idempotencyKey })),
   getPayments: (invoiceId) => client.get(`/billing/invoices/${invoiceId}/payments`),
 };
 

@@ -1,0 +1,13 @@
+# Build inputs only. database/migrations/ must NOT be ignored: it is the single
+# owner of the Flyway schema and both the backend and the migrate image read it.
+.git
+.github
+.superpowers
+.idea
+**/node_modules
+**/dist
+**/target
+**/.DS_Store
+docs
+requirements
+*.md

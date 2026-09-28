@@ -115,6 +115,22 @@
     </dependencies>
 
     <build>
+        <!--
+            database/migrations is the single owner of the Flyway migrations
+            (docs/adr/0005-migration-ownership.md). It lives outside this module
+            so the dedicated migrate image and the application read the same
+            file, and it is copied onto the classpath here rather than kept as a
+            second hand-maintained copy that could drift.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/../database/migrations</directory>
+                <targetPath>db/migration</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

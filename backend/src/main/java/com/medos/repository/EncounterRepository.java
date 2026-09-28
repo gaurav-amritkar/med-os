@@ -18,4 +18,14 @@ public interface EncounterRepository extends JpaRepository<Encounter, UUID> {
     Page<Encounter> findByPatientId(UUID patientId, Pageable pageable);
     Page<Encounter> findByDoctorId(UUID doctorId, Pageable pageable);
     Page<Encounter> findAll(Pageable pageable);
+
+    /**
+     * Encounters awaiting a given status, newest first. Backs the "reopen and
+     * sign off" worklist: without it a clinician who starts an encounter has no
+     * way to find it again unless they already know the patient.
+     */
+    Page<Encounter> findByStatusOrderByCreatedAtDesc(Encounter.Status status, Pageable pageable);
+
+    Page<Encounter> findByStatusAndDoctorIdOrderByCreatedAtDesc(
+            Encounter.Status status, UUID doctorId, Pageable pageable);
 }

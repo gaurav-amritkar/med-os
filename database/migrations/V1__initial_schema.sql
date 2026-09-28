@@ -1,16 +1,27 @@
 -- =============================================================================
--- V2__initial_schema.sql — Baseline schema for all MedOS tables.
+-- V1__initial_schema.sql — complete MedOS schema in a single migration.
 --
--- Generated from the JPA entities (PostgreSQL dialect) via SchemaExportTest,
--- then normalized: statements upper-cased, UUID primary keys given defaults so
--- inserts always carry a key even when the application layer omits one, and
--- hot-path indexes added for tenant filtering and common lookups.
+-- A fresh database is fully provisioned by running this one file; there is no
+-- ordered chain of migrations to replay. Consolidated from the former
+-- V1__init.sql (application sequences) and V2__initial_schema.sql (all tables),
+-- which were squashed on 2026-09-27 so that provisioning a database is a single
+-- step. Sequences are declared first because application tables are created
+-- immediately after and the repositories use them via nextval.
 --
--- V1 owns the application sequences; this migration owns the tables.
--- Schema changes after this file: add V3, V4, ... — never edit this one.
--- ==============================================================================
+-- Originally generated from the JPA entities (PostgreSQL dialect) via
+-- SchemaExportTest, then normalized: statements upper-cased, UUID primary keys
+-- given defaults so inserts always carry a key even when the application layer
+-- omits one, and hot-path indexes added for tenant filtering and common lookups.
+--
+-- This file is the single owner of the schema (see docs/adr/0005-migration-ownership.md).
+-- Schema changes after this file: add V2, V3, ... — never edit this one.
+-- ============================================================================
 
--- ---------------------------------------------------------------- domain: tenancy
+-- ---------------------------------------------------------------- application sequences
+CREATE SEQUENCE IF NOT EXISTS uhid_seq START WITH 1 INCREMENT BY 1 NO CYCLE;
+CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START WITH 1 INCREMENT BY 1 NO CYCLE;
+CREATE SEQUENCE IF NOT EXISTS payment_number_seq START WITH 1 INCREMENT BY 1 NO CYCLE;
+
 CREATE TABLE tenants (
     id            UUID          NOT NULL DEFAULT gen_random_uuid(),
     active        BOOLEAN,
