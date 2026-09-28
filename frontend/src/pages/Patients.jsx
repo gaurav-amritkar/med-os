@@ -30,9 +30,14 @@ export default function Patients() {
   };
 
   const handleSearch = (e) => {
-    setSearch(e.target.value);
-    if (e.target.value.length > 2) fetchPatients(e.target.value);
-    else if (!e.target.value) fetchPatients();
+    const term = e.target.value;
+    setSearch(term);
+    // Refetch for a real term, for an empty box, AND when the term shrinks back
+    // under the minimum length. The last case previously left the previous
+    // result set on screen, so deleting characters showed rows that no longer
+    // matched what was typed.
+    if (term.length > 2) fetchPatients(term);
+    else fetchPatients();
   };
 
   const handleRegister = async (e) => {

@@ -84,13 +84,12 @@ export default function Billing() {
             <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
             <input placeholder="Search..." style={{ marginBottom: 12 }}
               onChange={async (e) => {
-                if (e.target.value.length > 2) {
-                  const { data } = await patientApi.list(e.target.value);
-                  setPatients(data);
-                } else if (!e.target.value) {
-                  const { data } = await patientApi.list();
-                  setPatients(data);
-                }
+                const term = e.target.value;
+                // Refetch when the term drops under the minimum length too,
+                // otherwise the previous result set stays on screen and no
+                // longer matches what is typed.
+                const { data } = await patientApi.list(term.length > 2 ? term : undefined);
+                setPatients(data);
               }} />
             <div style={{ maxHeight: 500, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
               {patients.map((p) => (

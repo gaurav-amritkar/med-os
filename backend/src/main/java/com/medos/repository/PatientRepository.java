@@ -29,6 +29,18 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     Page<Patient> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
+    /**
+     * Blind-index lookups. The encrypted {@code name} column cannot be matched
+     * with LIKE, so search compares a keyed digest of the normalised name, and
+     * falls back to the plaintext {@code uhid} for partial matching.
+     */
+    Page<Patient> findByNameIndex(String nameIndex, Pageable pageable);
+
+    Page<Patient> findByUhidContainingIgnoreCase(String uhid, Pageable pageable);
+
+    /** Rows predating the blind index; backfilled on startup. */
+    List<Patient> findByNameIndexIsNull();
+
     Page<Patient> findAll(Pageable pageable);
 
     List<Patient> findByDpdpConsentFalse();

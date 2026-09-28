@@ -32,6 +32,15 @@ public class Patient implements TenantOwned {
     @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
     private UUID tenantId;
 
+    /**
+     * Keyed blind index of {@link #name} (see BlindIndexUtil). Deterministic so
+     * the encrypted name can be matched by equality, since AES-GCM ciphertext
+     * is randomised per value and cannot be searched. Not PII in the clear, but
+     * as sensitive as the name it indexes.
+     */
+    @Column(name = "name_index", length = 64)
+    private String nameIndex;
+
     @Column(nullable = false, columnDefinition = "TEXT") // TEXT: AES-GCM output exceeds varchar(128)
     @Convert(converter = EncryptionUtil.class)
     private String name;
