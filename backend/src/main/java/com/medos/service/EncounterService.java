@@ -11,6 +11,7 @@ import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.EncounterRepository;
+import com.medos.repository.PatientRepository;
 import com.medos.repository.PrescriptionRepository;
 import com.medos.repository.UserRepository;
 import com.medos.security.CurrentUserProvider;
@@ -33,6 +34,7 @@ public class EncounterService {
 
     private final EncounterRepository encounterRepository;
     private final PrescriptionRepository prescriptionRepository;
+    private final PatientRepository patientRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
     private final AuditLogger auditLogger;
@@ -69,6 +71,47 @@ public class EncounterService {
         Pageable pageable = PageRequest.of(page, size);
         Page<Encounter> result = encounterRepository.findByPatientId(patientId, pageable);
         return PageResponse.of(result.map(EntityDtoMapper::toDTO));
+    }
+
+    /**
+     * Encounter worklist, newest first.
+     *
+     * <p>This exists so a clinician can return to an encounter they started. The
+     * only ways to reach an encounter were by id or by patient, so an open
+     * encounter could not be found again unless the patient was already known.
+     *
+     * @param status  filter, or null for every encounter
+     * @param mine    true to restrict to encounters this clinician started
+     */
+    public PageResponse<EncounterDTO> list(Encounter.Status status, boolean mine, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Encounter> result;
+        if (status != null && mine) {
+            result = encounterRepository.findByStatusAndDoctorIdOrderByCreatedAtDesc(
+                    status, currentUserProvider.getCurrentUserId(), pageable);
+        } else if (status != null) {
+            result = encounterRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
+        } else if (mine) {
+            result = encounterRepository.findByDoctorId(
+                    currentUserProvider.getCurrentUserId(), pageable);
+        } else {
+            result = encounterRepository.findAll(pageable);
+        }
+        return PageResponse.of(result.map(this::toWorklistDTO));
+    }
+
+    /**
+     * Enrich an encounter with its patient identity for the worklist. Decryption
+     * of patient PII happens here, in the service, so the controller stays free of
+     * PII concerns.
+     */
+    private EncounterDTO toWorklistDTO(Encounter encounter) {
+        EncounterDTO dto = EntityDtoMapper.toDTO(encounter);
+        patientRepository.findById(encounter.getPatientId()).ifPresent(p -> {
+            dto.setPatientName(p.getName());
+            dto.setPatientUhid(p.getUhid());
+        });
+        return dto;
     }
 
     // Backward compatibility

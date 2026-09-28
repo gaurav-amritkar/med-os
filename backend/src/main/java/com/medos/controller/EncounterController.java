@@ -33,6 +33,16 @@ public class EncounterController {
         return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.createEncounter(request));
     }
 
+    @GetMapping
+    @PreAuthorize("hasAnyRole('DOCTOR','NURSE','ADMIN')")
+    public ResponseEntity<PageResponse<EncounterDTO>> list(
+            @RequestParam(required = false) com.medos.entity.Encounter.Status status,
+            @RequestParam(defaultValue = "false") boolean mine,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(encounterService.list(status, mine, page, size));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<EncounterDTO> getEncounter(@PathVariable UUID id) {

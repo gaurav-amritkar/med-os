@@ -15,6 +15,14 @@ import java.util.UUID;
 public class EncounterDTO {
     private UUID id;
     private UUID patientId;
+    /**
+     * Patient name and UHID, resolved for display only. Patient PII is encrypted
+     * at rest, so a worklist cannot be assembled from an encounter row alone —
+     * these are denormalised at read time and are never persisted on the
+     * encounter.
+     */
+    private String patientName;
+    private String patientUhid;
     private UUID doctorId;
     private UUID appointmentId;
     private String status;
