@@ -7,7 +7,9 @@ import com.medos.dto.EncounterRequest;
 import com.medos.dto.PrescriptionRequest;
 import com.medos.entity.Encounter;
 import com.medos.entity.MedicineCatalog;
+import com.medos.entity.Patient;
 import com.medos.entity.Prescription;
+import com.medos.entity.User;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.mapper.EntityDtoMapper;
@@ -21,6 +23,7 @@ import com.medos.util.AuditLogger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -64,19 +67,19 @@ public class EncounterService {
                 .build();
         Encounter saved = encounterRepository.save(encounter);
         auditLogger.log("CREATE", "Encounter", saved.getId().toString());
-        return EntityDtoMapper.toDTO(saved);
+        return toEncounterDTO(saved);
     }
 
     public EncounterDTO getEncounter(UUID id) {
         return encounterRepository.findById(id)
-                .map(EntityDtoMapper::toDTO)
+                .map(this::toEncounterDTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Encounter", id.toString()));
     }
 
     public PageResponse<EncounterDTO> listByPatient(UUID patientId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Encounter> result = encounterRepository.findByPatientId(patientId, pageable);
-        return PageResponse.of(result.map(EntityDtoMapper::toDTO));
+        return toPageResponse(result, pageable);
     }
 
     /**
@@ -103,29 +106,72 @@ public class EncounterService {
         } else {
             result = encounterRepository.findAll(pageable);
         }
-        return PageResponse.of(result.map(this::toWorklistDTO));
+        return toPageResponse(result, pageable);
+    }
+
+    private PageResponse<EncounterDTO> toPageResponse(Page<Encounter> page, Pageable pageable) {
+        return PageResponse.of(
+                new PageImpl<>(toEncounterDTOs(page.getContent()), pageable, page.getTotalElements()));
     }
 
     /**
-     * Enrich an encounter with its patient identity for the worklist. Decryption
-     * of patient PII happens here, in the service, so the controller stays free of
-     * PII concerns.
+     * Attaches the patient identity and the doctor's name to each encounter.
+     *
+     * <p>An encounter stores only ids, so every read path — the worklist, and the
+     * patient profile's encounter history — rendered a raw UUID where a name
+     * belongs, leaving no way to tell who had seen a patient. Names are resolved
+     * in one query per page rather than per row, and are never persisted on the
+     * encounter. A row whose patient or doctor has since been deleted still
+     * maps, with a null name for the reader to fall back on.
+     *
+     * <p>Decryption of patient PII happens here, in the service, so the
+     * controller stays free of PII concerns.
      */
-    private EncounterDTO toWorklistDTO(Encounter encounter) {
-        EncounterDTO dto = EntityDtoMapper.toDTO(encounter);
-        patientRepository.findById(encounter.getPatientId()).ifPresent(p -> {
-            dto.setPatientName(p.getName());
-            dto.setPatientUhid(p.getUhid());
-        });
-        return dto;
+    private List<EncounterDTO> toEncounterDTOs(List<Encounter> encounters) {
+        Map<UUID, Patient> patients = new HashMap<>();
+        List<UUID> patientIds = encounters.stream()
+                .map(Encounter::getPatientId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!patientIds.isEmpty()) {
+            patientRepository.findAllById(patientIds)
+                    .forEach(p -> patients.put(p.getId(), p));
+        }
+
+        Map<UUID, User> doctors = new HashMap<>();
+        List<UUID> doctorIds = encounters.stream()
+                .map(Encounter::getDoctorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (!doctorIds.isEmpty()) {
+            userRepository.findAllById(doctorIds)
+                    .forEach(u -> doctors.put(u.getId(), u));
+        }
+
+        return encounters.stream().map(encounter -> {
+            EncounterDTO dto = EntityDtoMapper.toDTO(encounter);
+            Patient patient = patients.get(encounter.getPatientId());
+            if (patient != null) {
+                dto.setPatientName(patient.getName());
+                dto.setPatientUhid(patient.getUhid());
+            }
+            User doctor = doctors.get(encounter.getDoctorId());
+            if (doctor != null) {
+                dto.setDoctorName(doctor.getFullName());
+            }
+            return dto;
+        }).toList();
+    }
+
+    private EncounterDTO toEncounterDTO(Encounter encounter) {
+        return toEncounterDTOs(List.of(encounter)).get(0);
     }
 
     // Backward compatibility
     public List<EncounterDTO> listByPatient(UUID patientId) {
-        return encounterRepository.findByPatientIdOrderByCreatedAtDesc(patientId)
-                .stream()
-                .map(EntityDtoMapper::toDTO)
-                .toList();
+        return toEncounterDTOs(encounterRepository.findByPatientIdOrderByCreatedAtDesc(patientId));
     }
 
     @Transactional
@@ -140,7 +186,7 @@ public class EncounterService {
         encounter.setSignedBy(signer);
         Encounter saved = encounterRepository.save(encounter);
         auditLogger.log("SIGN", "Encounter", saved.getId().toString());
-        return EntityDtoMapper.toDTO(saved);
+        return toEncounterDTO(saved);
     }
 
     @Transactional

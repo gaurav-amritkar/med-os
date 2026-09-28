@@ -23,6 +23,12 @@ public class EncounterDTO {
      */
     private String patientName;
     private String patientUhid;
+    /**
+     * Name of the clinician who created the encounter, resolved for display only
+     * and never persisted on the encounter. The raw id is kept alongside it so
+     * callers that need to filter or link still have it.
+     */
+    private String doctorName;
     private UUID doctorId;
     private UUID appointmentId;
     private String status;
