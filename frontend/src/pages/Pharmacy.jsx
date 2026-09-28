@@ -131,8 +131,20 @@ export default function Pharmacy() {
                     borderRadius: 'var(--r-sm)',
                     fontSize: '0.85rem',
                   }}>
-                    <div style={{ fontWeight: 500, color: 'var(--ink)' }}>Rx: {rx.medicineId?.slice(0, 8)}</div>
-                    <div style={{ color: 'var(--ink-faint)', fontSize: '0.8rem' }}>{rx.dosage} {rx.frequency}</div>
+                    {/* The medicine name, not the id: a pharmacist dispenses
+                        from this card and cannot read a UUID. */}
+                    <div style={{ fontWeight: 500, color: 'var(--ink)' }}>
+                      {rx.medicineName ?? 'Unknown medicine'}
+                    </div>
+                    {rx.medicineGenericName && (
+                      <div style={{ color: 'var(--ink-faint)', fontSize: '0.8rem' }}>
+                        {rx.medicineGenericName}
+                        {rx.medicineUnit ? ` · per ${rx.medicineUnit}` : ''}
+                      </div>
+                    )}
+                    <div style={{ color: 'var(--ink-faint)', fontSize: '0.8rem' }}>
+                      {rx.dosage} {rx.frequency}
+                    </div>
                     <button className="btn-success btn-sm" style={{ marginTop: 6, width: '100%', justifyContent: 'center' }}
                       onClick={() => { setDispenseRx(rx); setDispenseQty(1); }}>
                       Dispense

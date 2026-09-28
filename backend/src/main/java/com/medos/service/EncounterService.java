@@ -6,11 +6,13 @@ import com.medos.dto.PrescriptionDTO;
 import com.medos.dto.EncounterRequest;
 import com.medos.dto.PrescriptionRequest;
 import com.medos.entity.Encounter;
+import com.medos.entity.MedicineCatalog;
 import com.medos.entity.Prescription;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.EncounterRepository;
+import com.medos.repository.MedicineCatalogRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.repository.PrescriptionRepository;
 import com.medos.repository.UserRepository;
@@ -25,7 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -35,6 +40,7 @@ public class EncounterService {
     private final EncounterRepository encounterRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final PatientRepository patientRepository;
+    private final MedicineCatalogRepository medicineCatalogRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
     private final AuditLogger auditLogger;
@@ -160,21 +166,48 @@ public class EncounterService {
                 .build();
         Prescription saved = prescriptionRepository.save(rx);
         auditLogger.log("CREATE", "Prescription", saved.getId().toString());
-        return EntityDtoMapper.toDTO(saved);
+        return toPrescriptionDTOs(List.of(saved)).get(0);
     }
 
     public List<PrescriptionDTO> listPrescriptions(UUID encounterId) {
-        return prescriptionRepository.findByEncounterId(encounterId)
-                .stream()
-                .map(EntityDtoMapper::toDTO)
-                .toList();
+        return toPrescriptionDTOs(prescriptionRepository.findByEncounterId(encounterId));
     }
 
     public List<PrescriptionDTO> pendingPrescriptions() {
-        return prescriptionRepository.findByStatus(Prescription.Status.pending)
-                .stream()
-                .map(EntityDtoMapper::toDTO)
+        return toPrescriptionDTOs(prescriptionRepository.findByStatus(Prescription.Status.pending));
+    }
+
+    /**
+     * Attaches the medicine name to each prescription.
+     *
+     * <p>A prescription stores only the medicine id, so without this the OPD
+     * prescription list and the pharmacy pending queue both render a raw UUID
+     * where the drug name belongs — a pharmacist cannot dispense from a UUID.
+     * The medicines are fetched in one query per page rather than per row, and
+     * a prescription whose medicine was deleted still maps, with a null name.
+     */
+    private List<PrescriptionDTO> toPrescriptionDTOs(List<Prescription> prescriptions) {
+        Map<UUID, MedicineCatalog> medicines = new HashMap<>();
+        List<UUID> ids = prescriptions.stream()
+                .map(Prescription::getMedicineId)
+                .filter(Objects::nonNull)
+                .distinct()
                 .toList();
+        if (!ids.isEmpty()) {
+            medicineCatalogRepository.findAllById(ids)
+                    .forEach(m -> medicines.put(m.getId(), m));
+        }
+
+        return prescriptions.stream().map(rx -> {
+            PrescriptionDTO dto = EntityDtoMapper.toDTO(rx);
+            MedicineCatalog medicine = medicines.get(rx.getMedicineId());
+            if (medicine != null) {
+                dto.setMedicineName(medicine.getName());
+                dto.setMedicineGenericName(medicine.getGenericName());
+                dto.setMedicineUnit(medicine.getUnit());
+            }
+            return dto;
+        }).toList();
     }
 
     // Internal method to get entity for operations

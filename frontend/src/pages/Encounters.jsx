@@ -364,8 +364,22 @@ export default function Encounters() {
                       <tbody>
                         {prescriptions.map((rx) => (
                           <tr key={rx.id}>
-                            <td>{rx.medicineId}</td>
-                            <td>{rx.dosage}</td>
+                            {/* The medicine name, not the id: a prescriber
+                                reviewing this list cannot read a UUID. */}
+                            <td>
+                              {rx.medicineName ?? 'Unknown medicine'}
+                              {rx.medicineGenericName && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)' }}>
+                                  {rx.medicineGenericName}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              {rx.dosage}
+                              {rx.medicineUnit && (
+                                <span style={{ color: 'var(--ink-faint)' }}> ({rx.medicineUnit})</span>
+                              )}
+                            </td>
                             <td>{rx.frequency}</td>
                             <td><span className={`badge badge-${rx.status === 'dispensed' ? 'success' : 'warning'}`}>{rx.status}</span></td>
                           </tr>
