@@ -1,6 +1,8 @@
 package com.medos.service;
 
 import com.medos.modules.billing.service.PatientBalanceService;
+import com.medos.modules.billing.event.PatientBalanceEvent;
+import com.medos.modules.billing.event.PatientBalanceEventListener;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,7 +12,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.annotation.Propagation;
 
 import java.util.UUID;
@@ -80,27 +81,52 @@ class PatientBalanceServiceTest {
     }
 
     @Test
-    void recalculateBalance_isMandatory_propagation() throws Exception {
+    void recalculateBalance_usesRequiresNew_propagation() throws Exception {
         // Reflection on the class itself, not the proxy, to read the @Transactional metadata.
-        // The annotation's propagation() value is the contract we are locking in.
+        //
+        // This asserted MANDATORY until 2026-09-28, and the requirement it encoded
+        // was false. The only production caller is PatientBalanceEventListener,
+        // which is @Async with @TransactionalEventListener(AFTER_COMMIT): there is
+        // no enclosing transaction to join, and there cannot be, because the event
+        // is published only after the charge/payment transaction has committed.
+        // MANDATORY therefore threw IllegalTransactionStateException on every
+        // invocation and patients.outstanding silently went stale.
+        //
+        // REQUIRES_NEW is what the async caller actually needs: its own transaction,
+        // committed independently of the already-committed charge it is reconciling.
         var method = PatientBalanceService.class
                 .getDeclaredMethod("recalculateBalance", UUID.class);
         var annotation = method.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
         assertNotNull(annotation, "@Transactional must be present");
-        assertEquals(Propagation.MANDATORY, annotation.propagation(),
-                "must require an enclosing transaction so balance updates are atomic with the charge/payment insert");
+        assertEquals(Propagation.REQUIRES_NEW, annotation.propagation(),
+                "the only caller is @Async AFTER_COMMIT, so it must start its own transaction "
+                        + "rather than require one that cannot exist");
     }
 
     @Test
-    void recalculateBalance_withoutTransaction_throws() {
-        // This is the runtime enforcement of Propagation.MANDATORY when called outside a tx context.
-        // Without Spring's transaction infrastructure around the call, a real invocation would fail
-        // with IllegalTransactionStateException. We assert the contract by trying to call through a
-        // real proxy would error - here we simply document the behavior: the method itself is a no-arg
-        // delegate to entityManager, and the actual guard is enforced by Spring at runtime.
-        // This test serves as a documentation placeholder.
-        // The real enforcement test lives in Spring's TxNamespaceHandler integration tests.
-        // We keep this method to make the contract visible in the test surface.
-        assertNotNull(IllegalTransactionStateException.class);
+    void balanceListener_isAsync_soRecalculationHasNoAmbientTransaction() throws Exception {
+        // Replaces a previous test that asserted only
+        // `assertNotNull(IllegalTransactionStateException.class)` — a tautology
+        // that passed regardless of the code under test and so gave false
+        // confidence about propagation.
+        //
+        // This asserts the reason the propagation is REQUIRES_NEW. The listener
+        // runs off the request thread after the triggering transaction has
+        // committed, so there is no enclosing transaction and the recalculation
+        // must open its own. If someone makes the listener synchronous this
+        // fails, which is the point: the two facts are coupled.
+        var method = PatientBalanceEventListener.class
+                .getDeclaredMethod("handleBalanceUpdate", PatientBalanceEvent.class);
+
+        assertNotNull(method.getAnnotation(org.springframework.scheduling.annotation.Async.class),
+                "the listener must be @Async: a synchronous listener would reintroduce "
+                        + "the enclosing-transaction coupling that broke balance updates");
+
+        var txEvent = method.getAnnotation(
+                org.springframework.transaction.event.TransactionalEventListener.class);
+        assertNotNull(txEvent, "the listener must be transactional-aware");
+        assertEquals(org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT,
+                txEvent.phase(),
+                "must run after the charge/payment commit, so it can never join that transaction");
     }
 }

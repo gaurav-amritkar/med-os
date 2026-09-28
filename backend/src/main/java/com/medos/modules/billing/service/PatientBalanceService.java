@@ -31,7 +31,19 @@ public class PatientBalanceService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Transactional(propagation = Propagation.MANDATORY)
+    /**
+     * Recalculates a patient's outstanding balance from their charges and
+     * payments.
+     *
+     * <p>REQUIRES_NEW, not MANDATORY: the only production caller is
+     * {@code PatientBalanceEventListener}, which runs {@code @Async} after
+     * commit, so there is no ambient transaction to join. MANDATORY threw
+     * {@code IllegalTransactionStateException} on every invocation, so
+     * {@code patients.outstanding} silently went stale after every charge,
+     * invoice and payment. It previously worked as REQUIRES_NEW; it was changed
+     * to MANDATORY to satisfy a unit test, which inverted the real requirement.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recalculateBalance(UUID patientId) {
         entityManager.createNativeQuery("""
                 UPDATE patients p
