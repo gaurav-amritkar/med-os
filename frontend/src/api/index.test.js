@@ -37,3 +37,41 @@ describe('paginated list endpoints are unwrapped to arrays', () => {
     expect(data).toEqual([{ id: 'e1' }]);
   });
 });
+
+describe('page metadata survives unwrapping', () => {
+  beforeEach(() => {
+    get.mockReset();
+  });
+
+  // The lists are capped server-side at 20 rows, and the patient list and the
+  // OPD picker were the only ways to reach a patient. Without the metadata a
+  // list cannot show how many pages it has, and cannot tell whether Next is
+  // still available — so unwrapPage used to throw all of it away.
+  it('exposes page, size and totals alongside the content', async () => {
+    get.mockResolvedValue({
+      data: { content: [{ id: 'p1' }], page: 1, size: 20, totalElements: 23, totalPages: 2, first: false, last: true },
+    });
+
+    const { data, meta } = await patientApi.list(undefined, 1);
+
+    expect(data).toEqual([{ id: 'p1' }]);
+    expect(meta).toEqual({ page: 1, size: 20, totalElements: 23, totalPages: 2, first: false, last: true });
+  });
+
+  it('forwards the page param so a later page can be requested', async () => {
+    get.mockResolvedValue({ data: { content: [], page: 2, size: 20, totalElements: 41, totalPages: 3, first: false, last: false } });
+
+    await patientApi.list(undefined, 2);
+
+    expect(get).toHaveBeenCalledWith('/patients', { params: { search: undefined, page: 2 } });
+  });
+
+  it('reports no meta for a bare array response, so no controls render', async () => {
+    get.mockResolvedValue({ data: [{ id: 'p2' }] });
+
+    const { data, meta } = await patientApi.list();
+
+    expect(data).toEqual([{ id: 'p2' }]);
+    expect(meta).toBeNull();
+  });
+});

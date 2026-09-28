@@ -34,14 +34,23 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
      * with LIKE, so search compares a keyed digest of the normalised name, and
      * falls back to the plaintext {@code uhid} for partial matching.
      */
-    Page<Patient> findByNameIndex(String nameIndex, Pageable pageable);
+    Page<Patient> findByNameIndexOrderByCreatedAtDescIdDesc(String nameIndex, Pageable pageable);
 
-    Page<Patient> findByUhidContainingIgnoreCase(String uhid, Pageable pageable);
+    Page<Patient> findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(String uhid, Pageable pageable);
 
     /** Rows predating the blind index; backfilled on startup. */
     List<Patient> findByNameIndexIsNull();
 
-    Page<Patient> findAll(Pageable pageable);
+    /**
+     * Newest first, because the unfiltered list had no ORDER BY at all and
+     * Postgres therefore returned physical order: a patient registered a moment
+     * ago could land on any page, and since neither the patient list nor the OPD
+     * picker had pagination, they were simply unreachable. The id is a
+     * tiebreaker so the order is total: without it, two patients sharing a
+     * created_at can swap between page fetches, so paging both repeats and
+     * skips rows.
+     */
+    Page<Patient> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
 
     List<Patient> findByDpdpConsentFalse();
 }

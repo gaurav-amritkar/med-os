@@ -3,7 +3,22 @@ import { withIdempotencyKey } from './idempotency';
 
 // Paginated list endpoints return PageResponse ({ content, ... }); the UI works with
 // plain arrays, so unwrap here. Tolerates a bare array for backward compatibility.
-const unwrapPage = ({ data }) => ({ data: Array.isArray(data) ? data : (data?.content ?? []) });
+// The page metadata is kept alongside as `meta` — without it a list cannot show
+// how many pages it has, or stop offering a Next button on the last one.
+const unwrapPage = ({ data }) => {
+  if (Array.isArray(data)) return { data, meta: null };
+  return {
+    data: data?.content ?? [],
+    meta: {
+      page: data?.page ?? 0,
+      size: data?.size ?? 0,
+      totalElements: data?.totalElements ?? 0,
+      totalPages: data?.totalPages ?? 0,
+      first: data?.first ?? true,
+      last: data?.last ?? true,
+    },
+  };
+};
 
 export const authApi = {
   login: (credentials) => client.post('/auth/login', credentials),
@@ -15,7 +30,9 @@ export const onboardingApi = {
 };
 
 export const patientApi = {
-  list: (search) => client.get('/patients', { params: { search } }).then(unwrapPage),
+  // `page` is sent only when asked for, so the common first-page call is
+  // unchanged; a search resets to page 0 because results are a different set.
+  list: (search, page) => client.get('/patients', { params: { search, page } }).then(unwrapPage),
   get: (id) => client.get(`/patients/${id}`),
   getByUhid: (uhid) => client.get(`/patients/uhid/${uhid}`),
   register: (data) => client.post('/patients', data),

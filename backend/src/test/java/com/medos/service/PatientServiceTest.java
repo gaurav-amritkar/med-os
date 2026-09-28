@@ -121,27 +121,27 @@ class PatientServiceTest {
         // randomised per value. Search must go through the blind index.
         ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
         BlindIndexUtil index = realBlindIndex();
-        when(patientRepository.findByNameIndex(eq(index.indexPatientName("John Doe")), any(PageRequest.class)))
+        when(patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(eq(index.indexPatientName("John Doe")), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         patientService.listPatients("John Doe", 0, 20);
 
         verify(patientRepository, times(1))
-                .findByNameIndex(eq(index.indexPatientName("John Doe")), any(PageRequest.class));
+                .findByNameIndexOrderByCreatedAtDescIdDesc(eq(index.indexPatientName("John Doe")), any(PageRequest.class));
         verify(patientRepository, never()).findByNameContainingIgnoreCase(anyString(), any(PageRequest.class));
     }
 
     @Test
     void listPatients_searchByUhid_usesPlaintextColumn() {
         ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
-        when(patientRepository.findByUhidContainingIgnoreCase(eq("UHID000"), any(PageRequest.class)))
+        when(patientRepository.findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(eq("UHID000"), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         patientService.listPatients("UHID000", 0, 20);
 
         verify(patientRepository, times(1))
-                .findByUhidContainingIgnoreCase(eq("UHID000"), any(PageRequest.class));
-        verify(patientRepository, never()).findByNameIndex(anyString(), any(PageRequest.class));
+                .findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(eq("UHID000"), any(PageRequest.class));
+        verify(patientRepository, never()).findByNameIndexOrderByCreatedAtDescIdDesc(anyString(), any(PageRequest.class));
     }
 
     @Test
@@ -150,20 +150,27 @@ class PatientServiceTest {
         BlindIndexUtil index = realBlindIndex();
         String expected = index.indexPatientName("John Doe");
         assertNotNull(expected);
-        when(patientRepository.findByNameIndex(eq(expected), any(PageRequest.class)))
+        when(patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(eq(expected), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         patientService.listPatients("  john   doe  ", 0, 20);
 
-        verify(patientRepository, times(1)).findByNameIndex(eq(expected), any(PageRequest.class));
+        verify(patientRepository, times(1)).findByNameIndexOrderByCreatedAtDescIdDesc(eq(expected), any(PageRequest.class));
     }
 
     @Test
-    void listPatients_withoutSearch_returnsAll() {
+    void listPatients_withoutSearch_usesTheNewestFirstQuery() {
+        // Not `findAll`: that had no ORDER BY, so Postgres returned physical
+        // order. A patient registered a moment ago could land on a page the UI
+        // never shows, making them unreachable. Ordering is asserted by the
+        // repository method name — findAllByOrderByCreatedAtDescIdDesc — so the test
+        // pins that the ordered query is the one used, not a bare findAll.
         Page<Patient> page = new PageImpl<>(Collections.emptyList());
-        when(patientRepository.findAll(any(PageRequest.class))).thenReturn(page);
+        when(patientRepository.findAllByOrderByCreatedAtDescIdDesc(any(PageRequest.class))).thenReturn(page);
+
         PageResponse<PatientDTO> result = patientService.listPatients(null, 0, 20);
+
         assertTrue(result.getContent().isEmpty());
-        verify(patientRepository, times(1)).findAll(any(PageRequest.class));
+        verify(patientRepository, times(1)).findAllByOrderByCreatedAtDescIdDesc(any(PageRequest.class));
     }
 }
