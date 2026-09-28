@@ -213,10 +213,9 @@ export default function Encounters() {
           <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
           <input placeholder="Search patients..." style={{ marginBottom: 12 }}
             onChange={async (e) => {
-              if (e.target.value.length > 2) {
-                const { data } = await patientApi.list(e.target.value);
-                setPatients(data);
-              }
+              const term = e.target.value;
+              const { data } = await patientApi.list(term.length > 2 ? term : undefined);
+              setPatients(data);
             }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 500, overflowY: 'auto' }}>
             {patients.map((p) => (

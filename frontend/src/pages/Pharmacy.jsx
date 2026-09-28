@@ -149,13 +149,13 @@ export default function Pharmacy() {
             </div>
             <input placeholder="Search medicines..." style={{ marginBottom: 12 }}
               onChange={async (e) => {
-                if (e.target.value.length > 2) {
-                  const { data } = await pharmacyApi.listMedicines();
-                  setMedicines(data.filter(m => m.name.toLowerCase().includes(e.target.value.toLowerCase())));
-                } else if (!e.target.value) {
-                  const { data } = await pharmacyApi.listMedicines();
-                  setMedicines(data);
-                }
+                const term = e.target.value;
+                const { data } = await pharmacyApi.listMedicines();
+                setMedicines(
+                  term.length > 2
+                    ? data.filter((m) => m.name.toLowerCase().includes(term.toLowerCase()))
+                    : data
+                );
               }} />
             <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {medicines.map((m) => (

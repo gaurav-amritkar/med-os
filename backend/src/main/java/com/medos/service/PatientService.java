@@ -11,6 +11,7 @@ import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
+import com.medos.util.BlindIndexUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -29,6 +31,7 @@ public class PatientService {
     private final PatientRepository patientRepository;
     private final ConsentRepository consentRepository;
     private final AuditLogger auditLogger;
+    private final BlindIndexUtil blindIndexUtil;
 
     @Transactional
     public PatientDTO registerPatient(PatientRegistrationRequest req) {
@@ -42,9 +45,13 @@ public class PatientService {
             throw new BusinessException("Invalid patient age (0-150)");
         }
 
+        String trimmedName = req.getName().trim();
+
         Patient patient = Patient.builder()
                 .uhid(generateUhid())
-                .name(req.getName().trim())
+                .name(trimmedName)
+                // Computed from the trimmed name, matching what search indexes.
+                .nameIndex(blindIndexUtil.indexPatientName(trimmedName))
                 .age(req.getAge())
                 .gender(req.getGender())
                 .phone(req.getPhone())
@@ -72,15 +79,44 @@ public class PatientService {
         return EntityDtoMapper.toDTO(saved);
     }
 
+    /**
+     * Lists patients, optionally filtered by a search term.
+     *
+     * <p>{@code name} is AES-GCM encrypted, so it cannot be matched with LIKE —
+     * the previous {@code findByNameContainingIgnoreCase} returned nothing for
+     * every query. Search therefore matches either the keyed blind index of the
+     * whole normalised name, or the plaintext UHID, which is the identifier
+     * reception staff actually read off a card.
+     */
     public PageResponse<PatientDTO> listPatients(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Patient> result;
-        if (search != null && !search.isBlank()) {
-            result = patientRepository.findByNameContainingIgnoreCase(search, pageable);
-        } else {
+        if (search == null || search.isBlank()) {
             result = patientRepository.findAll(pageable);
+        } else {
+            String term = search.trim();
+            String nameIndex = blindIndexUtil.indexPatientName(term);
+
+            // A UHID is the common case and is searchable directly; otherwise
+            // fall back to an exact name match. A blind index cannot do
+            // substring matching, so "anita" will not find "Anita Joshi".
+            if (looksLikeUhid(term)) {
+                result = patientRepository.findByUhidContainingIgnoreCase(term, pageable);
+            } else if (nameIndex != null) {
+                result = patientRepository.findByNameIndex(nameIndex, pageable);
+            } else {
+                result = Page.empty();
+            }
         }
         return PageResponse.of(result.map(EntityDtoMapper::toDTO));
+    }
+
+    /** UHIDs are the UHID + 6 digits form, but staff also type the bare number. */
+    private static boolean looksLikeUhid(String term) {
+        String digits = term.toUpperCase(Locale.ROOT).startsWith("UHID")
+                ? term.substring(4)
+                : term;
+        return digits.chars().allMatch(Character::isDigit) && !digits.isEmpty();
     }
 
     // Backward compatibility method

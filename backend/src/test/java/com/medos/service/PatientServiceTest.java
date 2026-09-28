@@ -8,11 +8,13 @@ import com.medos.exception.BusinessException;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
+import com.medos.util.BlindIndexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -36,6 +38,8 @@ class PatientServiceTest {
     private ConsentRepository consentRepository;
     @Mock
     private AuditLogger auditLogger;
+    @Mock
+    private BlindIndexUtil blindIndexUtil;
 
     @InjectMocks
     private PatientService patientService;
@@ -43,6 +47,13 @@ class PatientServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+    }
+
+    /** A real index, not a mock, so search routing is exercised for real. */
+    private BlindIndexUtil realBlindIndex() {
+        BlindIndexUtil util = new BlindIndexUtil();
+        util.setPiiKeyForTesting("jIMpvDp7I0XTfZLdyYKeryj/7t7yKPydMu+4tOJMBus=");
+        return util;
     }
 
     @Test
@@ -104,12 +115,47 @@ class PatientServiceTest {
     }
 
     @Test
-    void listPatients_withSearch_callsRepository() {
-        Page<Patient> page = new PageImpl<>(Collections.emptyList());
-        when(patientRepository.findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class))).thenReturn(page);
-        PageResponse<PatientDTO> result = patientService.listPatients("john", 0, 20);
-        assertTrue(result.getContent().isEmpty());
-        verify(patientRepository, times(1)).findByNameContainingIgnoreCase(eq("john"), any(PageRequest.class));
+    void listPatients_searchByName_usesBlindIndexNotCiphertext() {
+        // The regression this locks down: searching the encrypted column with
+        // LIKE returns nothing for every query, because AES-GCM ciphertext is
+        // randomised per value. Search must go through the blind index.
+        ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
+        BlindIndexUtil index = realBlindIndex();
+        when(patientRepository.findByNameIndex(eq(index.indexPatientName("John Doe")), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+
+        patientService.listPatients("John Doe", 0, 20);
+
+        verify(patientRepository, times(1))
+                .findByNameIndex(eq(index.indexPatientName("John Doe")), any(PageRequest.class));
+        verify(patientRepository, never()).findByNameContainingIgnoreCase(anyString(), any(PageRequest.class));
+    }
+
+    @Test
+    void listPatients_searchByUhid_usesPlaintextColumn() {
+        ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
+        when(patientRepository.findByUhidContainingIgnoreCase(eq("UHID000"), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+
+        patientService.listPatients("UHID000", 0, 20);
+
+        verify(patientRepository, times(1))
+                .findByUhidContainingIgnoreCase(eq("UHID000"), any(PageRequest.class));
+        verify(patientRepository, never()).findByNameIndex(anyString(), any(PageRequest.class));
+    }
+
+    @Test
+    void listPatients_searchIsCaseInsensitiveViaNormalisedIndex() {
+        ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
+        BlindIndexUtil index = realBlindIndex();
+        String expected = index.indexPatientName("John Doe");
+        assertNotNull(expected);
+        when(patientRepository.findByNameIndex(eq(expected), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+
+        patientService.listPatients("  john   doe  ", 0, 20);
+
+        verify(patientRepository, times(1)).findByNameIndex(eq(expected), any(PageRequest.class));
     }
 
     @Test
