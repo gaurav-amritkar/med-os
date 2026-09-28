@@ -132,7 +132,7 @@ export default function Patients() {
                 {patientEncounters.map((e) => (
                   <tr key={e.id}>
                     <td>{new Date(e.createdAt).toLocaleDateString()}</td>
-                    <td>{e.doctorId}</td>
+                    <td>{e.doctorName ?? 'Unknown clinician'}</td>
                     <td>{e.chiefComplaint || '-'}</td>
                     <td><span className={`badge badge-${e.status === 'signed' ? 'success' : e.status === 'open' ? 'warning' : 'default'}`}>{e.status}</span></td>
                   </tr>
