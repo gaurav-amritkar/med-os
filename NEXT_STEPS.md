@@ -5,6 +5,17 @@ Milestones: `Release Readiness - Phase 1 (P0)` → `Phase 4 (P3)`.
 
 View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
+> **Product feature requests live in a separate document:**
+> [`docs/feature-releases.md`](docs/feature-releases.md) — the requested feature
+> releases (landing page, tenant name in the header, staff accounts, printable
+> receipts, configurable GST, wards/rooms, super-admin tenant management, payment
+> gateway), each verified against the current code.
+>
+> It also records three security findings that are **not** feature work and
+> should be fixed first: `POST /api/v1/onboarding/register` is `permitAll` and
+> provisions admin accounts for any anonymous caller; `GET /api/v1/users` returns
+> users from every tenant; and `Tenant.active` is never enforced at login.
+
 ---
 
 ## Milestone: Release Readiness - Phase 1 (P0) — blocks any prod deploy 🚨
@@ -38,31 +49,16 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 ## Milestone: Release Readiness - Phase 3 (P2) — observability, API, infra
 
-| # | Issue | Area |
-|---|-------|------|
-| 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance |
-| 10 | Backup/restore runbook + Redis persistence policy | docs/devops |
-| 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs |
+| # | Issue | Area | Status |
+|---|-------|------|--------|
+| 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance | ⬜ Not Started |
+| 10 | Backup/restore runbook + Redis persistence policy | docs/devops | ✅ Done (docs/operations.md) |
+| 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs | ⬜ Not Started |
 | 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `185414f`) |
-| 13 | Standardize error contract + RBAC matrix test | api/testing |
+| 13 | Standardize error contract + RBAC matrix test | api/testing | ✅ Done (commit `67bd469`) |
 | 14 | ~~Frontend hardening: token storage, error boundaries, states~~ | security/testing | ✅ Done (commit `e5fdc0e`) |
-| 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops |
-| 16 | TLS termination + HSTS + docker secrets | devops |
-
----
-
-## Milestone: Release Readiness - Phase 3 (P2) — observability, API, infra
-
-| # | Issue | Area |
-|---|-------|------|
-| 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance |
-| 10 | Backup/restore runbook + Redis persistence policy | docs/devops |
-| 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs |
-| 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `185414f`) |
-| 13 | Standardize error contract + RBAC matrix test | api/testing |
-| 14 | ~~Frontend hardening: token storage, error boundaries, states~~ | security/testing | ✅ Done (commit `e5fdc0e`) |
-| 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops |
-| 16 | TLS termination + HSTS + docker secrets | devops |
+| 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops | ⬜ Not Started |
+| 16 | TLS termination + HSTS + docker secrets | devops | ⬜ Not Started |
 
 ### Testing Sub-Steps (P2)
 | # | Issue | Area | Status |
