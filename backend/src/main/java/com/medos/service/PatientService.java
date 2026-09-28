@@ -92,7 +92,7 @@ public class PatientService {
         Pageable pageable = PageRequest.of(page, size);
         Page<Patient> result;
         if (search == null || search.isBlank()) {
-            result = patientRepository.findAll(pageable);
+            result = patientRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
         } else {
             String term = search.trim();
             String nameIndex = blindIndexUtil.indexPatientName(term);
@@ -101,9 +101,9 @@ public class PatientService {
             // fall back to an exact name match. A blind index cannot do
             // substring matching, so "anita" will not find "Anita Joshi".
             if (looksLikeUhid(term)) {
-                result = patientRepository.findByUhidContainingIgnoreCase(term, pageable);
+                result = patientRepository.findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(term, pageable);
             } else if (nameIndex != null) {
-                result = patientRepository.findByNameIndex(nameIndex, pageable);
+                result = patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(nameIndex, pageable);
             } else {
                 result = Page.empty();
             }

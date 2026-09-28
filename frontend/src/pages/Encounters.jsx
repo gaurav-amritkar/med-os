@@ -4,6 +4,8 @@ import useToastStore from '../store/toastStore';
 
 export default function Encounters() {
   const [patients, setPatients] = useState([]);
+  const [patientMeta, setPatientMeta] = useState(null);
+  const [patientSearch, setPatientSearch] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
   const [activeEncounter, setActiveEncounter] = useState(null);
@@ -23,8 +25,20 @@ export default function Encounters() {
       .then(({ data }) => setOpenEncounters(data || []))
       .catch(() => {});
 
+  // The picker lists patients newest-first and pages, so a patient registered a
+  // moment ago is reachable here instead of being stranded off the end of an
+  // unpaginated list.
+  const loadPatients = (term, page = 0) =>
+    patientApi
+      .list(term, page)
+      .then(({ data, meta }) => {
+        setPatients(data || []);
+        setPatientMeta(meta);
+      })
+      .catch(() => {});
+
   useEffect(() => {
-    patientApi.list().then(({ data }) => setPatients(data)).catch(() => {});
+    loadPatients();
     pharmacyApi.listMedicines().then(({ data }) => setMedicines(data)).catch(() => {});
     loadOpenEncounters();
   }, []);
@@ -212,10 +226,11 @@ export default function Encounters() {
         <div className="card">
           <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
           <input placeholder="Search patients..." style={{ marginBottom: 12 }}
-            onChange={async (e) => {
+            onChange={(e) => {
               const term = e.target.value;
-              const { data } = await patientApi.list(term.length > 2 ? term : undefined);
-              setPatients(data);
+              setPatientSearch(term);
+              // A search is a different result set, so it always starts at page 0.
+              loadPatients(term.length > 2 ? term : undefined, 0);
             }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 500, overflowY: 'auto' }}>
             {patients.map((p) => (
@@ -233,6 +248,19 @@ export default function Encounters() {
               </button>
             ))}
           </div>
+          {patientMeta && patientMeta.totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--ink-faint)' }}>
+                Page {patientMeta.page + 1} of {patientMeta.totalPages} ({patientMeta.totalElements})
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn-ghost btn-sm" disabled={patientMeta.first}
+                  onClick={() => loadPatients(patientSearch.length > 2 ? patientSearch : undefined, patientMeta.page - 1)}>←</button>
+                <button className="btn-ghost btn-sm" disabled={patientMeta.last}
+                  onClick={() => loadPatients(patientSearch.length > 2 ? patientSearch : undefined, patientMeta.page + 1)}>→</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {selectedPatient && (

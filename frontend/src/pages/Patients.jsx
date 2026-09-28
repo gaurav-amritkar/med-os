@@ -12,6 +12,8 @@ export default function Patients() {
   const [patientEncounters, setPatientEncounters] = useState([]);
   const [patientInvoices, setPatientInvoices] = useState([]);
   const [profileTab, setProfileTab] = useState('encounters');
+  const [page, setPage] = useState(0);
+  const [pageMeta, setPageMeta] = useState(null);
   const addToast = useToastStore((s) => s.addToast);
 
   const [form, setForm] = useState({
@@ -21,13 +23,21 @@ export default function Patients() {
 
   useEffect(() => { fetchPatients(); }, []);
 
-  const fetchPatients = async (q) => {
+  // Newest first, so a patient registered a moment ago is on page 0 rather than
+  // on a page the UI never shows. Every list call returns to page 0 unless it is
+  // an explicit page change, because a search or a new registration is a
+  // different result set.
+  const fetchPatients = async (q, nextPage = 0) => {
     setLoading(true);
     try {
-      const { data } = await patientApi.list(q || undefined);
+      const { data, meta } = await patientApi.list(q || undefined, nextPage);
       setPatients(data);
+      setPageMeta(meta);
+      setPage(nextPage);
     } catch {} finally { setLoading(false); }
   };
+
+  const currentSearchTerm = () => (search.length > 2 ? search : undefined);
 
   const handleSearch = (e) => {
     const term = e.target.value;
@@ -36,8 +46,7 @@ export default function Patients() {
     // under the minimum length. The last case previously left the previous
     // result set on screen, so deleting characters showed rows that no longer
     // matched what was typed.
-    if (term.length > 2) fetchPatients(term);
-    else fetchPatients();
+    fetchPatients(term.length > 2 ? term : undefined, 0);
   };
 
   const handleRegister = async (e) => {
@@ -188,6 +197,20 @@ export default function Patients() {
                 {patients.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--ink-faint)' }}>No patients found. Register a new patient.</td></tr>}
               </tbody>
             </table>
+          )}
+          {pageMeta && pageMeta.totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, gap: 12 }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
+                Showing {page * pageMeta.size + 1}–{page * pageMeta.size + patients.length} of {pageMeta.totalElements} patients
+                {' · '}page {pageMeta.page + 1} of {pageMeta.totalPages}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-ghost btn-sm" disabled={pageMeta.first}
+                  onClick={() => fetchPatients(currentSearchTerm(), pageMeta.page - 1)}>← Previous</button>
+                <button className="btn-ghost btn-sm" disabled={pageMeta.last}
+                  onClick={() => fetchPatients(currentSearchTerm(), pageMeta.page + 1)}>Next →</button>
+              </div>
+            </div>
           )}
         </div>
       )}
