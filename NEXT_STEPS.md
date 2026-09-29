@@ -31,6 +31,13 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > WebSocket token enforcement + origin restriction, login rate limiting,
 > non-root containers, prod compose override, 48 backend + 7 frontend tests, CI workflow.
 >
+> ⚠️ **Correction (28 Sep 2026):** the *prod compose override* from `ae92e5c` was
+> later deleted in `177de04` ("chore: containerize schema migrations and local
+> stack"), along with the Caddy TLS configuration and its migrations. The
+> repository now ships only `docker-compose.yml`, the local development stack,
+> with no production descriptor, no TLS termination and no Docker secrets. The
+> TLS/HSTS/secrets work is therefore still outstanding, and is tracked in #16.
+>
 > **Done in this pass** (commit `7c105b6`): PII encryption (AES-256-GCM), 401 auth entry point, branch protection docs.
 
 ---
