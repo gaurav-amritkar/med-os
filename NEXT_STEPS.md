@@ -11,6 +11,13 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > receipts, configurable GST, wards/rooms, super-admin tenant management, payment
 > gateway), each verified against the current code.
 >
+> A gap analysis against the original v3.0 requirements is in
+> [`docs/requirements-traceability.md`](docs/requirements-traceability.md). Note
+> that `requirements/BRD` and `requirements/PRD` describe a **Node/Express/SQLite
+> single-tenant** product and are stale as architecture documents; the largest
+> unmet requirement is the Claude AI integration they specify, which the code does
+> not implement.
+>
 > It also records three security findings that are **not** feature work and
 > should be fixed first: `POST /api/v1/onboarding/register` is `permitAll` and
 > provisions admin accounts for any anonymous caller; `GET /api/v1/users` returns
