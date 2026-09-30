@@ -8,6 +8,18 @@ Comparison of the v3.0 requirements documents against what is actually built.
 - **Verified against:** `main` @ `dc8a8cc`.
 - **Method:** every row was checked against the code, the schema, or the running
   app. Nothing here is inferred from a document alone.
+- **Tracked as issues:** [#50](https://github.com/gaurav-amritkar/med-os/issues/50) (appointments),
+  [#61](https://github.com/gaurav-amritkar/med-os/issues/61) (AI advisor),
+  [#62](https://github.com/gaurav-amritkar/med-os/issues/62) (reports),
+  [#63](https://github.com/gaurav-amritkar/med-os/issues/63) (lab orders),
+  [#64](https://github.com/gaurav-amritkar/med-os/issues/64) (receivables),
+  [#65](https://github.com/gaurav-amritkar/med-os/issues/65) (`ai_note`),
+  [#66](https://github.com/gaurav-amritkar/med-os/issues/66) (pharmacy drilldown),
+  [#67](https://github.com/gaurav-amritkar/med-os/issues/67) (dashboard trends),
+  [#68](https://github.com/gaurav-amritkar/med-os/issues/68) (seat limits),
+  [#69](https://github.com/gaurav-amritkar/med-os/issues/69) (discharge summary),
+  [#70](https://github.com/gaurav-amritkar/med-os/issues/70) (retire the stale specs).
+  Sequence and dependencies: #71.
 
 ## Read this first: the specs are stale as architecture documents
 
