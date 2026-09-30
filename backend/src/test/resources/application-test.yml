@@ -25,6 +25,10 @@ medos:
     pii-encryption-key: jIMpvDp7I0XTfZLdyYKeryj/7t7yKPydMu+4tOJMBus=
   ai:
     enabled: false
+  onboarding:
+    # Closed by default per ADR-0003. Anonymous tenant registration must be
+    # refused; only a platform super-admin may register a tenant.
+    public-signup: false
   cors:
     allowed-origins: http://localhost:5173
 

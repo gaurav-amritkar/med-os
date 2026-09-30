@@ -11,6 +11,12 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > receipts, configurable GST, wards/rooms, super-admin tenant management, payment
 > gateway), each verified against the current code.
 >
+> Three of those security findings are now fixed on `main` (30 Sep 2026):
+> anonymous tenant registration is closed by default, the staff listing is
+> tenant-scoped, and a deactivated tenant is refused at login and on every
+> request. Two remain open: no production deployment descriptor, and no
+> observability.
+>
 > A gap analysis against the original v3.0 requirements is in
 > [`docs/requirements-traceability.md`](docs/requirements-traceability.md). Note
 > that `requirements/BRD` and `requirements/PRD` describe a **Node/Express/SQLite
@@ -31,7 +37,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 |---|-------|------|--------|
 | 1 | ~~PII encryption at rest (patient demographics, clinical notes)~~ | security | ✅ Done (commit `7c105b6`) |
 | 2 | ~~Return 401 (not 403) for unauthenticated API requests~~ | security/api | ✅ Done (commit `7c105b6`) |
-| 3 | ~~Branch protection: require CI status checks on main~~ | devops | ✅ Documented (commit `7c105b6`) |
+| 3 | ~~Branch protection: require CI status checks on main~~ | devops | ✅ Enforced — see note below |
 
 > **Done in the last pass** (commit `ae92e5c`): JWT_SECRET required + validated,
 > demo accounts removed from Flyway (V3), admin bootstrap, actuator → `/manage`,
@@ -46,6 +52,14 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > TLS/HSTS/secrets work is therefore still outstanding, and is tracked in #16.
 >
 > **Done in this pass** (commit `7c105b6`): PII encryption (AES-256-GCM), 401 auth entry point, branch protection docs.
+>
+> ⚠️ **Correction (30 Sep 2026):** branch protection was *documented* in `7c105b6` but
+> never applied — `docs/branch-protection.md` described it as a manual
+> "Settings → Branches" step, and the GitHub API confirmed `main` was
+> unprotected. It is now actually enforced: the three CI status checks are
+> required, admins included, with 1 approving review, no force pushes, no
+> deletions and linear history. Consequence: **changes reach `main` via pull
+> request, not direct push.**
 
 ---
 

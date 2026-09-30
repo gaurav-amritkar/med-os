@@ -33,6 +33,23 @@ public class SecurityConfig {
     @Value("${medos.cors.allowed-origins}")
     private String allowedOrigins;
 
+    /**
+     * Whether unauthenticated callers may register a new tenant.
+     *
+     * <p>Defaults to false, per ADR-0003. The registration handler creates a
+     * tenant, a user and an {@code admin} membership from the request body, so
+     * leaving it {@code permitAll} let any anonymous caller provision a
+     * hospital with full administrative rights — unlimited, unaudited and
+     * unrated-limited.
+     *
+     * <p>With this off, the path falls through to {@code anyRequest()
+     * .authenticated()} and even a tenant admin is refused. Only a platform
+     * super-admin should be able to register a tenant, and that role does not
+     * exist yet, so "no" is currently the correct answer for every caller.
+     */
+    @Value("${medos.onboarding.public-signup:false}")
+    private boolean publicOnboardingSignup;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -48,8 +65,18 @@ public class SecurityConfig {
                         """.formatted(request.getRequestURI(), java.time.LocalDateTime.now()));
                 })
             )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/api/v1/onboarding/register").permitAll()
+            .authorizeHttpRequests(auth -> {
+                if (publicOnboardingSignup) {
+                    // Explicitly opted in. Reachable only because an operator set
+                    // medos.onboarding.public-signup=true.
+                    auth.requestMatchers("/api/v1/auth/**", "/api/v1/onboarding/register").permitAll();
+                } else {
+                    // Self-serve registration is closed: /onboarding/register is
+                    // deliberately absent, so it requires authentication like any
+                    // other endpoint.
+                    auth.requestMatchers("/api/v1/auth/**").permitAll();
+                }
+                auth
                 // Actuator: only health/info public; everything else under /manage requires ADMIN.
                 .requestMatchers("/manage/health", "/manage/info").permitAll()
                 .requestMatchers("/manage/**").hasRole("ADMIN")
@@ -59,8 +86,8 @@ public class SecurityConfig {
                 // WebSocket handshake is open; token is enforced at the STOMP CONNECT layer.
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/error").permitAll()
-                .anyRequest().authenticated()
-            )
+                .anyRequest().authenticated();
+            })
             // Register the JWT filter first so it can serve as a positioned anchor;
             // idempotency then runs after authentication (replay check is post-auth).
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

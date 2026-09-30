@@ -1,5 +1,6 @@
 package com.medos.security;
 
+import com.medos.repository.TenantRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtTokenProvider tokenProvider;
+    private final TenantRepository tenantRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -40,16 +42,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
                     String role = claims.get("role").toString();
 
+                    // A token lives 10 hours, so enforcing tenant state only at
+                    // login would leave a deboarded facility working for the
+                    // rest of that window. The claim carries the tenant, so the
+                    // state is checked per request — one primary-key lookup.
+                    //
+                    // No tenantId claim means a bootstrap/superadmin session.
+                    // Those have no tenant to be deactivated and must keep
+                    // working, or a fresh install cannot be administered.
+                    boolean admitted = true;
                     if (claims.get("tenantId") != null) {
-                        TenantContext.setTenantId(UUID.fromString(claims.get("tenantId").toString()));
+                        UUID tenantId = UUID.fromString(claims.get("tenantId").toString());
+                        if (isTenantActive(tenantId)) {
+                            TenantContext.setTenantId(tenantId);
+                        } else {
+                            admitted = false;
+                            log.warn("Rejected token for deactivated tenant {} on {} {}",
+                                    tenantId, request.getMethod(), request.getRequestURI());
+                        }
                     }
 
-                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                            uid, null,
-                            Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
-                    );
-                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    if (admitted) {
+                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                uid, null,
+                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
+                        );
+                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
                 } else {
                     log.warn("Rejected invalid/expired JWT on {} {}", request.getMethod(), request.getRequestURI());
                 }
@@ -62,6 +82,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
         }
+    }
+
+    /**
+     * Whether a tenant may still be used.
+     *
+     * <p>A missing row is treated as not active: a tenant that has been deleted
+     * must not leave its former staff permanently authenticated. {@code
+     * active} is a nullable {@code BOOLEAN}, and a null counts as inactive —
+     * for a value that was never written, the safe reading is the closed one.
+     */
+    private boolean isTenantActive(UUID tenantId) {
+        return tenantRepository.findById(tenantId)
+                .map(tenant -> Boolean.TRUE.equals(tenant.getActive()))
+                .orElse(false);
     }
 
     private String extractToken(HttpServletRequest request) {

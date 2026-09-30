@@ -1,8 +1,35 @@
 # Branch Protection Setup for `main`
 
-This document describes the required branch protection rules for the `main` branch.
+**Status: enforced, not aspirational.** The rules below were applied to `main`
+on 30 Sep 2026 via the GitHub API. This document is kept as the record of what
+was applied and how to verify it.
 
-## Required Configuration (GitHub Repository Settings)
+Until 30 Sep 2026 this file described a manual setup step that had never been
+carried out — the API reported `main` as unprotected, so the rule existed only
+on paper.
+
+## Applied configuration
+
+| Setting | Value |
+|---|---|
+| Required status checks | `Backend (build + tests)`, `Frontend (lint + tests + build)`, `Container definitions` |
+| Strict (checks must be current) | yes |
+| Enforce for administrators | yes |
+| Required approving reviews | 1, stale reviews dismissed |
+| Required conversation resolution | yes |
+| Linear history | yes |
+| Force pushes | blocked |
+| Deletion | blocked |
+
+## Verify
+
+```
+gh api repos/:owner/:repo/branches/main/protection
+```
+
+## Re-applying after a settings change
+
+If the rules are ever lost, the equivalent settings UI is:
 
 Go to: **Settings → Branches → Branch protection rules → Add rule**
 
