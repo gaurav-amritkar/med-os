@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { onboardingApi } from '../api';
 import useToastStore from '../store/toastStore';
@@ -51,11 +51,22 @@ const fmt = {
   section: { marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--line)' },
 };
 
+/**
+ * A labelled input.
+ *
+ * The label is bound to the control with htmlFor/id. Without that the fields
+ * had no accessible name at all: a screen reader announced "edit text" for
+ * every field, and the form could not be driven by its labels.
+ */
+let fieldSeq = 0;
 function Field({ label, grid, ...rest }) {
+  const id = useMemo(() => `onboarding-field-${(fieldSeq += 1)}`, []);
   return (
     <div style={grid ? { ...fmt.grid, gridColumn: '1 / -1' } : {}}>
-      <label style={fmt.label}>{label}</label>
-      <input style={fmt.input} {...rest} />
+      <label style={fmt.label} htmlFor={id}>
+        {label}
+      </label>
+      <input id={id} style={fmt.input} {...rest} />
     </div>
   );
 }
@@ -63,6 +74,7 @@ function Field({ label, grid, ...rest }) {
 export default function Onboarding() {
   const [form, setForm] = useState(initial);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
 
@@ -76,12 +88,26 @@ export default function Onboarding() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSubmitError(null);
     try {
       await onboardingApi.registerTenant(form);
       addToast('Tenant registered. Sign in with the new admin account.', 'success');
       navigate('/login');
     } catch (err) {
-      addToast(err.response?.data?.message || 'Registration failed', 'critical');
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        // The endpoint is gated behind medos.onboarding.public-signup, which
+        // defaults to false. Surface the real reason instead of the raw
+        // "Authentication required", which reads as a broken form.
+        setSubmitError(
+          'Self-serve registration is disabled on this deployment. Ask your platform administrator to create this organisation, or sign in with an existing account.'
+        );
+        addToast('Registration is disabled on this deployment', 'critical');
+      } else {
+        const message = err.response?.data?.message || 'Registration failed';
+        setSubmitError(message);
+        addToast(message, 'critical');
+      }
     } finally {
       setLoading(false);
     }
@@ -120,13 +146,49 @@ export default function Onboarding() {
           <p style={fmt.sub}>Create a new hospital/clinic organisation and its first admin account.</p>
         </div>
 
+        <div
+          role="status"
+          style={{
+            margin: '0 0 20px',
+            padding: '12px 14px',
+            borderRadius: 'var(--r-sm)',
+            border: '1px solid var(--line)',
+            background: 'var(--sunken)',
+            fontSize: '0.85rem',
+            color: 'var(--ink-muted)',
+            lineHeight: 1.5,
+          }}
+        >
+          Self-serve registration is disabled by default. Ask your platform
+          administrator to create this organisation for you, or sign in with an
+          account you already have. If your administrator has enabled
+          registration for this deployment, the form below will submit normally.
+        </div>
+
+        {submitError && (
+          <div
+            role="alert"
+            style={{
+              margin: '0 0 20px',
+              padding: '12px 14px',
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--critical)',
+              color: 'var(--critical)',
+              fontSize: '0.85rem',
+              lineHeight: 1.5,
+            }}
+          >
+            {submitError}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div style={fmt.section}>
             <div style={fmt.grid}>
               <Field label="Facility Name" value={form.name} onChange={set('name')} required />
               <div>
-                <label style={fmt.label}>Facility Type</label>
-                <select style={fmt.input} value={form.type} onChange={set('type')}>
+                <label style={fmt.label} htmlFor="onboarding-field-type">Facility Type</label>
+                <select id="onboarding-field-type" style={fmt.input} value={form.type} onChange={set('type')}>
                   {TENANT_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}

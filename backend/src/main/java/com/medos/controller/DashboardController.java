@@ -4,7 +4,9 @@ import com.medos.entity.Notification;
 import com.medos.entity.User;
 import com.medos.repository.NotificationRepository;
 import com.medos.repository.UserRepository;
+import com.medos.dto.UserDTO;
 import com.medos.service.DashboardService;
+import com.medos.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,6 +24,7 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
     private final UserRepository userRepository;
+    private final UserService userService;
     private final NotificationRepository notificationRepository;
 
     private User resolveUser(Authentication auth) {
@@ -79,7 +82,7 @@ public class DashboardController {
 
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> listUsers() {
-        return ResponseEntity.ok(userRepository.findByActiveTrue());
+    public ResponseEntity<List<UserDTO>> listUsers() {
+        return ResponseEntity.ok(userService.listTenantUsers());
     }
 }

@@ -55,14 +55,28 @@ public class AuthService {
         }
 
         rateLimiter.reset(request.getUsername());
-        user.setLastLogin(LocalDateTime.now());
-        userRepository.save(user);
 
         // Get primary tenant and role for this user
-        List<TenantUser> tenantUsers = tenantUserRepository.findByUserId(user.getId());
-        TenantUser.UserRole role = tenantUsers.isEmpty() ?
-                TenantUser.UserRole.admin : tenantUsers.get(0).getRole();
-        UUID tenantId = tenantUsers.isEmpty() ? null : tenantUsers.get(0).getTenant().getId();
+        // join fetch: the tenant is read outside a transaction, so a LAZY proxy here
+        // would throw rather than resolve.
+        List<TenantUser> tenantUsers = tenantUserRepository.findByUserIdWithTenant(user.getId());
+        TenantUser activeMembership = firstActiveTenantMembership(tenantUsers);
+        if (!tenantUsers.isEmpty() && activeMembership == null) {
+            // The account is fine; every facility it belongs to is deactivated.
+            // Without this check, deactivating a tenant was a cosmetic flag:
+            // its staff signed in and worked exactly as before.
+            throw new BusinessException(HttpStatus.FORBIDDEN,
+                    "Your organisation is not active. Contact your administrator.");
+        }
+        // No membership at all is a bootstrap/superadmin session, which carries
+        // no tenant. Those must keep working or a fresh install cannot be
+        // administered.
+        TenantUser.UserRole role = activeMembership == null ?
+                TenantUser.UserRole.admin : activeMembership.getRole();
+        UUID tenantId = activeMembership == null ? null : activeMembership.getTenant().getId();
+
+        user.setLastLogin(LocalDateTime.now());
+        userRepository.save(user);
 
         String token = tokenProvider.generateToken(user.getId(), user.getUsername(), role.name(), tenantId);
 
@@ -76,5 +90,26 @@ public class AuthService {
                 user.getSpecialization(),
                 tenantId
         );
+    }
+
+    /**
+     * The first membership whose tenant is active.
+     *
+     * <p>Selecting the active membership rather than the first one matters: a
+     * clinician who works at two clinics should still sign in when only one of
+     * them is suspended, and their session must be scoped to the clinic that
+     * is actually usable.
+     *
+     * <p>{@code tenants.active} is a nullable {@code BOOLEAN} with no default,
+     * so a null counts as inactive. A row that never had the flag written must
+     * not be read as "not disabled" — for a missing value, the safe reading is
+     * the closed one.
+     */
+    private TenantUser firstActiveTenantMembership(List<TenantUser> memberships) {
+        return memberships.stream()
+                .filter(m -> m.getTenant() != null)
+                .filter(m -> Boolean.TRUE.equals(m.getTenant().getActive()))
+                .findFirst()
+                .orElse(null);
     }
 }

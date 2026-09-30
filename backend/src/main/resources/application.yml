@@ -57,6 +57,13 @@ medos:
     pii-encryption-key: ${PII_ENCRYPTION_KEY:BYGPPmPlkYrqHnzpBLYGXHsEkcB2p1xl3Gl4BUWL2jM=}
   ai:
     enabled: false
+  onboarding:
+    # Self-serve tenant registration is CLOSED by default (ADR-0003).
+    # Setting this to true re-exposes POST /api/v1/onboarding/register to
+    # anonymous callers, which provisions a tenant with a full admin account.
+    # Only enable once the endpoint enforces email verification, captcha and
+    # rate limiting — none of which exist yet.
+    public-signup: false
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
     model: claude-3-5-sonnet-20241022
   bootstrap:
