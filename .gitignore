@@ -61,3 +61,6 @@ env/
 
 # Agent scratch space (design-companion mockups and session state)
 .superpowers/
+
+# Secrets: never commit. See secrets/README.md for the pattern.
+secrets/*.txt

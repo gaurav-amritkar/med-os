@@ -50,11 +50,17 @@ server:
 medos:
   security:
     jwt:
-      # DEV-ONLY fallback. Production must supply JWT_SECRET (see application-prod.yml).
-      secret: ${JWT_SECRET:__REDACTED_80__}
+      # No inline default on purpose. A committed fallback secret means an
+      # operator who forgets this variable runs production with a signing key
+      # that is public in the repository's history, and anyone can mint a token
+      # for any user or tenant. Fail at startup instead.
+      secret: ${JWT_SECRET}
       expiration-ms: 36000000
       issuer: medos-hms-v3
-    pii-encryption-key: ${PII_ENCRYPTION_KEY:__REDACTED_44__}
+    # No inline default on purpose. A committed fallback key means an operator who
+    # forgets this variable silently encrypts every patient's record with a key
+    # that is public in the repository's history. Fail at startup instead.
+    pii-encryption-key: ${PII_ENCRYPTION_KEY}
   ai:
     enabled: false
   onboarding:
