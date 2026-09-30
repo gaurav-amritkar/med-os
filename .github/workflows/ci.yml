@@ -88,6 +88,13 @@ jobs:
         if: always()
         run: docker compose down -v
 
+      # Flyway deploy gate. An applied migration is immutable: Flyway stores its
+      # checksum, so an edit to V1 fails `flyway validate` on the first run
+      # against a real database. Catching it here is far cheaper. Also asserts
+      # database/migrations/ is the only copy of the schema, per ADR-0005.
+      - name: Flyway migration gate
+        run: ./tools/verify-migrations.sh
+
       # The production descriptor is what an operator deploys, and it is not
       # exercised by any other job. A typo in it would only surface on the
       # production host, so it is validated here on every run.
@@ -137,3 +144,84 @@ jobs:
                   assert "secret" not in str(secret).lower() or name == "migrate", name
           print("production compose invariants hold: only caddy published, no in-host db, no ignored secret keys")
           PYEOF
+
+  # Image vulnerability scanning (#15). The gate is a ratchet: .trivyignore
+  # acknowledges the high/critical findings that already existed, and anything
+  # new fails. Without the ignore file this job would be red on its first run,
+  # and a permanently red gate is one nobody reads.
+  security:
+    name: Image vulnerability scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required to upload SARIF
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build deployable images
+        run: |
+          docker compose build backend frontend
+          docker compose -f docker-compose.prod.yml build caddy
+
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.sha }}
+          restore-keys: trivy-db-
+
+      - name: Scan backend and frontend images
+        uses: aquasecurity/trivy-action@v0.30.0
+        with:
+          image-ref: medos-backend:local
+          format: sarif
+          output: backend.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: '1'
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.30.0
+        with:
+          image-ref: medos-frontend:local
+          format: sarif
+          output: frontend.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: '1'
+
+      - name: Scan Caddy image
+        uses: aquasecurity/trivy-action@v0.30.0
+        with:
+          image-ref: medos-caddy:local
+          format: sarif
+          output: caddy.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: '1'
+
+      # Uploaded even when the scan step failed, so findings are reviewable in
+      # the Security tab rather than only in a failed log.
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: backend.sarif
+          category: trivy-backend
+
+      - name: Upload frontend SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: frontend.sarif
+          category: trivy-frontend
+
+      - name: Upload Caddy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: caddy.sarif
+          category: trivy-caddy
