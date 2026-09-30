@@ -87,3 +87,53 @@ jobs:
       - name: Remove CI containers and volumes
         if: always()
         run: docker compose down -v
+
+      # The production descriptor is what an operator deploys, and it is not
+      # exercised by any other job. A typo in it would only surface on the
+      # production host, so it is validated here on every run.
+      - name: Validate production Compose model
+        env:
+          SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
+          DB_USER: postgres
+          MEDOS_DOMAIN: medos.invalid
+          SECRETS_DIR: /tmp/medos-prod-secrets
+        run: |
+          set -euo pipefail
+          mkdir -p "$SECRETS_DIR"
+          # Placeholders only. The real files come from the cloud secret manager
+          # per ADR-0004; compose validates the wiring, not the values.
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+            echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
+          done
+          docker compose -f docker-compose.prod.yml config --quiet
+
+      - name: Assert the production stack publishes only the TLS terminator
+        env:
+          SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
+          DB_USER: postgres
+          MEDOS_DOMAIN: medos.invalid
+          SECRETS_DIR: /tmp/medos-prod-secrets
+        run: |
+          set -euo pipefail
+          mkdir -p "$SECRETS_DIR"
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+            echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
+          done
+          model=$(docker compose -f docker-compose.prod.yml config --format json)
+          python3 - "$model" <<'PYEOF'
+          import json, sys
+          model = json.loads(sys.argv[1])
+          published = {n: s.get("ports") for n, s in model["services"].items() if s.get("ports")}
+          # ADR-0001: Caddy is the sole TLS terminator. Anything else reachable
+          # from outside the host bypasses it.
+          assert set(published) == {"caddy"}, f"unexpected published services: {sorted(published)}"
+          assert "db" not in model["services"], "an in-host database must not exist in production"
+          # Spring Boot has no _FILE indirection; such a key would be ignored and
+          # the datasource would start with no password.
+          blob = json.dumps(model)
+          assert "_PASSWORD_FILE" not in blob, "a *_PASSWORD_FILE key would be silently ignored by Spring"
+          for name, svc in model["services"].items():
+              for secret in svc.get("environment", {}).values():
+                  assert "secret" not in str(secret).lower() or name == "migrate", name
+          print("production compose invariants hold: only caddy published, no in-host db, no ignored secret keys")
+          PYEOF

@@ -1,19 +1,64 @@
-:80 {
-    reverse_proxy frontend:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
+# Caddy configuration for the MedOS production deployment (ADR-0001, ADR-0008).
+#
+# Caddy is the only service with a published port and the only TLS terminator.
+# The development compose publishes the frontend directly, which in production
+# would bypass TLS entirely.
+#
+# MEDOS_DOMAIN is supplied by docker-compose.prod.yml. A real hostname with an
+# A/AAAA record pointing at this host is required: Caddy obtains a
+# publicly-trusted certificate over ACME and renews it automatically.
+#
+# There is deliberately no `tls internal` fallback. A self-signed certificate
+# is not TLS — it trains staff to click through a browser warning on the system
+# that holds patient records, which removes the protection entirely.
+
+{
+	# Persist certificates and the ACME account across restarts. Losing this
+	# makes Caddy re-request on every deploy and risks issuer rate limits.
+	email {$ACME_EMAIL:admin@medos.invalid}
+
+	# Do not advertise the server version.
+	servers {
+		trusted_proxies static private_ranges
+	}
 }
 
-:443 {
-    tls internal
+{$MEDOS_DOMAIN} {
+	encode zstd gzip
 
-    reverse_proxy frontend:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto https
-    }
+	# Managed by Caddy: obtains and renews the certificate. Redirecting HTTP
+	# here means a plain request never reaches the application.
+	redir https://{host}{uri} permanent
+
+	header {
+		# Removed: the backend sets its own framing, and these break the
+		# websocket upgrade the notifications use.
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Patient data must not be cached by an intermediary or the browser.
+		Cache-Control "no-store"
+		-Server
+	}
+
+	reverse_proxy frontend:8080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Actuator health is the load-balancer and operator probe. No detail is
+	# exposed without authentication (show-details: when_authorized).
+	handle /manage/health {
+		reverse_proxy backend:8080
+	}
+}
+
+# Reject requests for any other Host. Without this the server answers on any
+# name it is reached by, which is a host-header confusion risk in front of an
+# application holding patient records.
+:80 {
+	abort
 }

@@ -6,14 +6,26 @@ This document covers backup/restore procedures, Redis persistence policy, and op
 
 ## 1. Database Backup & Restore
 
+> **In production the database is Supabase** (ADR-0008), not a container on this
+> host. There is no `db` service in `docker-compose.prod.yml`; the `docker compose
+> exec db` commands in 1.2 apply to the **development** compose only. Continuous
+> backup and point-in-time recovery are the provider's responsibility — verify
+> retention and PITR in the Supabase dashboard rather than assuming them. The
+> 1.2 commands remain useful against the managed instance over the pooler for a
+> logical export or a restore drill.
+
 ### 1.1 Automated Backups (Recommended)
 
-For production, use a managed PostgreSQL service (AWS RDS, Cloud SQL, Azure Database) with automated backups enabled:
+For production, use a managed PostgreSQL service (Supabase per ADR-0008, or AWS RDS / Cloud SQL / Azure Database) with automated backups enabled:
 - **Backup retention**: 7-30 days minimum
 - **Point-in-time recovery (PITR)**: Enabled
 - **Backup window**: During low-traffic hours (e.g., 03:00-04:00 UTC)
 
-### 1.2 Manual Backup (Docker Compose / Self-Hosted)
+### 1.2 Manual Backup
+
+> The commands below assume the **development** compose, where the database is an
+> in-host container. For production, run `pg_dump` from any host that can reach
+> the pooler endpoint, with the credentials from the secret manager.
 
 ```bash
 # Full backup (schema + data)
@@ -163,33 +175,69 @@ For production, consider:
 
 ---
 
-## 3. Application Deployment Checklist
+## 3. Application Deployment
 
-### Pre-Deployment
-- [ ] Run full test suite: `cd backend && mvn test` and `cd frontend && npm test`
-- [ ] Build images: `docker compose --env-file .env.production build`
-- [ ] Verify migration status: `docker compose run --rm migrate info`
-- [ ] Confirm `.env.production` has all required secrets
+The production descriptor is `docker-compose.prod.yml`. It differs from the
+development compose in ways that matter operationally — see the header of that
+file and `docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md`.
 
-### Deployment
+### One-time host setup
+
+1. **Create the Supabase project** in the **specific** region `ap-south-1`
+   (Mumbai). A general "Asia Pacific" group may deploy outside India, and the
+   project region cannot be changed after creation.
+2. **Use the pooler connection string** (port 6543, `sslmode=require`) from the
+   project dashboard, not the direct database port.
+3. **Point DNS** at this host for the intended hostname, on ports 80 and 443.
+   Caddy obtains a publicly-trusted certificate over ACME. There is no
+   self-signed fallback.
+4. **Create the environment file:** `cp .env.prod.example .env`, then fill in
+   `SUPABASE_POOLER_URL`, `DB_USER` and `MEDOS_DOMAIN`.
+5. **Populate the secret files** in `SECRETS_DIR` from the cloud secret manager
+   (ADR-0004): `db-password.txt`, `redis-password.txt`, `jwt-secret.txt`,
+   `pii-encryption-key.txt`, `cors-origins.txt`.
+   Generate keys with `openssl rand -base64 48` and `openssl rand -base64 32`.
+6. **Validate before deploying:** `docker compose -f docker-compose.prod.yml config --quiet`
+
+> **The PII encryption key has no rotation path.** It encrypts patient names and
+> clinical notes, and the codebase has no re-encryption job, so changing it after
+> patient data exists makes that data unreadable. Generate it once and treat it as
+> permanent. See issue #73.
+
+### Deploying
+
 ```bash
-# Blue-green style (zero-downtime)
-docker compose --env-file .env.production up -d --build --scale backend=2
-# Wait for health checks
-docker compose --env-file .env.production ps
+docker compose -f docker-compose.prod.yml build --pull
+docker compose -f docker-compose.prod.yml up -d
 
-# Scale down old version (if using blue-green)
-docker compose --env-file .env.production up -d --scale backend=1
+# Flyway runs to completion before the backend starts.
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs migrate
 ```
 
-### Post-Deployment
-- [ ] Verify `/manage/health` returns UP
-- [ ] Verify `/manage/health/readiness` returns UP
-- [ ] Test login flow for each role
-- [ ] Check application logs for errors
-- [ ] Monitor metrics for 10 minutes
+Startup order is enforced: `migrate` completes, then `redis` becomes healthy, then
+`backend`, then `frontend`, and Caddy proxies to the frontend. A failed migration
+stops the deploy rather than starting the application against a stale schema.
 
----
+### Post-deployment checks
+
+- [ ] `docker compose -f docker-compose.prod.yml ps` — every service healthy or running
+- [ ] `curl -fsS https://$MEDOS_DOMAIN/manage/health` returns UP
+- [ ] Certificate is publicly trusted: `echo | openssl s_client -connect $MEDOS_DOMAIN:443 2>/dev/null | openssl x509 -noout -issuer`
+- [ ] Sign in as each of the six roles and confirm the expected access
+- [ ] Confirm the database holds no in-host copy: the descriptor has no `db` service
+- [ ] **Change the bootstrap admin password**, then clear `BOOTSTRAP_ADMIN_PASSWORD` from the secret manager
+- [ ] Confirm no secret appears in `docker compose -f docker-compose.prod.yml logs`
+
+### Notes
+
+- **No rolling deploy.** ADR-0001 accepts a brief restart on redeploy. `--scale
+  backend=2` is not a valid strategy here: the backend is not directly reachable,
+  and two instances would not share a session.
+- **Logs are rotated** (`max-size: 10m`, `max-file: 3`). An unbounded log fills the
+  disk on a single host, which takes the application down.
+- **Caddy certificate state is in a named volume.** Removing that volume makes
+  Caddy re-request a certificate on the next boot and can hit issuer rate limits.
 
 ## 4. Rollback Procedures
 
