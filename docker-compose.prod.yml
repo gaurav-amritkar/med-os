@@ -1,0 +1,186 @@
+# Production deployment descriptor for MedOS HMS.
+#
+# Topology per ADR-0001 (one cloud host, Caddy for TLS, managed PostgreSQL) and
+# ADR-0008 (Supabase ap-south-1 for the database; authentication stays in-house).
+#
+# Differences from the development compose, and why each matters:
+#
+#   * No `db` service. PostgreSQL is managed and reached over the pooler. Backups,
+#     PITR and snapshots are the provider's job, which is what makes the 5-minute
+#     RPO achievable without operating a database.
+#   * Only Caddy publishes a port. Backend, frontend, Redis and the migration
+#     runner are unreachable from outside the host. The development compose
+#     publishes the frontend directly; in production that would bypass TLS.
+#   * No secret is written here. Every credential comes from the environment or
+#     from a file under /run/secrets, per ADR-0004. A missing JWT_SECRET or
+#     PII_ENCRYPTION_KEY stops startup rather than falling back to a published key.
+#   * Log rotation is bounded. An unbounded json-file log on a single host fills
+#     the disk, which takes the application down.
+#
+# Before first use:
+#   1. Create the Supabase project with a SPECIFIC region of ap-south-1 (Mumbai).
+#      A general "Asia Pacific" group may land outside India.
+#   2. Use the pooler connection string (port 6543), not the direct database port,
+#      and set sslmode=require.
+#   3. Populate the secret files. For a cloud secret manager, have it write these
+#      paths at container start; ADR-0004 defines that flow.
+#   4. Point MEDOS_DOMAIN at a real hostname with an A record on this host, so
+#      Caddy can obtain a publicly-trusted certificate. There is deliberately no
+#      `tls internal` fallback: a self-signed certificate is not TLS.
+#   5. Change the bootstrap admin password after the first successful boot.
+
+name: medos-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-restart: &default-restart
+  restart: unless-stopped
+
+services:
+  # One-shot schema migration. Runs to completion before the backend starts, and
+  # targets the managed database through the pooler.
+  migrate:
+    build:
+      context: .
+      dockerfile: database/migrations.Dockerfile
+    image: medos-migrations:${MEDOS_TAG:-local}
+    environment:
+      FLYWAY_URL: ${SUPABASE_POOLER_URL:?SUPABASE_POOLER_URL must be set}
+      FLYWAY_USER: ${DB_USER:?DB_USER must be set}
+    # The official flyway image reads FLYWAY_* from the environment but has no
+    # documented _FILE indirection, so the password is read here and exported
+    # before flyway starts. No secret value appears in this file.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export FLYWAY_PASSWORD="$$(cat /run/secrets/db-password)"
+        exec flyway -connectRetries=60 -connectRetriesInterval=5 -baselineOnMigrate=true \
+             -table=flyway_schema_history migrate
+    secrets: [db-password]
+    networks: [medos-private]
+    restart: "no"
+
+  # Cache and rate-limit counters. Never authoritative (ADR-0007): losing it costs
+  # a cold cache, not data. In-host, and never published.
+  redis:
+    build:
+      context: ./cache
+      dockerfile: Dockerfile
+    image: medos-redis:${MEDOS_TAG:-local}
+    # No password is set here: cache/entrypoint.sh reads
+    # /run/secrets/redis-password and passes --requirepass to redis-server.
+    volumes:
+      - medos-redis-data:/data
+    secrets: [redis-password]
+    networks: [medos-private]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$(cat /run/secrets/redis-password) ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    logging: *default-logging
+    <<: *default-restart
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: medos-backend:${MEDOS_TAG:-local}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Managed PostgreSQL via the pooler. sslmode is required: patient records
+      # cross this connection.
+      SPRING_DATASOURCE_URL: ${SUPABASE_POOLER_URL:?SUPABASE_POOLER_URL must be set}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:?DB_USER must be set}
+      DB_USER: ${DB_USER:?DB_USER must be set}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      # No password is set here on purpose. backend/entrypoint.sh reads
+      # DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, PII_ENCRYPTION_KEY,
+      # BOOTSTRAP_ADMIN_PASSWORD and CORS_ORIGINS from /run/secrets and exports
+      # them, and application-prod.yml wires them to the datasource and cache.
+      # Spring Boot has no _FILE indirection, so setting a *_PASSWORD_FILE
+      # variable here would be silently ignored and the datasource would start
+      # with no password. There are also no inline defaults: an unset
+      # JWT_SECRET or PII_ENCRYPTION_KEY stops startup.
+      CORS_ORIGINS: https://${MEDOS_DOMAIN:?MEDOS_DOMAIN must be set}
+    secrets: [db-password, redis-password, jwt-secret, pii-encryption-key, cors-origins]
+    networks: [medos-private]
+    logging: *default-logging
+    <<: *default-restart
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: medos-frontend:${MEDOS_TAG:-local}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [medos-private]
+    logging: *default-logging
+    <<: *default-restart
+
+  # The only service with a published port. Caddy obtains and renews a
+  # publicly-trusted certificate for MEDOS_DOMAIN and is the sole TLS terminator.
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    image: medos-caddy:${MEDOS_TAG:-local}
+    depends_on: [frontend]
+    environment:
+      MEDOS_DOMAIN: ${MEDOS_DOMAIN:?MEDOS_DOMAIN must be set}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Certificate storage must survive a restart, or Caddy re-requests a
+      # certificate on every deploy and can hit issuer rate limits.
+      - medos-caddy-data:/data
+      - medos-caddy-config:/config
+    networks: [medos-edge, medos-private]
+    logging: *default-logging
+    <<: *default-restart
+
+networks:
+  medos-edge: {}
+  medos-private:
+    internal: true
+
+volumes:
+  medos-redis-data:
+  medos-caddy-data:
+  medos-caddy-config:
+
+# ADR-0004: the entrypoint reads /run/secrets/<name>. On a cloud secret manager the
+# operator populates these paths; the file source is the v1 mechanism the ADR
+# prescribes, and no secret value is ever written into this repository.
+#
+# The Supabase service_role key is deliberately absent. The application connects
+# as the `postgres` role over the pooler and does not use it; that key bypasses
+# row-level security and is equivalent to unrestricted database access, so it
+# has no business in the deployment surface. Keep it out of the host.
+secrets:
+  db-password:
+    file: ${SECRETS_DIR:-./secrets}/db-password.txt
+  redis-password:
+    file: ${SECRETS_DIR:-./secrets}/redis-password.txt
+  jwt-secret:
+    file: ${SECRETS_DIR:-./secrets}/jwt-secret.txt
+  pii-encryption-key:
+    file: ${SECRETS_DIR:-./secrets}/pii-encryption-key.txt
+  cors-origins:
+    file: ${SECRETS_DIR:-./secrets}/cors-origins.txt
