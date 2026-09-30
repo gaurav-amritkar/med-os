@@ -145,16 +145,30 @@ jobs:
           print("production compose invariants hold: only caddy published, no in-host db, no ignored secret keys")
           PYEOF
 
-  # Image vulnerability scanning (#15). The gate is a ratchet: .trivyignore
-  # acknowledges the high/critical findings that already existed, and anything
-  # new fails. Without the ignore file this job would be red on its first run,
-  # and a permanently red gate is one nobody reads.
+  # Image vulnerability scanning (#15).
+  #
+  # Trivy runs as a pinned container rather than through
+  # aquasecurity/trivy-action. That action's v0.30.0 tag depends on
+  # aquasecurity/setup-trivy@v0.2.2, which was never published, so the job fails
+  # at "Unable to resolve action". Removing the indirection also means the
+  # security gate does not itself depend on a third-party action, and the
+  # scanner version is pinned by digest instead of floating with a tag.
+  #
+  # The gate is a ratchet: .trivyignore acknowledges the high/critical findings
+  # that already existed, and anything new fails. Without it the job would be
+  # red on its first run, and a permanently red gate is one nobody reads.
   security:
     name: Image vulnerability scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # required to upload SARIF
+      security-events: write
+    env:
+      # aquasec/trivy 0.74.0, pinned by digest. Update deliberately, with a
+      # baseline regeneration in the same change.
+      TRIVY_IMAGE: aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+      TRIVY_CACHE: ${{ runner.temp }}/trivy-cache
+      SARIF_DIR: ${{ runner.temp }}/sarif
     steps:
       - uses: actions/checkout@v4
 
@@ -166,62 +180,57 @@ jobs:
       - name: Cache Trivy vulnerability database
         uses: actions/cache@v4
         with:
-          path: ~/.cache/trivy
-          key: trivy-db-${{ github.sha }}
-          restore-keys: trivy-db-
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-0.74.0-${{ github.sha }}
+          restore-keys: trivy-db-0.74.0-
 
-      - name: Scan backend and frontend images
-        uses: aquasecurity/trivy-action@v0.30.0
-        with:
-          image-ref: medos-backend:local
-          format: sarif
-          output: backend.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          trivyignores: .trivyignore
-          exit-code: '1'
+      - name: Scan images
+        run: |
+          set -uo pipefail
+          mkdir -p "$TRIVY_CACHE" "$SARIF_DIR"
+          failed=0
+          for image in medos-backend:local medos-frontend:local medos-caddy:local; do
+            slug="$(echo "$image" | cut -d: -f1 | sed 's/^medos-//')"
+            printf '  scanning %s ... ' "$image"
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$TRIVY_CACHE":/root/.cache/trivy \
+              -v "$SARIF_DIR":/out \
+              -v "$GITHUB_WORKSPACE":/repo -w /repo \
+              "$TRIVY_IMAGE" image --scanners vuln --quiet \
+                --severity HIGH,CRITICAL \
+                --ignore-unfixed \
+                --ignorefile .trivyignore \
+                --format sarif --output "/out/$slug.sarif" \
+                "$image"
+            if [ $? -ne 0 ]; then
+              echo "FAIL (new high/critical finding)"
+              failed=1
+            else
+              echo "ok"
+            fi
+          done
+          exit "$failed"
 
-      - name: Scan frontend image
-        uses: aquasecurity/trivy-action@v0.30.0
-        with:
-          image-ref: medos-frontend:local
-          format: sarif
-          output: frontend.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          trivyignores: .trivyignore
-          exit-code: '1'
-
-      - name: Scan Caddy image
-        uses: aquasecurity/trivy-action@v0.30.0
-        with:
-          image-ref: medos-caddy:local
-          format: sarif
-          output: caddy.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          trivyignores: .trivyignore
-          exit-code: '1'
-
-      # Uploaded even when the scan step failed, so findings are reviewable in
-      # the Security tab rather than only in a failed log.
+      # Uploaded even when the scan failed, so findings are reviewable in the
+      # Security tab rather than only in a red log.
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: backend.sarif
+          sarif_file: ${{ runner.temp }}/sarif/backend.sarif
           category: trivy-backend
 
       - name: Upload frontend SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: frontend.sarif
+          sarif_file: ${{ runner.temp }}/sarif/frontend.sarif
           category: trivy-frontend
 
       - name: Upload Caddy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: caddy.sarif
+          sarif_file: ${{ runner.temp }}/sarif/caddy.sarif
           category: trivy-caddy
