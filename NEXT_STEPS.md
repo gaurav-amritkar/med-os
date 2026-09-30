@@ -11,6 +11,15 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > receipts, configurable GST, wards/rooms, super-admin tenant management, payment
 > gateway), each verified against the current code.
 >
+> ⚠️ **P0 found and fixed 30 Sep 2026** (#73): a **public** repository carried
+> live credentials for 36 commits — the JWT signing secret, the PII encryption
+> key, the database, Redis and bootstrap-admin passwords, plus a second set in a
+> tracked `.env.supabase`. `application.yml` also shipped a real PII key as an
+> inline default, so a deployment that forgot the variable would have encrypted
+> patient records with a published key. All values rotated, files untracked,
+> history purged, and the app now fails to start rather than fall back to a
+> known key.
+>
 > Three of those security findings are now fixed on `main` (30 Sep 2026):
 > anonymous tenant registration is closed by default, the staff listing is
 > tenant-scoped, and a deactivated tenant is refused at login and on every
