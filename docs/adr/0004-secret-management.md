@@ -11,6 +11,23 @@
 
 Source secrets from the cloud provider's secret manager and inject them into containers at start, using the entrypoint's existing `/run/secrets/*` path. Do not stand up Vault for v1. Rotate every committed value first, then purge `secrets/` from history.
 
+## Status (30 Sep 2026)
+
+Both prescribed steps are now done, following a finding that `secrets/` was
+tracked in a **public** repository and `application.yml` shipped a real PII key
+as an inline default. Tracked as #73.
+
+- **Rotated**: every live value, in `.env`.
+- **Purged**: `secrets/` and `.env.supabase` removed from all commits, 11
+  credential values replaced in the remaining history, force-pushed.
+- **Fail closed**: no inline default for `JWT_SECRET` or `PII_ENCRYPTION_KEY`
+  remains, so a missing variable stops startup instead of using a published key.
+- **Still open**: purge the Supabase project if its credentials were real; add a
+  pre-commit secret scanner so this cannot recur.
+
+Values that were public remain compromised by definition. Rotation is what makes
+them inert; rewriting history only stops them being read again.
+
 ## Consequences
 
 - Rotation is a cloud-API operation, not a file edit on the host, so it is auditable and does not require redeploying an image.
