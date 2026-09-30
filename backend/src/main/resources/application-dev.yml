@@ -20,9 +20,12 @@ spring:
 medos:
   security:
     jwt:
-      secret: ZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZmFlZQ==
+      # No hardcoded value here, not even a dev placeholder. A literal key in a
+      # public repository is a key in a public repository. Supplied by .env,
+      # which is gitignored.
+      secret: ${JWT_SECRET}
       expiration-ms: 36000000
       issuer: medos-hms-v3
-    pii-encryption-key: __REDACTED_44__
+    pii-encryption-key: ${PII_ENCRYPTION_KEY}
   ai:
     enabled: false

@@ -64,3 +64,5 @@ env/
 
 # Secrets: never commit. See secrets/README.md for the pattern.
 secrets/*.txt
+# Abandoned Supabase integration; credentials were committed. ADR-0001 rejected that path.
+.env.supabase

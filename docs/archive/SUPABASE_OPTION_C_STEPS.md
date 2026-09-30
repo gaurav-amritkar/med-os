@@ -1,7 +1,7 @@
 # MedOS Supabase Option C — DB + Auth Migration
 
 ## Environment Variables (.env)
-SUPABASE_URL=__REDACTED_40__
+SUPABASE_URL=<redacted-supabase-url>
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5c...
 DB_URL=postgresql://postgres:[DB_PASSWORD]@db.your-project.supabase.co:5432/postgres
