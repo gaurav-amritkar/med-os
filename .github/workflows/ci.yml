@@ -167,8 +167,12 @@ jobs:
       # aquasec/trivy 0.74.0, pinned by digest. Update deliberately, with a
       # baseline regeneration in the same change.
       TRIVY_IMAGE: aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
-      TRIVY_CACHE: ${{ runner.temp }}/trivy-cache
-      SARIF_DIR: ${{ runner.temp }}/sarif
+      # No runner paths here. Neither the `runner` nor the `env` context is
+      # available in job-level env - only github, inputs, matrix, needs,
+      # secrets, strategy and vars. Referencing ${{ runner.temp }} there made
+      # GitHub reject the entire workflow file, so zero jobs were created. The
+      # cache path is set per step instead, where `runner` is allowed, and the
+      # scan step uses the RUNNER_TEMP environment variable directly.
     steps:
       - uses: actions/checkout@v4
 
@@ -187,27 +191,30 @@ jobs:
       - name: Scan images
         run: |
           set -uo pipefail
-          mkdir -p "$TRIVY_CACHE" "$SARIF_DIR"
+          trivy_cache="$RUNNER_TEMP/trivy-cache"
+          sarif_dir="$RUNNER_TEMP/sarif"
+          mkdir -p "$trivy_cache" "$sarif_dir"
           failed=0
+          # Every image is scanned even if an earlier one fails, so one run
+          # reports all of them rather than stopping at the first.
           for image in medos-backend:local medos-frontend:local medos-caddy:local; do
             slug="$(echo "$image" | cut -d: -f1 | sed 's/^medos-//')"
             printf '  scanning %s ... ' "$image"
-            docker run --rm \
+            if docker run --rm \
               -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "$TRIVY_CACHE":/root/.cache/trivy \
-              -v "$SARIF_DIR":/out \
+              -v "$trivy_cache":/root/.cache/trivy \
+              -v "$sarif_dir":/out \
               -v "$GITHUB_WORKSPACE":/repo -w /repo \
               "$TRIVY_IMAGE" image --scanners vuln --quiet \
                 --severity HIGH,CRITICAL \
                 --ignore-unfixed \
                 --ignorefile .trivyignore \
                 --format sarif --output "/out/$slug.sarif" \
-                "$image"
-            if [ $? -ne 0 ]; then
+                "$image"; then
+              echo "ok"
+            else
               echo "FAIL (new high/critical finding)"
               failed=1
-            else
-              echo "ok"
             fi
           done
           exit "$failed"
