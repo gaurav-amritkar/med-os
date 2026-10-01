@@ -1,1 +1,2 @@
 d54b9ada5df87fa2c76824a579fd69e3428f27068061471c3f910b965462c091  database/migrations/V1__initial_schema.sql
+72fe7938d2bc0aca643b1765eccb559da5101001852466a60b7ff683dc374019  database/migrations/V2__pii_key_lifecycle.sql
