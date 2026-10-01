@@ -81,6 +81,36 @@ else
   echo "    OK: no copies of the migration set exist outside $MIGRATION_DIR."
 fi
 
+# The check above can only see the working tree. A migration can also be
+# packaged into a build artifact, where `find` will not see it: backend/Dockerfile
+# copied database/migrations onto the application classpath, producing
+# BOOT-INF/classes/db/migration/V1__*.sql inside the jar. That copy was the one
+# the application actually migrated from at runtime, and it drifted silently for
+# exactly as long as the build artifact existed.
+#
+# So inspect build outputs too. Only unpack what is needed, and treat an
+# unreadable archive as inconclusive rather than as a failure: a corrupt or
+# unsupported jar must not block a deploy on its own.
+bundled=$(for archive in $(find . -name '*.jar' -not -path './.git/*' \
+                -not -path '*/node_modules/*' 2>/dev/null); do
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -Z1 "$archive" 2>/dev/null | grep -E '(^|/)db/migration/V[0-9]+__.*\.sql$' \
+      | sed "s#^#      $archive: #" || true
+  fi
+done)
+
+if [ -n "$bundled" ]; then
+  echo "    FAIL: migration files are bundled inside build artifacts:" >&2
+  echo "$bundled" >&2
+  echo "          A packaged copy is invisible to the checks above but is still a" >&2
+  echo "          second copy of the schema, and if the application migrates from" >&2
+  echo "          its own classpath it can win over $MIGRATION_DIR silently." >&2
+  echo "          Remove the COPY that packages the migrations into the build." >&2
+  status=1
+elif [ -n "$(find . -name '*.jar' -not -path './.git/*' -not -path '*/node_modules/*' 2>/dev/null)" ]; then
+  echo "    OK: no build artifact bundles a copy of the migration set."
+fi
+
 if [ "$status" -eq 0 ]; then
   echo "==> Migration gate passed."
 fi

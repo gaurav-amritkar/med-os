@@ -95,6 +95,12 @@ jobs:
       - name: Flyway migration gate
         run: ./tools/verify-migrations.sh
 
+      # The gate above is what protects the schema, so it gets its own tests. A
+      # gate that has quietly stopped detecting drift leaves CI green, which is
+      # the failure mode this job exists to prevent.
+      - name: Migration gate self-test
+        run: ./tools/test-verify-migrations.sh
+
       # The production descriptor is what an operator deploys, and it is not
       # exercised by any other job. A typo in it would only surface on the
       # production host, so it is validated here on every run.
