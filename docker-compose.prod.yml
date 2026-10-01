@@ -54,12 +54,35 @@ services:
     # The official flyway image reads FLYWAY_* from the environment but has no
     # documented _FILE indirection, so the password is read here and exported
     # before flyway starts. No secret value appears in this file.
+    #
+    # -baselineOnMigrate is present but MUST be paired with -baselineVersion=0.
+    #
+    # Supabase installs its own objects into the public schema, so Flyway refuses
+    # to migrate a non-empty schema and asks for a baseline. The naive value of 1
+    # is wrong here: it marks version 1 as already applied and then SKIPS V1,
+    # which against a fresh project reported
+    #   Successfully baselined schema with version: 1
+    #   Schema "public" is up to date. No migration necessary.
+    # having created none of our tables. The deploy looked successful and Flyway
+    # would never retry, because the history row said so.
+    #
+    # Baslining at 0 records a marker below every real migration, so V1 still
+    # applies and its checksum is stored — which is what makes a later
+    # `flyway validate` able to detect drift in the baseline.
+    #
+    # Verified against the live ap-south-1 project: "Successfully applied 1
+    # migration to schema \"public\", now at version v1".
+    #
+    # To adopt a genuinely pre-existing database instead, baseline deliberately
+    # and by hand at the correct version, after confirming the schema really is
+    # the one this repository describes.
     entrypoint:
       - /bin/sh
       - -c
       - |
         export FLYWAY_PASSWORD="$$(cat /run/secrets/db-password)"
-        exec flyway -connectRetries=60 -connectRetriesInterval=5 -baselineOnMigrate=true \
+        exec flyway -connectRetries=60 -connectRetriesInterval=5 \
+             -baselineOnMigrate=true -baselineVersion=0 \
              -table=flyway_schema_history migrate
     secrets: [db-password]
     networks: [medos-private]
