@@ -88,6 +88,13 @@ jobs:
         if: always()
         run: docker compose down -v
 
+      # Flyway deploy gate. An applied migration is immutable: Flyway stores its
+      # checksum, so an edit to V1 fails `flyway validate` on the first run
+      # against a real database. Catching it here is far cheaper. Also asserts
+      # database/migrations/ is the only copy of the schema, per ADR-0005.
+      - name: Flyway migration gate
+        run: ./tools/verify-migrations.sh
+
       # The production descriptor is what an operator deploys, and it is not
       # exercised by any other job. A typo in it would only surface on the
       # production host, so it is validated here on every run.
@@ -137,3 +144,124 @@ jobs:
                   assert "secret" not in str(secret).lower() or name == "migrate", name
           print("production compose invariants hold: only caddy published, no in-host db, no ignored secret keys")
           PYEOF
+
+  # Image vulnerability scanning (#15).
+  #
+  # Trivy runs as a pinned container rather than through
+  # aquasecurity/trivy-action. That action's v0.30.0 tag depends on
+  # aquasecurity/setup-trivy@v0.2.2, which was never published, so the job fails
+  # at "Unable to resolve action". Removing the indirection also means the
+  # security gate does not itself depend on a third-party action, and the
+  # scanner version is pinned by digest instead of floating with a tag.
+  #
+  # The gate is a ratchet: .trivyignore acknowledges the high/critical findings
+  # that already existed, and anything new fails. Without it the job would be
+  # red on its first run, and a permanently red gate is one nobody reads.
+  security:
+    name: Image vulnerability scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      # aquasec/trivy 0.74.0, pinned by digest. Update deliberately, with a
+      # baseline regeneration in the same change.
+      TRIVY_IMAGE: aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+      # No runner paths here. Neither the `runner` nor the `env` context is
+      # available in job-level env - only github, inputs, matrix, needs,
+      # secrets, strategy and vars. Referencing ${{ runner.temp }} there made
+      # GitHub reject the entire workflow file, so zero jobs were created. The
+      # cache path is set per step instead, where `runner` is allowed, and the
+      # scan step uses the RUNNER_TEMP environment variable directly.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build deployable images
+        env:
+          # Both compose files are validated in this step even though only one
+          # service is built from each, so every required variable must be
+          # present or interpolation fails before any build starts.
+          #   docker-compose.yml      -> DB_PASSWORD, REDIS_PASSWORD,
+          #                               JWT_SECRET, PII_ENCRYPTION_KEY, CORS_ORIGINS
+          #   docker-compose.prod.yml -> SUPABASE_POOLER_URL, DB_USER,
+          #                               MEDOS_DOMAIN
+          # The two keys below come from repository secrets; the rest are
+          # placeholders. Nothing is deployed from CI.
+          DB_PASSWORD: ci-database-password
+          REDIS_PASSWORD: ci-redis-password
+          JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+          PII_ENCRYPTION_KEY: ${{ secrets.CI_PII_ENCRYPTION_KEY }}
+          CORS_ORIGINS: http://localhost:8080
+          SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
+          DB_USER: postgres
+          MEDOS_DOMAIN: medos.invalid
+          SECRETS_DIR: ${{ runner.temp }}/medos-prod-secrets
+        run: |
+          set -euo pipefail
+          mkdir -p "$SECRETS_DIR"
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+            echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
+          done
+          docker compose build backend frontend
+          docker compose -f docker-compose.prod.yml build caddy
+
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-0.74.0-${{ github.sha }}
+          restore-keys: trivy-db-0.74.0-
+
+      - name: Scan images
+        run: |
+          set -uo pipefail
+          trivy_cache="$RUNNER_TEMP/trivy-cache"
+          sarif_dir="$RUNNER_TEMP/sarif"
+          mkdir -p "$trivy_cache" "$sarif_dir"
+          failed=0
+          # Every image is scanned even if an earlier one fails, so one run
+          # reports all of them rather than stopping at the first.
+          for image in medos-backend:local medos-frontend:local medos-caddy:local; do
+            slug="$(echo "$image" | cut -d: -f1 | sed 's/^medos-//')"
+            printf '  scanning %s ... ' "$image"
+            if docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$trivy_cache":/root/.cache/trivy \
+              -v "$sarif_dir":/out \
+              -v "$GITHUB_WORKSPACE":/repo -w /repo \
+              "$TRIVY_IMAGE" image --scanners vuln --quiet \
+                --severity HIGH,CRITICAL \
+                --ignore-unfixed \
+                --ignorefile .trivyignore \
+                --format sarif --output "/out/$slug.sarif" \
+                "$image"; then
+              echo "ok"
+            else
+              echo "FAIL (new high/critical finding)"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      # Uploaded even when the scan failed, so findings are reviewable in the
+      # Security tab rather than only in a red log.
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/sarif/backend.sarif
+          category: trivy-backend
+
+      - name: Upload frontend SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/sarif/frontend.sarif
+          category: trivy-frontend
+
+      - name: Upload Caddy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/sarif/caddy.sarif
+          category: trivy-caddy

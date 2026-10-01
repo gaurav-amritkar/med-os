@@ -1,0 +1,2 @@
+89e19cfe82690f3081ee9f462fda032cd14d585fd0c30b9a5ae2ee423168be52  database/migrations/V1__initial_schema.sql
+56b3ff6d4be5b2f762fd258648fede7639a4e795a5b569450e3d6d53e79520a8  database/migrations/V2__patient_name_blind_index.sql
