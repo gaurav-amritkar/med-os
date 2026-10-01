@@ -4,135 +4,83 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * AES-GCM encryption for PII fields at rest.
- * Uses 256-bit key from system property/environment variable (PII_ENCRYPTION_KEY).
- * Each encrypted value includes: IV (12 bytes) + ciphertext + auth tag (16 bytes) encoded as Base64.
+ * AES-GCM encryption for PII fields at rest, via {@link PiiCiphertextFormat}.
+ *
+ * <p>Uses a 256-bit key from the system property or {@code PII_ENCRYPTION_KEY}.
+ * There is deliberately no default: a missing or malformed key stops startup rather
+ * than falling back to a published value, because a fallback here would mean every
+ * deployment that forgot to configure a key shares one.
+ *
+ * <p>Stored form is versioned ({@code kv1.d<generation>:...}) so a key rotation can
+ * identify which key each value needs. See {@link PiiCiphertextFormat} for why the
+ * prefix names a DEK generation rather than a KEK version, and why an unknown
+ * generation throws instead of degrading to a legacy read.
  */
 @Converter(autoApply = false)
 @Slf4j
 public class EncryptionUtil implements AttributeConverter<String, String> {
 
-    private static final String ALGORITHM = "AES/GCM/NoPadding";
-    private static final int IV_LENGTH = 12; // GCM recommended IV length
-    private static final int TAG_LENGTH = 16; // GCM auth tag length
     private static final int KEY_LENGTH = 32; // 256 bits
 
-    private static SecretKeySpec secretKey;
+    private static PiiCiphertextFormat format;
 
     /**
-     * Initialize the encryption key from environment variable.
-     * Must be called during application startup.
+     * Initialise the encryption key. Must be called during application startup.
+     *
+     * @param base64Key 32 bytes, Base64-encoded
+     * @throws IllegalStateException if the key is missing, not Base64, or not 32 bytes
      */
-    public static void init(String base64Key) {
-        byte[] keyBytes = Base64.getDecoder().decode(base64Key);
-        if (keyBytes.length != KEY_LENGTH) {
-            throw new IllegalStateException("PII encryption key must be 32 bytes (256 bits) after Base64 decode");
+    public static synchronized void init(String base64Key) {
+        if (base64Key == null || base64Key.isBlank()) {
+            throw new IllegalStateException(
+                    "PII encryption key is not configured. Set PII_ENCRYPTION_KEY "
+                            + "(e.g. `openssl rand -base64 32`) and call EncryptionUtil.init() at startup.");
         }
-        secretKey = new SecretKeySpec(keyBytes, "AES");
+        format = PiiCiphertextFormat.singleKeyResolver(1, base64Key)
+                .withWriteGeneration(1);
     }
 
-    private static SecretKeySpec getSecretKey() {
-        if (secretKey == null) {
-            // Try to get from system property (for tests)
+    private static synchronized PiiCiphertextFormat format() {
+        if (format == null) {
+            // Test hook: allows a test to set the key through a system property
+            // rather than calling init() explicitly.
             String key = System.getProperty("medos.security.pii-encryption-key");
             if (key != null && !key.isBlank()) {
                 init(key);
             } else {
-                throw new IllegalStateException("PII encryption key not initialized. Call EncryptionUtil.init() at startup.");
+                throw new IllegalStateException("PII encryption key not initialized. "
+                        + "Call EncryptionUtil.init() at startup.");
             }
         }
-        return secretKey;
+        return format;
+    }
+
+    /** Test hook: forget the configured key, so the next use must re-initialise. */
+    static synchronized void reset() {
+        format = null;
     }
 
     @Override
     public String convertToDatabaseColumn(String plaintext) {
-        if (plaintext == null || plaintext.isBlank()) {
-            return plaintext;
-        }
-        try {
-            // Generate random IV for each encryption
-            byte[] iv = new byte[IV_LENGTH];
-            new SecureRandom().nextBytes(iv);
-
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH * 8, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, getSecretKey(), spec);
-
-            byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-
-            // Combine IV + ciphertext (which includes auth tag at the end)
-            ByteBuffer buffer = ByteBuffer.allocate(IV_LENGTH + ciphertext.length);
-            buffer.put(iv);
-            buffer.put(ciphertext);
-
-            return Base64.getEncoder().encodeToString(buffer.array());
-        } catch (Exception e) {
-            log.error("PII encryption failed", e);
-            throw new IllegalStateException("Failed to encrypt PII field", e);
-        }
+        return format().encrypt(plaintext);
     }
 
     @Override
     public String convertToEntityAttribute(String encrypted) {
-        if (encrypted == null || encrypted.isBlank()) {
-            return encrypted;
-        }
-
-        // Legacy-plaintext tolerance: rows written before PII encryption was enabled hold
-        // raw plaintext, which is not valid ciphertext for this format. Our ciphertext is
-        // always valid Base64 decoding to at least IV + tag bytes; anything else is treated
-        // as legacy plaintext so pre-encryption data stays readable. Re-saving the record
-        // encrypts it. A value that LOOKS like ciphertext but fails to decrypt is a real
-        // key/corruption problem and still fails loudly.
-        byte[] decoded;
-        try {
-            decoded = Base64.getDecoder().decode(encrypted);
-        } catch (IllegalArgumentException e) {
-            log.warn("PII column holds non-Base64 legacy plaintext; returning as-is (re-save to encrypt)");
-            return encrypted;
-        }
-        if (decoded.length < IV_LENGTH + TAG_LENGTH) {
-            log.warn("PII column holds short legacy plaintext; returning as-is (re-save to encrypt)");
-            return encrypted;
-        }
-
-        try {
-            // Extract IV (first 12 bytes)
-            byte[] iv = new byte[IV_LENGTH];
-            System.arraycopy(decoded, 0, iv, 0, IV_LENGTH);
-
-            // Extract ciphertext + auth tag (remaining bytes)
-            byte[] ciphertext = new byte[decoded.length - IV_LENGTH];
-            System.arraycopy(decoded, IV_LENGTH, ciphertext, 0, ciphertext.length);
-
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH * 8, iv);
-            cipher.init(Cipher.DECRYPT_MODE, getSecretKey(), spec);
-
-            byte[] plaintext = cipher.doFinal(ciphertext);
-            return new String(plaintext, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            log.error("PII decryption failed", e);
-            throw new IllegalStateException("Failed to decrypt PII field (wrong PII_ENCRYPTION_KEY or corrupted data)", e);
-        }
+        return format().decrypt(encrypted);
     }
 
     /**
-     * Utility method to generate a new encryption key.
-     * Run: openssl rand -base64 32
+     * Generate a new 32-byte encryption key and print it.
+     *
+     * <p>Run: {@code openssl rand -base64 32}
      */
     public static void main(String[] args) {
         byte[] key = new byte[KEY_LENGTH];
-        new SecureRandom().nextBytes(key);
+        new java.security.SecureRandom().nextBytes(key);
         System.out.println("PII_ENCRYPTION_KEY=" + Base64.getEncoder().encodeToString(key));
     }
 }
