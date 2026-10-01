@@ -12,13 +12,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Backfills the patient name blind index for rows written before V2 added the
- * column.
+ * Backfills the patient name blind index for any row whose {@code name_index} is
+ * NULL.
  *
- * <p>A keyed HMAC cannot be computed in SQL, so the migration only adds the
- * column and the index. This fills every row where {@code name_index IS NULL} on
- * startup, so patients registered before the migration become searchable by name
- * without a manual step.
+ * <p>A keyed HMAC cannot be computed in SQL, so the schema only declares the
+ * column and the index. A database provisioned from the current V1 has the column
+ * from the start, which makes this a no-op: no production database existed when
+ * the blind index was folded into the baseline, so there are no pre-V2 rows. It is
+ * kept as a safety net rather than deleted, because it is the only thing that
+ * would repair a database loaded by other means (a restored dump, or an
+ * INSERT that bypassed the entity layer).
  *
  * <p>Runs after the admin bootstrap so the schema and the PII key are both in
  * place. Failures are logged and swallowed: a missing backfill degrades search to

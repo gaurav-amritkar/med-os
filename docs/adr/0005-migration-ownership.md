@@ -32,8 +32,12 @@ Verified on this branch:
   generated copy is stale" rule therefore has nothing to compare.
 - `caddy/migrations/` is **gone**; `caddy/` now contains only `Caddyfile` and
   `Dockerfile`.
-- `database/migrations/` really is the single owner, holding `V1__initial_schema.sql`
-  and `V2__patient_name_blind_index.sql`.
+- `database/migrations/` really is the single owner, holding
+  `V1__initial_schema.sql`. On 2026-10-01 the patient name blind index was
+  folded into V1 from `V2__patient_name_blind_index.sql`, while no database had
+  ever applied either file; the baseline was squashed before first use rather
+  than shipping a V2 that only added a column a fresh database could declare
+  up front. V1 is frozen from that point on.
 
 Enforcement is now explicit rather than incidental:
 
