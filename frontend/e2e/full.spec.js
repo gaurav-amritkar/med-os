@@ -37,32 +37,36 @@ test.describe('end-to-end journeys', () => {
     expect(dashboardCalls[0].status).toBe(200);
   });
 
-  // /users/me must not disclose the password hash. This is asserted rather than
-  // console.logged: the endpoint returned the User entity, so Jackson serialized
-  // passwordHash to the client until this test existed. A regression re-introduces
-  // a readable hash for any authenticated user.
+  // /users/me must not disclose the password hash. It previously returned the User
+  // entity, so Jackson serialised passwordHash to any authenticated caller.
+  //
+  // The request is made directly rather than by navigating, because no page calls
+  // this endpoint: the UI reads identity from the login response. An earlier
+  // version of this test waited for a call triggered by page load, observed none,
+  // and failed for the wrong reason. Calling the endpoint also means the
+  // assertion holds regardless of what the UI happens to do.
   test('/users/me never returns the password hash', async ({ page }) => {
-    const meBodies = [];
-    page.on('response', async (r) => {
-      if (r.url().includes('/api/v1/users/me')) {
-        try {
-          meBodies.push(await r.json());
-        } catch {
-          meBodies.push(null);
-        }
-      }
+    await login(page);
+
+    // The auth store keeps the token in sessionStorage under 'medos_token'.
+    const token = await page.evaluate(() => window.sessionStorage.getItem('medos_token'));
+    expect(token, 'a token should be in storage after login').toBeTruthy();
+
+    const response = await page.request.get(`${BASE_URL}/api/v1/users/me`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
 
-    await login(page);
-    await page.goto(`${BASE_URL}/dashboard`);
-    await expect
-      .poll(() => meBodies.length, { timeout: 10000, message: 'no /users/me call observed' })
-      .toBeGreaterThan(0);
+    expect(response.status()).toBe(200);
+    const body = await response.json();
 
-    const body = meBodies[0];
-    expect(body).not.toBeNull();
     expect(body.username).toBe(creds.username);
     expect(body.passwordHash).toBeUndefined();
     expect(body).not.toHaveProperty('password');
+    expect(body).not.toHaveProperty('password_hash');
+    // Persistence-only fields must not travel either.
+    expect(body).not.toHaveProperty('createdAt');
+    expect(body).not.toHaveProperty('lastLogin');
+    // The acting tenant should be resolved, not absent.
+    expect(body.tenantId).toBeTruthy();
   });
 });
