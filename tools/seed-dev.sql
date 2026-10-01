@@ -72,7 +72,7 @@ ON CONFLICT (uhid) DO UPDATE SET
   dpdp_consent_at = EXCLUDED.dpdp_consent_at;
 
 -- IPD room inventory (master data; no API exists to create rooms).
--- version column is NOT NULL (optimistic locking, V2) — default 0.
+-- version column is NOT NULL (optimistic locking) — default 0.
 INSERT INTO rooms (id, tenant_id, room_number, ward, room_type, daily_rate, capacity, occupied, floor, version) VALUES
 ('00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000001', 'G-101', 'General Ward A', 'general', 1500.00, 1, FALSE, 1, 0),
 ('00000000-0000-4000-8000-000000000302', '00000000-0000-4000-8000-000000000001', 'G-102', 'General Ward A', 'general', 1500.00, 1, FALSE, 1, 0),

@@ -13,8 +13,20 @@
 -- given defaults so inserts always carry a key even when the application layer
 -- omits one, and hot-path indexes added for tenant filtering and common lookups.
 --
+-- On 2026-10-01 the patient name blind index was folded in from the former
+-- V2__patient_name_blind_index.sql, which had added it with an ALTER TABLE.
+-- Nothing had ever applied V1 or V2 — no production database exists and the
+-- first Supabase project was still empty — so the baseline is squashed before
+-- it is first used anywhere, rather than shipping a V2 whose only effect is to
+-- add a column a fresh database could have declared up front. This follows the
+-- same reasoning as the 2026-09-27 squash above. That file's own header had
+-- recorded the opposite intent ("never folded into it"); that was correct while
+-- a migration could already have been applied, and stopped being correct the
+-- moment it had not.
+--
 -- This file is the single owner of the schema (see docs/adr/0005-migration-ownership.md).
--- Schema changes after this file: add V2, V3, ... — never edit this one.
+-- It is now frozen: from the first applied migration onward, schema changes are
+-- V2, V3, ... and this file is never edited again.
 -- ============================================================================
 
 -- ---------------------------------------------------------------- application sequences
@@ -95,6 +107,23 @@ CREATE TABLE patients (
     blood_group     TEXT,
     email           TEXT,
     name            TEXT        NOT NULL,
+    -- Keyed blind index for name search: a deterministic HMAC-SHA256 of the
+    -- normalised name, derived from the PII encryption key through a fixed
+    -- domain label. patients.name is AES-256-GCM ciphertext, which is
+    -- randomised per value, so `WHERE name LIKE '%anita%'` can never match and
+    -- patient search returned nothing at all. Matched by equality only, since a
+    -- blind index cannot support substring matching; UHID remains unencrypted
+    -- and supports partial matching directly.
+    --
+    -- As sensitive as the plaintext it protects: a holder of the database but
+    -- not the key cannot read names, but can confirm a guessed name by
+    -- comparing digests. Rotating the PII key therefore requires recomputing
+    -- every row.
+    --
+    -- VARCHAR, not CHAR(64): PostgreSQL maps CHAR(n) to bpchar, which
+    -- Hibernate's ddl-auto=validate rejects for a length-declared String (found
+    -- bpchar, expecting varchar).
+    name_index      VARCHAR(64),
     phone           TEXT,
     PRIMARY KEY (id)
 );
@@ -372,6 +401,10 @@ CREATE TABLE audit_log (
 -- ---------------------------------------------------------------- indexes
 -- tenant_id leads nearly every query through TenantStatementInspector.
 CREATE INDEX idx_patients_tenant            ON patients (tenant_id);
+-- Equality lookup for the name blind index, and UHID-substring search. The
+-- unique index on uhid already exists; this one serves LIKE 'UHID%'.
+CREATE INDEX idx_patients_name_index        ON patients (name_index);
+CREATE INDEX idx_patients_uhid_prefix       ON patients (uhid);
 CREATE INDEX idx_appointments_tenant        ON appointments (tenant_id);
 CREATE INDEX idx_encounters_tenant          ON encounters (tenant_id);
 CREATE INDEX idx_prescriptions_tenant       ON prescriptions (tenant_id);
