@@ -28,6 +28,15 @@ as an inline default. Tracked as #73.
 Values that were public remain compromised by definition. Rotation is what makes
 them inert; rewriting history only stops them being read again.
 
+This ADR decided how secrets are *stored and supplied*. It did not decide how the
+PII key is *structured*: at the time of writing, `PII_ENCRYPTION_KEY` was a single
+secret used directly as the AES key, and could not be rotated without destroying
+every encrypted value. That is now
+[ADR-0009](0009-envelope-encryption-per-tenant-deks.md) — envelope encryption with
+per-tenant DEKs, under which rotating the key-encryption key re-wraps keyring rows
+instead of re-encrypting data. The storage and fail-closed rules here still apply
+to the KEK.
+
 ## Consequences
 
 - Rotation is a cloud-API operation, not a file edit on the host, so it is auditable and does not require redeploying an image.
