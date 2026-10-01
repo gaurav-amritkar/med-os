@@ -148,8 +148,22 @@
     </dependencies>
 
     <build>
+        <!-- os-maven-plugin supplies ${os.detected.classifier}, which appears in
+             Netty's netty-tcnative coordinate. Without it the property is never
+             substituted, and dependency resolution fails on Linux x86_64 with
+             "Could not find artifact
+             io.netty:netty-tcnative:jar:${os.detected.classifier}". It cannot
+             reproduce on macOS or an arm64 Linux image, where the optional native
+             module is never selected, so the broken coordinate is never reached. -->
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
         <!--
-            database/migrations is the single owner of the Flyway migrations
+            database/migrations is the single owner of the Flyway migrations of the Flyway migrations
             (docs/adr/0005-migration-ownership.md). It lives outside this module
             so the dedicated migrate image and the application read the same
             file, and it is copied onto the classpath here rather than kept as a
