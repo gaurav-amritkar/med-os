@@ -14,6 +14,11 @@ target/
 .env
 .env.local
 .env.*.local
+# Real production environment, including the Supabase credentials for the
+# live project. Matched before the negation below, which would otherwise
+# re-include anything ending in .example.
+.env.prod
+.env.prod.*
 !.env.example
 
 # IDE files
