@@ -1,7 +1,12 @@
 # Multi-stage build for MedOS Backend
-# Build context is the repository root, not backend/, so that this image can read
-# database/migrations — the single owner of the Flyway schema — and place it on
-# the application classpath (see the <resources> block in pom.xml).
+# Build context is the repository root, not backend/.
+#
+# The migrations are deliberately NOT copied into this image. The dedicated
+# migrate container is the single owner of the schema (ADR-0005) and reads
+# database/migrations directly. Packaging them onto the application classpath
+# created a second copy that only existed inside the built jar — invisible to the
+# on-disk drift checks, and the copy the application actually migrated from when
+# it started before the migrate container had run.
 FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 
@@ -9,9 +14,7 @@ WORKDIR /app
 COPY backend/pom.xml backend/
 RUN cd backend && mvn dependency:go-offline -B -q
 
-# Copy source and the migrations this module packages onto its classpath
 COPY backend/src backend/src
-COPY database/migrations database/migrations
 RUN cd backend && mvn clean package -Dmaven.test.skip=true -B -q
 
 # Runtime image

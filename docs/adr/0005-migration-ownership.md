@@ -30,6 +30,17 @@ Verified on this branch:
 - `backend/src/main/resources/db/migration/` **does not exist**. There is no
   classpath copy, and no build step generates one. The original "fail if the
   generated copy is stale" rule therefore has nothing to compare.
+
+  **Amended 2026-10-01.** A classpath copy *was* being generated, by a
+  `<resources>` entry in `backend/pom.xml` that added
+  `database/migrations` as a second resource directory, packaged by the
+  Dockerfile's `COPY`. It appeared only inside the built jar, at
+  `BOOT-INF/classes/db/migration/`, so it satisfied the letter of this ADR while
+  contradicting it: the on-disk checks could not see it, and the application —
+  which had `flyway.locations: classpath:db/migration` — migrated the database
+  from that copy at startup, racing the migrate container and winning. Both the
+  resource entry and the application-side Flyway are now gone; the classpath copy
+  no longer exists in any form.
 - `caddy/migrations/` is **gone**; `caddy/` now contains only `Caddyfile` and
   `Dockerfile`.
 - `database/migrations/` really is the single owner, holding
@@ -43,7 +54,13 @@ Enforcement is now explicit rather than incidental:
 
 - **`tools/verify-migrations.sh`** asserts no `V*.sql` exists outside
   `database/migrations/`, so a copy cannot quietly reappear — the exact failure
-  this ADR was written about.
+  this ADR was written about. It also inspects build artifacts for migrations
+  bundled inside a jar, since a packaged copy satisfies the file-level check
+  while still being a second copy. That check is what was missing when the
+  classpath copy above drifted.
+- **`tools/test-verify-migrations.sh`** tests the gate itself, including the
+  jar-bundling case. A gate that quietly stops detecting drift is worse than no
+  gate, because CI stays green.
 - **`database/migrations/SHA256SUMS`** records a checksum per applied migration,
   and the same script verifies it. Flyway stores the checksum of what it actually
   applied, so editing an applied migration fails `flyway validate` on the first

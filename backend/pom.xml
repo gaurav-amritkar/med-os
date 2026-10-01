@@ -163,19 +163,20 @@
             </extension>
         </extensions>
         <!--
-            database/migrations is the single owner of the Flyway migrations of the Flyway migrations
-            (docs/adr/0005-migration-ownership.md). It lives outside this module
-            so the dedicated migrate image and the application read the same
-            file, and it is copied onto the classpath here rather than kept as a
-            second hand-maintained copy that could drift.
+            No migrations are packaged onto the application classpath. The dedicated
+            migrate container is the single owner of the schema
+            (docs/adr/0005-migration-ownership.md): it reads database/migrations
+            directly, and the application validates the schema with
+            ddl-auto=validate instead of migrating it.
+
+            Adding database/migrations here as an extra resource produced a second
+            copy that existed only inside the built jar, where the on-disk drift
+            checks could not see it. That copy is the one the application actually
+            migrated from at startup.
         -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
-            </resource>
-            <resource>
-                <directory>${project.basedir}/../database/migrations</directory>
-                <targetPath>db/migration</targetPath>
             </resource>
         </resources>
         <plugins>
