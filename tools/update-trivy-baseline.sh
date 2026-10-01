@@ -59,7 +59,8 @@ findings = collections.defaultdict(set)
 total = 0
 
 for report in sorted(out.glob("*.json")):
-    service = report.stem.split("-", 1)[1].rsplit("-", 1)[0]
+    stem = report.stem.removeprefix("medos-").removesuffix("-local")
+    service = stem
     for result in json.loads(report.read_text()).get("Results", []):
         for vuln in result.get("Vulnerabilities") or []:
             if vuln.get("Severity") in ("CRITICAL", "HIGH") and vuln.get("VulnerabilityID"):

@@ -1,28 +1,17 @@
 # Trivy ignore file — a ratchet, not an allowlist of comfort.
 #
-# Generated 2026-09-30 by tools/update-trivy-baseline.sh against the images that
-# actually deploy. The CI job runs Trivy with --ignorefile .trivyignore and
-# --exit-code 1, so this file makes the gate meaningful rather than permanently
-# red: a NEW high or critical finding fails the build, and an entry here only
-# acknowledges one that already existed.
+# Generated 2026-10-01 by tools/update-trivy-baseline.sh
+# against the images that actually deploy. The CI job runs Trivy with
+# --ignorefile .trivyignore and --exit-code 1, so this file makes the gate
+# meaningful rather than permanently red: a NEW high or critical finding fails
+# the build, and an entry here only acknowledges one that already existed.
 #
-# Why a baseline exists at all: at the time of writing the deployable images
-# carried 254 high/critical findings across 154 distinct identifiers, the
-# majority inherited from upstream base images and from a Spring Boot 3.2.5 /
-# Tomcat 10.1.20 / Netty 4.1.109 / Jackson 2.15.4 stack. Removing them all in one
-# change would mean merging an unpinned dependency upgrade with a CI change, so
-# the two are separated deliberately.
+# Do not add an ID here without reading the finding. If a fix is available,
+# record that on the tracking issue rather than suppressing it here.
 #
-# The debt is tracked, not forgotten. See the dependency-upgrade issue linked
-# from the commit that introduced this file. Review cadence: monthly, and
-# whenever a base image is rebuilt.
+# Review cadence: monthly, and whenever a base image is rebuilt.
 #
-# Do not add an ID here without reading the finding. A fix being available is
-# recorded as a comment on the tracking issue, not suppressed here.
-#
-# Format: one identifier per line, optionally followed by a comment. Review
-# date: regenerate wholesale with tools/update-trivy-baseline.sh rather than
-# hand-editing, so the file always matches a real scan.
+# Format: one identifier per line, optionally followed by a comment.
 
 CVE-2022-27664  # redis/HIGH
 CVE-2022-28131  # redis/HIGH
@@ -59,34 +48,18 @@ CVE-2023-45288  # redis/HIGH
 CVE-2024-12797  # migrate/HIGH
 CVE-2024-24790  # redis/CRIT
 CVE-2024-34156  # redis/HIGH
-CVE-2024-34750  # backend/HIGH
-CVE-2024-38286  # backend/HIGH
-CVE-2024-38816  # backend/HIGH
-CVE-2024-38819  # backend/HIGH
-CVE-2024-38821  # backend/CRIT
 CVE-2024-49194  # migrate/HIGH
-CVE-2024-50379  # backend/HIGH
-CVE-2024-56337  # backend/HIGH
 CVE-2025-15467  # frontend/HIGH, migrate/HIGH, redis/HIGH
-CVE-2025-22228  # backend/HIGH
-CVE-2025-22235  # backend/HIGH
 CVE-2025-24789  # migrate/HIGH
-CVE-2025-24813  # backend/CRIT
-CVE-2025-24970  # backend/HIGH, migrate/HIGH
+CVE-2025-24970  # migrate/HIGH
 CVE-2025-26519  # migrate/HIGH
 CVE-2025-29087  # migrate/HIGH
 CVE-2025-32988  # migrate/HIGH
 CVE-2025-32990  # migrate/HIGH
-CVE-2025-41249  # backend/HIGH
-CVE-2025-48988  # backend/HIGH
-CVE-2025-48989  # backend/HIGH
 CVE-2025-49794  # frontend/HIGH
 CVE-2025-49795  # frontend/HIGH
 CVE-2025-49796  # frontend/HIGH
-CVE-2025-52520  # backend/HIGH
-CVE-2025-53506  # backend/HIGH
 CVE-2025-55163  # migrate/HIGH
-CVE-2025-55752  # backend/HIGH
 CVE-2025-59250  # migrate/HIGH
 CVE-2025-59375  # frontend/HIGH, migrate/HIGH
 CVE-2025-61726  # redis/HIGH
@@ -101,10 +74,7 @@ CVE-2025-6965  # migrate/HIGH
 CVE-2026-1584  # migrate/HIGH
 CVE-2026-22184  # frontend/HIGH, migrate/HIGH, redis/HIGH
 CVE-2026-22695  # frontend/HIGH, migrate/HIGH
-CVE-2026-22732  # backend/CRIT
 CVE-2026-22801  # frontend/HIGH, migrate/HIGH
-CVE-2026-24734  # backend/HIGH
-CVE-2026-24880  # backend/HIGH
 CVE-2026-25210  # frontend/HIGH, migrate/HIGH
 CVE-2026-25646  # frontend/HIGH, migrate/HIGH
 CVE-2026-25679  # redis/HIGH
@@ -124,38 +94,25 @@ CVE-2026-33814  # redis/HIGH
 CVE-2026-33818  # caddy/HIGH, redis/HIGH
 CVE-2026-33845  # migrate/CRIT
 CVE-2026-33846  # migrate/HIGH
-CVE-2026-34483  # backend/HIGH
-CVE-2026-34487  # backend/HIGH
 CVE-2026-3833  # migrate/HIGH
 CVE-2026-39820  # redis/HIGH
 CVE-2026-39821  # caddy/HIGH, redis/HIGH
 CVE-2026-39822  # caddy/HIGH, redis/HIGH
 CVE-2026-39836  # redis/HIGH
 CVE-2026-40200  # frontend/HIGH, migrate/HIGH, redis/HIGH
-CVE-2026-40984  # backend/HIGH
-CVE-2026-41284  # backend/HIGH
-CVE-2026-41293  # backend/CRIT
-CVE-2026-41842  # backend/HIGH
-CVE-2026-41845  # backend/HIGH
-CVE-2026-41850  # backend/HIGH
 CVE-2026-42009  # migrate/HIGH
 CVE-2026-42010  # migrate/CRIT
-CVE-2026-42198  # backend/HIGH, migrate/HIGH
-CVE-2026-42498  # backend/HIGH
+CVE-2026-42198  # migrate/HIGH
 CVE-2026-42499  # redis/HIGH
 CVE-2026-42504  # caddy/HIGH, redis/HIGH
-CVE-2026-42583  # backend/HIGH
-CVE-2026-43512  # backend/CRIT
-CVE-2026-43513  # backend/HIGH
-CVE-2026-43515  # backend/CRIT
-CVE-2026-44249  # backend/HIGH, migrate/HIGH
+CVE-2026-44249  # migrate/HIGH
 CVE-2026-45186  # frontend/HIGH, migrate/HIGH
-CVE-2026-45416  # backend/HIGH, migrate/HIGH
+CVE-2026-45416  # migrate/HIGH
 CVE-2026-45447  # frontend/HIGH, redis/HIGH
 CVE-2026-46600  # caddy/HIGH
-CVE-2026-50010  # backend/HIGH, migrate/HIGH
-CVE-2026-54512  # backend/HIGH, migrate/HIGH
-CVE-2026-54513  # backend/HIGH, migrate/HIGH
+CVE-2026-50010  # migrate/HIGH
+CVE-2026-54512  # migrate/HIGH
+CVE-2026-54513  # migrate/HIGH
 CVE-2026-56852  # caddy/HIGH
 CVE-2026-56853  # caddy/HIGH, redis/HIGH
 CVE-2026-56854  # caddy/HIGH
@@ -163,18 +120,17 @@ CVE-2026-56858  # caddy/HIGH, redis/HIGH
 CVE-2026-56859  # caddy/HIGH, redis/HIGH
 CVE-2026-56860  # caddy/HIGH, redis/HIGH
 CVE-2026-56862  # caddy/HIGH, redis/HIGH
-CVE-2026-59901  # backend/HIGH
 CVE-2026-65182  # backend/CRIT
 CVE-2026-65905  # backend/CRIT
 CVE-2026-66046  # frontend/HIGH
 CVE-2026-6732  # frontend/HIGH
-CVE-2026-68497  # backend/HIGH, migrate/HIGH
+CVE-2026-68497  # migrate/HIGH
 CVE-2026-68525  # backend/CRIT
-CVE-2026-75595  # backend/CRIT, migrate/CRIT
+CVE-2026-75595  # migrate/CRIT
 CVE-2026-76641  # frontend/HIGH
 CVE-2026-76956  # frontend/HIGH
 CVE-2026-76957  # frontend/HIGH
 CVE-2026-84304  # caddy/HIGH
 CVE-2026-84445  # caddy/HIGH
 GHSA-hrxh-6v49-42gf  # caddy/HIGH
-GHSA-r7wm-3cxj-wff9  # backend/HIGH, migrate/HIGH
+GHSA-r7wm-3cxj-wff9  # migrate/HIGH
