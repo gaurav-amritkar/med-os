@@ -33,13 +33,16 @@ services:
       FLYWAY_USER: ${DB_USER:-medos}
       FLYWAY_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       FLYWAY_CONNECT_RETRIES: 30
-      FLYWAY_BASELINE_ON_MIGRATE: "true"
       FLYWAY_SCHEMA: public
       FLYWAY_TABLE: flyway_schema_history
-    # Without this the image runs its default CMD of "-?", which prints the usage
-    # text and exits 0. Compose read that as success, so the backend started
-    # against an unmigrated database and migrated it itself from a stale copy
-    # packaged in its own jar. The dedicated migration must actually run.
+      # No FLYWAY_BASELINE_ON_MIGRATE, for the same reason as production: it marks
+      # a version as already applied and then skips that migration, so against a
+      # fresh volume it would create no tables while reporting success.
+      #
+      # Without an explicit command the image runs its default CMD of "-?", which
+      # prints the usage text and exits 0. Compose read that as success, so the
+      # backend started against an unmigrated database and migrated it itself from
+      # a stale copy packaged in its own jar. The dedicated migration must run.
     command: ["migrate"]
     networks: [medos-private]
     restart: "no"
