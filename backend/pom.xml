@@ -7,7 +7,10 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <!-- 3.2.5 shipped Tomcat 10.1.20, Spring Security 6.2.4, Jackson 2.15.4,
+             Netty 4.1.109 and Micrometer 1.12.5, which carried 10 critical and 36
+             high CVEs in the built image, all with published fixes. See #76. -->
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -20,8 +23,21 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.5</jjwt.version>
-        <!-- Lombok 1.18.46 adds JDK 25/26 support; Spring Boot 3.2.5 manages 1.18.32 which fails on JDK 25. -->
+        <!-- Pinned because the JDK this builds with is ahead of the version Spring
+             Boot manages. Re-check on every Boot upgrade. -->
         <lombok.version>1.18.46</lombok.version>
+        <!-- Patch-level overrides of Spring Boot's managed transitive versions.
+             Each clears a finding the scanner reports against the version Boot
+             ships, and is a patch bump within the same line Boot manages, so it
+             stays inside what Boot is tested against. Verify with a scan before
+             relaxing any of them, and remove them once Boot ships the fix
+             natively. See #76. -->
+        <netty.version>4.1.137.Final</netty.version>
+        <!-- Overridden as a BOM, not per-artifact: jackson-annotations and
+             jackson-databind version independently, so pinning only databind
+             would risk a mismatch in the HTTP serialisation layer. -->
+        <jackson-bom.version>2.21.6</jackson-bom.version>
+        <postgresql.version>42.7.12</postgresql.version>
     </properties>
 
     <dependencies>
@@ -49,6 +65,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!-- Transitive from the Redis starter. 4.1.135 ships a critical
+             Netty handler flaw; the fix is a patch bump in the same line. -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-handler</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
@@ -61,15 +84,25 @@
         </dependency>
 
         <!-- Flyway owns the schema (see database/README.md); Hibernate only validates.
-             Boot 3.2 manages Flyway 9.x, which includes PostgreSQL support in flyway-core. -->
+             Boot 3.5.16 manages Flyway 11, where PostgreSQL support moved out of
+             flyway-core into its own module. Without this the application starts
+             and then fails: "Unsupported Database: PostgreSQL 16.9". The 119
+             backend tests do not catch it because they run on H2, so the running
+             stack against PostgreSQL is the only place this shows up. -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
 
+        <!-- 42.7.11 ships a SCRAM MITM bypass; 42.7.12 is a patch bump. -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
