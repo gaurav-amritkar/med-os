@@ -177,7 +177,20 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build deployable images
+        env:
+          # docker-compose.prod.yml requires these even for a build, because it
+          # interpolates them into the service environment. Placeholders only;
+          # no secret is involved and nothing is deployed from CI.
+          SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
+          DB_USER: postgres
+          MEDOS_DOMAIN: medos.invalid
+          SECRETS_DIR: ${{ runner.temp }}/medos-prod-secrets
         run: |
+          set -euo pipefail
+          mkdir -p "$SECRETS_DIR"
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+            echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
+          done
           docker compose build backend frontend
           docker compose -f docker-compose.prod.yml build caddy
 
