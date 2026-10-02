@@ -147,20 +147,22 @@ class PatientServiceTest {
     }
 
     @Test
-    void listPatients_searchByName_usesBlindIndexNotCiphertext() {
+    void listPatients_searchByName_neverMatchesTheEncryptedColumnInSql() {
         // The regression this locks down: searching the encrypted column with
         // LIKE returns nothing for every query, because AES-GCM ciphertext is
-        // randomised per value. Search must go through the blind index.
+        // randomised per value. A name search must therefore never route to a
+        // SQL LIKE on `name` -- it decrypts candidates and matches in the app.
         ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
-        BlindIndexUtil index = realBlindIndex();
-        when(patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(eq(index.indexPatientName("John Doe")), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(Collections.emptyList()));
+        Patient john = Patient.builder().id(UUID.randomUUID()).uhid("UHID000001")
+                .name("John Doe").build();
+        when(patientRepository.findAllByOrderByCreatedAtDescIdDesc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(john)));
 
-        patientService.listPatients("John Doe", 0, 20);
+        PageResponse<PatientDTO> result = patientService.listPatients("John Doe", 0, 20);
 
-        verify(patientRepository, times(1))
-                .findByNameIndexOrderByCreatedAtDescIdDesc(eq(index.indexPatientName("John Doe")), any(PageRequest.class));
+        assertEquals(1, result.getContent().size());
         verify(patientRepository, never()).findByNameContainingIgnoreCase(anyString(), any(PageRequest.class));
+        verify(patientRepository, never()).findByNameIndexOrderByCreatedAtDescIdDesc(anyString(), any(PageRequest.class));
     }
 
     @Test
@@ -177,17 +179,18 @@ class PatientServiceTest {
     }
 
     @Test
-    void listPatients_searchIsCaseInsensitiveViaNormalisedIndex() {
+    void listPatients_searchIsCaseInsensitiveAndFindsAPartialName() {
         ReflectionTestUtils.setField(patientService, "blindIndexUtil", realBlindIndex());
-        BlindIndexUtil index = realBlindIndex();
-        String expected = index.indexPatientName("John Doe");
-        assertNotNull(expected);
-        when(patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(eq(expected), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(Collections.emptyList()));
+        Patient john = Patient.builder().id(UUID.randomUUID()).uhid("UHID000001")
+                .name("John Doe").build();
+        when(patientRepository.findAllByOrderByCreatedAtDescIdDesc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(john)));
 
-        patientService.listPatients("  john   doe  ", 0, 20);
-
-        verify(patientRepository, times(1)).findByNameIndexOrderByCreatedAtDescIdDesc(eq(expected), any(PageRequest.class));
+        // Case and stray internal whitespace are normalised away...
+        assertEquals(1, patientService.listPatients("  john   doe  ", 0, 20).getContent().size());
+        // ...and a fragment of the name matches, which the old exact-match index could not do.
+        assertEquals(1, patientService.listPatients("ohn Do", 0, 20).getContent().size());
+        assertEquals(0, patientService.listPatients("Jane Roe", 0, 20).getContent().size());
     }
 
     @Test

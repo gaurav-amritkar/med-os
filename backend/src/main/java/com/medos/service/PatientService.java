@@ -13,20 +13,33 @@ import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
 import com.medos.util.BlindIndexUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PatientService {
+
+    /**
+     * Most recent rows decrypted and matched for a name search.
+     *
+     * <p>A name search cannot be pushed into SQL, so it costs one decrypt per candidate row.
+     * This bounds that cost. Beyond it, operators are warned rather than silently given a
+     * partial answer.
+     */
+    static final int MAX_NAME_SCAN = 5000;
 
     private final PatientRepository patientRepository;
     private final ConsentRepository consentRepository;
@@ -110,20 +123,68 @@ public class PatientService {
             result = patientRepository.findAllByOrderByCreatedAtDescIdDesc(pageable);
         } else {
             String term = search.trim();
-            String nameIndex = blindIndexUtil.indexPatientName(term);
 
-            // A UHID is the common case and is searchable directly; otherwise
-            // fall back to an exact name match. A blind index cannot do
-            // substring matching, so "anita" will not find "Anita Joshi".
+            // A UHID is the common case and is searchable directly; a name fragment has to
+            // be matched in the application, because SQL cannot see an encrypted column.
             if (looksLikeUhid(term)) {
-                result = patientRepository.findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(term, pageable);
-            } else if (nameIndex != null) {
-                result = patientRepository.findByNameIndexOrderByCreatedAtDescIdDesc(nameIndex, pageable);
+                result = patientRepository
+                        .findByUhidContainingIgnoreCaseOrderByCreatedAtDescIdDesc(term, pageable);
             } else {
-                result = Page.empty();
+                result = searchByNameFragment(term, page, size);
             }
         }
         return PageResponse.of(result.map(EntityDtoMapper::toDTO));
+    }
+
+    /**
+     * Patients whose name contains the typed fragment, case-insensitively.
+     *
+     * <p>{@code name} is AES-GCM encrypted, so SQL cannot filter it, and the blind index is
+     * an HMAC, which only ever matched the whole normalised name — so typing a first name
+     * found nobody. Staff search on the fragment they actually remember, so the fragment is
+     * matched here instead.
+     *
+     * <p>The scan is bounded by {@link #MAX_NAME_SCAN}. When the bound truncates the result
+     * the caller is warned rather than being handed a quietly incomplete list: a search that
+     * silently omits patients is worse than one that is visibly incomplete.
+     *
+     * <p>A row whose ciphertext cannot be decrypted fails the whole query, because the
+     * converter runs while the result set is being mapped rather than on field access. That
+     * is #118: rows written outside the encrypting path are unreadable, and the fix belongs
+     * there rather than in a per-row guard here that could never run.
+     */
+    private Page<Patient> searchByNameFragment(String term, int page, int size) {
+        String needle = BlindIndexUtil.normaliseName(term);
+        if (needle.isEmpty()) {
+            return Page.empty();
+        }
+
+        List<Patient> candidates = patientRepository
+                .findAllByOrderByCreatedAtDescIdDesc(PageRequest.of(0, MAX_NAME_SCAN))
+                .getContent();
+        long totalRows = patientRepository.count();
+        if (totalRows > candidates.size()) {
+            log.warn("Patient name search scanned only the {} most recent of {} rows; a match "
+                    + "outside that window would be missed. Narrow the search or raise "
+                    + "MAX_NAME_SCAN.", candidates.size(), totalRows);
+        }
+
+        List<Patient> matched = new ArrayList<>(candidates.size());
+        for (Patient candidate : candidates) {
+            if (BlindIndexUtil.normaliseName(candidate.getName()).contains(needle)) {
+                matched.add(candidate);
+            }
+        }
+
+        int total = matched.size();
+        long offset = (long) page * size;
+        PageRequest requested = PageRequest.of(page, size);
+        if (offset >= total) {
+            return new PageImpl<>(List.of(), requested, total);
+        }
+        int from = (int) offset;
+        int to = Math.min(from + size, total);
+        return new PageImpl<>(matched.subList(from, to), requested, total);
     }
 
     /** UHIDs are the UHID + 6 digits form, but staff also type the bare number. */
