@@ -16,14 +16,21 @@ public class PatientOnboardingService {
     public Patient onboardPatient(UUID tenantId, String name, Integer age, String gender,
                                   String phone, String email, String address, String bloodGroup,
                                   Boolean dpdpConsent) {
-            // Create the tenant's data key before the entity reaches the persistence
-            // context. Creating it from inside the converter would issue the key INSERT
-            // while Hibernate is flushing, and reads must never write: an insert made
-            // while decrypting a query result is discarded, leaving the tenant
-            // permanently keyless.
-            if (com.medos.security.TenantKeyHolder.isInitialised()) {
-                com.medos.security.TenantKeyHolder.get().ensureDekExists();
-            }
+        // Create the tenant's data key before the entity reaches the persistence
+        // context. Creating it from inside the converter would issue the key INSERT
+        // while Hibernate is flushing, and reads must never write: an insert made
+        // while decrypting a query result is discarded, leaving the tenant
+        // permanently keyless.
+        if (com.medos.security.TenantKeyHolder.isInitialised()) {
+            com.medos.security.TenantKeyHolder.get().ensureDekExists();
+        }
+        // The name index needs its own key, created on the write path for the same
+        // reason as the data key: deriving it during a read would issue a write
+        // inside a query. Ordered after ensureDekExists() because the index key
+        // is stored on the same tenant_keys row.
+        if (com.medos.security.TenantKeyHolder.isInitialised()) {
+            com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
+        }
         Patient patient = Patient.builder()
                 .tenantId(tenantId)
                 .name(name)

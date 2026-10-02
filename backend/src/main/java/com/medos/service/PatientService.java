@@ -55,6 +55,13 @@ public class PatientService {
             if (com.medos.security.TenantKeyHolder.isInitialised()) {
                 com.medos.security.TenantKeyHolder.get().ensureDekExists();
             }
+            // The name index needs its own key, created on the write path for the same
+            // reason as the data key: deriving it during a read would issue a write
+            // inside a query. Ordered after ensureDekExists() because the index key
+            // is stored on the same tenant_keys row.
+            if (com.medos.security.TenantKeyHolder.isInitialised()) {
+                com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
+            }
         Patient patient = Patient.builder()
                 .uhid(generateUhid())
                 .name(trimmedName)

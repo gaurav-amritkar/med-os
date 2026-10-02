@@ -45,6 +45,8 @@ public class TenantKeyHolder {
     private final TenantKeyStore keyStore;
         private final SecureRandom random = new SecureRandom();
     private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
+    private BlindIndexKeyService blindIndexKeys;
+    private boolean blindIndexKeysUsesCurrentKek = true;
     private final long cacheTtlMillis;
     private final org.springframework.transaction.support.TransactionTemplate txTemplate;
 
@@ -73,6 +75,7 @@ public class TenantKeyHolder {
     private static final class DurationConst {
         static final long DEK_CACHE_TTL_MILLIS = 5 * 60 * 1000L;
     }
+
 
     private record CacheEntry(byte[] dek, int generation, long loadedAt) {
         boolean isFresh(long now, long ttl) {
@@ -141,6 +144,39 @@ public class TenantKeyHolder {
     }
 
     /**
+     * The blind-index key for a tenant, or null if it has none.
+     *
+     * <p>Delegates to {@link BlindIndexKeyService}: a separate wrapped key with its own
+     * generation, so the index key is not tied to the data key. Sharing one secret is what
+     * made a rotation silently break name search — the digests stopped matching and search
+     * returned nothing, with nothing reporting an error.
+     */
+    public byte[] findBlindIndexKeyOrNull(UUID tenantId) {
+        return blindIndexKeys().findOrNull(requireTenant(tenantId));
+    }
+
+    /**
+     * Ensure a blind-index key exists for the acting tenant.
+     *
+     * <p>Separate from {@link #ensureDekExists()} so an index key can be rotated without
+     * touching the data key, and vice versa.
+     */
+    public void ensureBlindIndexKeyExists() {
+        blindIndexKeys().ensureExists(requireTenant(null));
+    }
+
+    private BlindIndexKeyService blindIndexKeys() {
+        if (blindIndexKeys == null || !blindIndexKeysUsesCurrentKek) {
+            blindIndexKeys = new BlindIndexKeyService(keyStore, kek, cacheTtlMillis, random);
+            if (previousKek != null) {
+                blindIndexKeys.withPreviousKek(previousKek);
+            }
+            blindIndexKeysUsesCurrentKek = true;
+        }
+        return blindIndexKeys;
+    }
+
+    /**
      * The DEK for the acting tenant, or null if it has none.
      *
      * <p>Never creates. A read must not write: reads run in transactions Spring may
@@ -183,6 +219,9 @@ public class TenantKeyHolder {
     protected byte[] readStoredDek(UUID tenantId) {
         return requireDekLength(unwrapStoredDek(tenantId));
     }
+
+    /** The KEK that material was written with, when known. Null until set. */
+    private byte[] previousKek;
 
     /**
      * A DEK that is not 32 bytes is corruption, not a short key to tolerate.
@@ -304,41 +343,17 @@ public class TenantKeyHolder {
         return unwrap(wrapped);
     }
 
-    /** AES-GCM(KEK, DEK). Only the wrapped form is ever persisted. */
     private byte[] wrap(byte[] dek) {
-        try {
-            byte[] iv = new byte[WRAP_IV_LENGTH];
-            random.nextBytes(iv);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(kek, "AES"),
-                    new GCMParameterSpec(WRAP_TAG_BITS, iv));
-            byte[] ct = cipher.doFinal(dek);
-            ByteBuffer buf = ByteBuffer.allocate(iv.length + ct.length);
-            buf.put(iv);
-            buf.put(ct);
-            return buf.array();
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to wrap the tenant data key", e);
-        }
+        return KeyWrapCipher.wrap(dek, kek, random);
     }
 
     private byte[] unwrap(byte[] wrapped) {
-        try {
-            byte[] iv = new byte[WRAP_IV_LENGTH];
-            System.arraycopy(wrapped, 0, iv, 0, WRAP_IV_LENGTH);
-            byte[] ct = new byte[wrapped.length - WRAP_IV_LENGTH];
-            System.arraycopy(wrapped, WRAP_IV_LENGTH, ct, 0, ct.length);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(kek, "AES"),
-                    new GCMParameterSpec(WRAP_TAG_BITS, iv));
-            return cipher.doFinal(ct);
-        } catch (Exception e) {
-            // Deliberately does not include the tenant or the material: this message
-            // reaches logs, and a wrong KEK must not become a disclosure vector.
-            throw new IllegalStateException(
-                    "Failed to unwrap a tenant data key. The key-encryption key may have "
-                            + "changed without a re-wrap, or the stored material is corrupt.", e);
-        }
+        return unwrapWith(wrapped, kek);
+    }
+
+    /** Unwrap with an explicit KEK, so a rotation can read with the old one. */
+    private byte[] unwrapWith(byte[] wrapped, byte[] keyMaterial) {
+        return KeyWrapCipher.unwrap(wrapped, keyMaterial);
     }
 
     /**
@@ -349,19 +364,74 @@ public class TenantKeyHolder {
      * online operation. The full implementation, with resumability and a dry run, is
      * #88; this exists so the property is testable now.
      */
+    /**
+     * Re-wrap every tenant's key material under this holder's KEK.
+     *
+     * <p><b>Requires the previous KEK to be present.</b> Reading the stored material
+     * needs the KEK it was wrapped with, and writing needs the new one. A holder built
+     * with only the new KEK cannot re-wrap by itself: {@link #unwrap} fails with "the
+     * key-encryption key may have changed without a re-wrap", which is the correct
+     * refusal and a common confusion. Build it with {@link #withPreviousKek}, or use
+     * the rotation service in #88, which reads the old version before installing the
+     * new one.
+     *
+     * <p>Only the wrapper changes. No DEK or index key is regenerated, so no patient
+     * ciphertext and no stored digest needs rewriting — that is what makes rotation
+     * an online operation.
+     */
     public int rewrapAll() {
         int count = 0;
         for (UUID tenantId : keyStore.tenantIdsWithKeys()) {
-            byte[] dek = readStoredDek(tenantId);
+            byte[] wrappedDek = keyStore.wrappedDekOf(tenantId).orElse(null);
+            if (wrappedDek == null) {
+                continue;
+            }
+            byte[] dek = requireDekLength(unwrapForRotation(wrappedDek));
             keyStore.replaceWrappedDek(tenantId, wrap(dek));
             cache.remove(tenantId);
             count++;
         }
+        // The index key's wrapper must move too, or it becomes unreadable while the data key
+        // survives. Re-wrapping leaves the index key bytes — and therefore every name_index
+        // digest — unchanged, which is exactly what keeps search working across a rotation.
+        blindIndexKeys().rewrapAll();
+        // Everything that could be read with the previous KEK has now been re-wrapped, so
+        // the rotation is over: drop it so subsequent reads use the current KEK. Keeping it
+        // would leave the just-written material unreadable.
+        previousKek = null;
+        blindIndexKeys = null;
+        blindIndexKeysUsesCurrentKek = false;
         return count;
+    }
+
+    /**
+     * A holder that can re-wrap material written under {@code previousKekBase64} into
+     * the current KEK.
+     */
+    public TenantKeyHolder withPreviousKek(String previousKekBase64) {
+        this.previousKek = decodeKek(previousKekBase64);
+        // Drop the index-key service so it is rebuilt holding the previous KEK: a rotation
+        // that cannot read the material it is meant to re-wrap is the failure this guards.
+        this.blindIndexKeys = null;
+        this.blindIndexKeysUsesCurrentKek = false;
+        return this;
+    }
+
+    /**
+     * Unwrap using the KEK the material was written with.
+     *
+     * <p>When a previous KEK is supplied, that is the only one tried. Silently
+     * falling back to the current KEK on failure hides the real problem behind a
+     * generic "corrupt material" message, so the retry is the caller's choice.
+     */
+    private byte[] unwrapForRotation(byte[] wrapped) {
+        return previousKek == null ? unwrap(wrapped) : unwrapWith(wrapped, previousKek);
     }
 
     public void clearCache() {
         cache.clear();
+        blindIndexKeys = null;
+        blindIndexKeysUsesCurrentKek = true;
     }
 
     // ---------------------------------------------------------------- test support

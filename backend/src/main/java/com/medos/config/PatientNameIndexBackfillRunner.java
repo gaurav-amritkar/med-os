@@ -80,6 +80,10 @@ public class PatientNameIndexBackfillRunner implements ApplicationRunner {
         }
         TenantContext.setTenantId(tenant.getId());
         try {
+            if (com.medos.security.TenantKeyHolder.isInitialised()) {
+                com.medos.security.TenantKeyHolder.get().ensureDekExists();
+                com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
+            }
             var unindexed = patientRepository.findByNameIndexIsNull();
             if (unindexed.isEmpty()) {
                 return;

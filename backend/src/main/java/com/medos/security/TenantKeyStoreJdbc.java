@@ -43,14 +43,30 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
 
     @Override
     public java.util.Optional<byte[]> wrappedDekOf(UUID tenantId) {
-        return jdbc.query("SELECT wrapped_dek FROM tenant_keys WHERE tenant_id = ?",
-                (rs, n) -> rs.getBytes(1), tenantId).stream().findFirst();
+        return firstNonNull(jdbc.query("SELECT wrapped_dek FROM tenant_keys WHERE tenant_id = ?",
+                (rs, n) -> rs.getBytes(1), tenantId));
     }
 
     @Override
     public java.util.Optional<byte[]> wrappedBiKeyOf(UUID tenantId) {
-        return jdbc.query("SELECT wrapped_bi_key FROM tenant_keys WHERE tenant_id = ?",
-                (rs, n) -> rs.getBytes(1), tenantId).stream().findFirst();
+        return firstNonNull(jdbc.query("SELECT wrapped_bi_key FROM tenant_keys WHERE tenant_id = ?",
+                (rs, n) -> rs.getBytes(1), tenantId));
+    }
+
+    /**
+     * A nullable BYTEA column maps to a null element, and {@code findFirst()} throws on
+     * a null first element. Both key columns are nullable in the schema, so an absent
+     * key has to read as an empty Optional; otherwise "no index key yet" surfaces as a
+     * NullPointerException that looks like a database fault.
+     */
+    private static java.util.Optional<byte[]> firstNonNull(java.util.List<byte[]> rows) {
+        return rows.stream().filter(java.util.Objects::nonNull).findFirst();
+    }
+
+    @Override
+    public java.util.Optional<Integer> biKeyGenerationOf(UUID tenantId) {
+        return jdbc.query("SELECT bi_key_generation FROM tenant_keys WHERE tenant_id = ?",
+                (rs, n) -> rs.getInt(1), tenantId).stream().findFirst();
     }
 
     @Override
@@ -64,6 +80,19 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
             return 0;
         }
         return jdbc.update(INSERT, tenantId, wrappedDek, wrappedBiKey);
+    }
+
+    private static final String INSERT_BI = """
+            UPDATE tenant_keys SET wrapped_bi_key = ?, updated_at = now()
+            WHERE tenant_id = ?
+            """;
+
+    @Override
+    public int insertBlindIndexKey(UUID tenantId, byte[] wrappedBiKey) {
+        if (dekGenerationOf(tenantId).isEmpty()) {
+            return insert(tenantId, new byte[32], wrappedBiKey);
+        }
+        return jdbc.update(INSERT_BI, wrappedBiKey, tenantId);
     }
 
     @Override

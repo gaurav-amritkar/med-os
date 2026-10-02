@@ -19,9 +19,14 @@ public interface TenantKeyStore {
 
     Optional<byte[]> wrappedBiKeyOf(UUID tenantId);
 
+    Optional<Integer> biKeyGenerationOf(UUID tenantId);
+
     List<UUID> tenantIdsWithKeys();
 
     int insert(UUID tenantId, byte[] wrappedDek, byte[] wrappedBiKey);
+
+    /** Write only the index key, leaving the data key untouched. */
+    int insertBlindIndexKey(UUID tenantId, byte[] wrappedBiKey);
 
     int replaceWrappedDek(UUID tenantId, byte[] wrappedDek);
 
