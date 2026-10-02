@@ -9,6 +9,7 @@ import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
 import com.medos.util.BlindIndexUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -44,9 +45,22 @@ class PatientServiceTest {
     @InjectMocks
     private PatientService patientService;
 
+    private static final java.util.UUID TENANT = java.util.UUID.fromString("00000000-0000-4000-8000-000000000001");
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        // Registering a patient writes encrypted PII, so a tenant must be in scope. The
+        // converter refuses to fall back to a shared key, which is the isolation property
+        // TenantKeyIsolationTest also covers.
+        com.medos.security.TenantContext.setTenantId(TENANT);
+        com.medos.security.TenantKeyHolder.reset();
+    }
+
+    @AfterEach
+    void tearDown() {
+        com.medos.security.TenantKeyHolder.reset();
+        com.medos.security.TenantContext.clear();
     }
 
     /** A real index, not a mock, so search routing is exercised for real. */

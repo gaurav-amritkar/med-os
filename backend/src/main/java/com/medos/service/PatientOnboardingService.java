@@ -16,6 +16,14 @@ public class PatientOnboardingService {
     public Patient onboardPatient(UUID tenantId, String name, Integer age, String gender,
                                   String phone, String email, String address, String bloodGroup,
                                   Boolean dpdpConsent) {
+            // Create the tenant's data key before the entity reaches the persistence
+            // context. Creating it from inside the converter would issue the key INSERT
+            // while Hibernate is flushing, and reads must never write: an insert made
+            // while decrypting a query result is discarded, leaving the tenant
+            // permanently keyless.
+            if (com.medos.security.TenantKeyHolder.isInitialised()) {
+                com.medos.security.TenantKeyHolder.get().ensureDekExists();
+            }
         Patient patient = Patient.builder()
                 .tenantId(tenantId)
                 .name(name)

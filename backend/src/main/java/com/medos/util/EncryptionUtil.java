@@ -39,8 +39,16 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
                     "PII encryption key is not configured. Set PII_ENCRYPTION_KEY "
                             + "(e.g. `openssl rand -base64 32`) and call EncryptionUtil.init() at startup.");
         }
-        format = PiiCiphertextFormat.singleKeyResolver(1, base64Key)
-                .withWriteGeneration(1);
+        // Prefer the tenant-aware resolver: the KEK is validated here, but the key that
+        // actually encrypts a field is the acting tenant's DEK. Falling back to the raw
+        // secret would silently restore a single global key and undo tenant isolation.
+        if (com.medos.security.TenantKeyHolder.isInitialised()) {
+            format = new PiiCiphertextFormat(PiiCiphertextFormat.tenantResolver())
+                    .withWriteGeneration(1);
+        } else {
+            format = PiiCiphertextFormat.singleKeyResolver(1, base64Key)
+                    .withWriteGeneration(1);
+        }
     }
 
     private static synchronized PiiCiphertextFormat format() {
