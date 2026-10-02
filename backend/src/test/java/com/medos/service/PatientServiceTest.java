@@ -8,6 +8,7 @@ import com.medos.exception.BusinessException;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
 import com.medos.util.AuditLogger;
+import com.medos.security.FakeTenantKeyStore;
 import com.medos.util.BlindIndexUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,10 @@ class PatientServiceTest {
     @InjectMocks
     private PatientService patientService;
 
+    /** 32 bytes, Base64: the holder rejects anything else at construction. */
+    private static final String TEST_KEK = java.util.Base64.getEncoder()
+            .encodeToString("kek-kek-kek-kek-kek-kek-kek-kek!".getBytes());
+
     private static final java.util.UUID TENANT = java.util.UUID.fromString("00000000-0000-4000-8000-000000000001");
 
     @BeforeEach
@@ -63,11 +68,24 @@ class PatientServiceTest {
         com.medos.security.TenantContext.clear();
     }
 
-    /** A real index, not a mock, so search routing is exercised for real. */
+    /**
+     * A real index, not a mock, so search routing is exercised for real.
+     *
+     * <p>The index key now comes from a tenant's wrapped blind-index key rather than
+     * from the PII secret, so the holder is installed with a fake store and the index
+     * key is created for the tenant the fixture is scoped to.
+     */
     private BlindIndexUtil realBlindIndex() {
-        BlindIndexUtil util = new BlindIndexUtil();
-        util.setPiiKeyForTesting("jIMpvDp7I0XTfZLdyYKeryj/7t7yKPydMu+4tOJMBus=");
-        return util;
+        com.medos.security.TenantKeyHolder.reset();
+        FakeTenantKeyStore store = new FakeTenantKeyStore();
+        com.medos.security.TenantKeyHolder.setInstance(
+                new com.medos.security.TenantKeyHolder(TEST_KEK, store));
+        com.medos.security.TenantContext.setTenantId(TENANT);
+        // Same order as the write path: the data key row must exist before the index key
+        // can be stored on it.
+        com.medos.security.TenantKeyHolder.get().ensureDekExists();
+        com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
+        return new BlindIndexUtil();
     }
 
     @Test

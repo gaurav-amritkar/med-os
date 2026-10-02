@@ -1,84 +1,89 @@
 package com.medos.util;
 
+import com.medos.security.TenantContext;
+import com.medos.security.TenantKeyHolder;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
- * Keyed blind index for searching an encrypted column.
+ * Keyed blind index over the patient name, so search can work on an encrypted column.
  *
- * <p>Patient names are encrypted with AES-GCM at rest, which is randomised per
- * value and therefore cannot be matched by a SQL {@code LIKE}. Without an index
- * the only way to find a patient is to know their UHID, and reception staff
- * routinely know only a name. This produces a deterministic, keyed digest of a
- * normalised name so the column can be matched by equality.
+ * <p>{@code patients.name} holds AES-256-GCM ciphertext, which is randomised per
+ * value, so {@code WHERE name LIKE '%anita%'} can never match. Without this index a
+ * receptionist who knew only a name could not find an existing patient, which turns
+ * every repeat visit into a duplicate registration. The index is a deterministic
+ * HMAC-SHA256 of the normalised name, matched by equality; {@code uhid} remains
+ * unencrypted and supports partial matching directly.
  *
- * <p>Properties, deliberately:
- * <ul>
- *   <li><b>Deterministic</b> — the same name always produces the same index, so
- *       lookups work. That is the trade: an attacker with the database but
- *       without the key cannot read names, but can confirm a guessed name by
- *       index equality. The key is therefore as sensitive as the plaintext.</li>
- *   <li><b>Domain separated</b> — the index key is derived from the PII
- *       encryption key via HMAC over a fixed label, so the index key is never
- *       the encryption key and a digest from one purpose cannot be used in the
- *       other.</li>
- *   <li><b>Equality only</b> — a blind index cannot support substring matching.
- *       Search matches the whole normalised name, or the UHID, which is not
- *       encrypted and supports partial matching directly.</li>
- * </ul>
+ * <p><b>The key has its own lifecycle, independent of the data key.</b> It is derived
+ * from a tenant's blind-index key, which is stored wrapped and separately generated
+ * (ADR-0009). It previously shared the PII secret, so rotating that secret silently
+ * invalidated every stored index and search returned nothing — with no error, which
+ * presented as broken search rather than a key problem. Search can now be held steady
+ * across a data-key rotation, or the index key rotated on its own if it is suspected,
+ * without re-encrypting a single row.
  *
- * <p>Rotation of the PII key requires recomputing every index; see
- * NEXT_STEPS.md item T6.
+ * <p>The index is as sensitive as the plaintext it protects: a holder of the database
+ * but not the key cannot read names, but can confirm a guessed name by comparing
+ * digests.
  */
 @Slf4j
 @Component
 public class BlindIndexUtil {
 
-    /** Fixed label so the derived key is only ever an index key. */
-    private static final String DOMAIN = "medos:blind-index:patient-name:v1";
+    private static final String HMAC = "HmacSHA256";
 
-    private byte[] indexKey;
-
-    @Value("${medos.security.pii-encryption-key:}")
-    private String piiKey;
-
-    @PostConstruct
-    void initialise() {
-        if (piiKey == null || piiKey.isBlank()) {
-            // Leave the key unset; lookups degrade to "no match" rather than
-            // failing startup, and a clear warning is logged.
-            log.warn("PII encryption key not set; patient name blind index is unavailable and "
-                    + "search will match on UHID only.");
-            return;
+    /**
+     * Computes the index for the acting tenant, or null when none can be resolved.
+     *
+     * <p>Never falls back to a shared or derived key. With no tenant in scope the only
+     * alternative would be a process-wide key, which would make names comparable
+     * across tenants and reintroduce the coupling this class exists to remove.
+     */
+    public String indexPatientName(String name) {
+        String normalised = normaliseName(name);
+        if (normalised == null || normalised.isEmpty()) {
+            return null;
         }
-        byte[] keyBytes = Base64.getDecoder().decode(piiKey);
-        if (keyBytes.length != 32) {
-            throw new IllegalStateException("PII encryption key must be 32 bytes (256 bits) after Base64 decode");
+        UUID tenant = TenantContext.getTenantId().orElse(null);
+        if (tenant == null || !TenantKeyHolder.isInitialised()) {
+            return null;
+        }
+        byte[] indexKey;
+        try {
+            indexKey = TenantKeyHolder.get().findBlindIndexKeyOrNull(tenant);
+        } catch (RuntimeException e) {
+            // Never let a key failure break a write: the row is simply not findable by
+            // name, which is preferable to losing the patient.
+            log.warn("Could not resolve the patient name blind index key; name search will "
+                    + "match on UHID only for this request");
+            return null;
+        }
+        if (indexKey == null) {
+            return null;
         }
         try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(keyBytes, "HmacSHA256"));
-            this.indexKey = mac.doFinal(DOMAIN.getBytes(StandardCharsets.UTF_8));
+            Mac mac = Mac.getInstance(HMAC);
+            mac.init(new SecretKeySpec(indexKey, HMAC));
+            return HexFormat.of().formatHex(mac.doFinal(normalised.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
-            throw new IllegalStateException("Could not derive the patient name blind index key", e);
+            log.warn("Could not compute patient name blind index");
+            return null;
         }
-        log.info("Patient name blind index ready");
     }
 
     /**
      * Normalise a name the way the index requires: trimmed, internal whitespace
-     * collapsed, case folded. Applied identically on write and on search, so the
-     * two can never drift.
+     * collapsed, case folded. Applied identically on write and on search, so the two
+     * can never drift.
      */
     public static String normaliseName(String name) {
         if (name == null) {
@@ -87,35 +92,23 @@ public class BlindIndexUtil {
         return name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
-    /**
-     * @return lowercase hex HMAC-SHA256 of the normalised name, or null when the
-     *         index is unavailable or the name is blank.
-     */
-    public String indexPatientName(String name) {
-        String normalised = normaliseName(name);
-        if (normalised == null || normalised.isEmpty() || indexKey == null) {
-            return null;
-        }
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(indexKey, "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(normalised.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            // Never let a crypto failure break a write; the row is simply not
-            // findable by name, which is preferable to losing the patient.
-            log.warn("Could not compute patient name blind index", e);
-            return null;
+    @PostConstruct
+    void reportAvailability() {
+        if (TenantKeyHolder.isInitialised()) {
+            log.info("Patient name blind index is tenant-scoped");
+        } else {
+            log.warn("Tenant key holder is not initialised; patient name blind index is "
+                    + "unavailable and search will match on UHID only.");
         }
     }
 
-    /** Test hook: inject a known key without a Spring context. */
-    public void setPiiKeyForTesting(String key) {
-        this.piiKey = key;
-        initialise();
-    }
-
-    /** Test hook: direct access to the derived key length. */
+    /** Test hook: whether an index can currently be produced for the acting tenant. */
     public int derivedKeyLength() {
-        return indexKey == null ? 0 : indexKey.length;
+        UUID tenant = TenantContext.getTenantId().orElse(null);
+        if (tenant == null || !TenantKeyHolder.isInitialised()) {
+            return 0;
+        }
+        byte[] key = TenantKeyHolder.get().findBlindIndexKeyOrNull(tenant);
+        return key == null ? 0 : key.length;
     }
 }
