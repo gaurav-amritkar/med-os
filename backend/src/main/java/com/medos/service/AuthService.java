@@ -62,11 +62,11 @@ public class AuthService {
         List<TenantUser> tenantUsers = tenantUserRepository.findByUserIdWithTenant(user.getId());
         TenantUser activeMembership = firstActiveTenantMembership(tenantUsers);
         if (!tenantUsers.isEmpty() && activeMembership == null) {
-            // The account is fine; every facility it belongs to is deactivated.
-            // Without this check, deactivating a tenant was a cosmetic flag:
-            // its staff signed in and worked exactly as before.
+            // The account is fine; every facility it belongs to is unavailable. Without this
+            // check, deactivating a tenant was a cosmetic flag: its staff signed in and
+            // worked exactly as before.
             throw new BusinessException(HttpStatus.FORBIDDEN,
-                    "Your organisation is not active. Contact your administrator.");
+                    "Your access is not active. Contact your administrator.");
         }
         // No membership at all is a bootstrap/superadmin session, which carries
         // no tenant. Those must keep working or a fresh install cannot be
@@ -88,7 +88,8 @@ public class AuthService {
                 user.getFullName(),
                 role.name(),
                 user.getSpecialization(),
-                tenantId
+                tenantId,
+                Boolean.TRUE.equals(user.getMustChangePassword())
         );
     }
 
@@ -109,6 +110,11 @@ public class AuthService {
         return memberships.stream()
                 .filter(m -> m.getTenant() != null)
                 .filter(m -> Boolean.TRUE.equals(m.getTenant().getActive()))
+                // Per-hospital access. Without this, "deactivate" on the staff page was a
+                // cosmetic flag: the person was removed from the roster and then signed in
+                // and worked exactly as before, which is the same defect the tenant check
+                // above had to fix for hospitals.
+                .filter(TenantUser::isActive)
                 .findFirst()
                 .orElse(null);
     }
