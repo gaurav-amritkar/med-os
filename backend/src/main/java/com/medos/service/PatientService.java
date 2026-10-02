@@ -47,6 +47,14 @@ public class PatientService {
 
         String trimmedName = req.getName().trim();
 
+            // Create the tenant's data key before the entity reaches the persistence
+            // context. Creating it from inside the converter would issue the key INSERT
+            // while Hibernate is flushing, and reads must never write: an insert made
+            // while decrypting a query result is discarded, leaving the tenant
+            // permanently keyless.
+            if (com.medos.security.TenantKeyHolder.isInitialised()) {
+                com.medos.security.TenantKeyHolder.get().ensureDekExists();
+            }
         Patient patient = Patient.builder()
                 .uhid(generateUhid())
                 .name(trimmedName)

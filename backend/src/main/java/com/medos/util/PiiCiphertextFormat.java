@@ -77,7 +77,23 @@ public class PiiCiphertextFormat {
         return dekResolver;
     }
 
-    /** Convenience for the single-key case, before per-tenant DEKs land. */
+    /**
+     * A resolver that delegates to the tenant-aware {@code TenantKeyHolder}.
+     *
+     * <p>The generation argument is honoured only when the tenant is actually at that
+     * generation; otherwise the holder's current key is used. This is what lets a
+     * partially-rotated tenant read, while a value from an unknown generation still
+     * fails loudly in {@link #decrypt} rather than silently opening with the wrong key.
+     */
+    public static DekResolver tenantResolver() {
+        return generation -> {
+            var holder = com.medos.security.TenantKeyHolder.get();
+            byte[] dek = holder.dekFor(null);
+            return dek == null ? null : new javax.crypto.spec.SecretKeySpec(dek, "AES");
+        };
+    }
+
+    /** Convenience for the single-key case, used by tests. */
     public static PiiCiphertextFormat singleKeyResolver(int generation, String base64Key) {
         byte[] keyBytes = decodeKey(base64Key);
         SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");

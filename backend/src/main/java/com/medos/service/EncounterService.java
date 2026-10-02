@@ -56,6 +56,14 @@ public class EncounterService {
             throw new BusinessException("Authenticated user required");
         }
 
+            // Create the tenant's data key before the entity reaches the persistence
+            // context. Creating it from inside the converter would issue the key INSERT
+            // while Hibernate is flushing, and reads must never write: an insert made
+            // while decrypting a query result is discarded, leaving the tenant
+            // permanently keyless.
+            if (com.medos.security.TenantKeyHolder.isInitialised()) {
+                com.medos.security.TenantKeyHolder.get().ensureDekExists();
+            }
         Encounter encounter = Encounter.builder()
                 .patientId(request.getPatientId())
                 .doctorId(doctorId)
