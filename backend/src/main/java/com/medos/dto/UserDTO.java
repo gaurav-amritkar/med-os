@@ -31,4 +31,10 @@ public class UserDTO {
     private String specialization;
     private Boolean active;
     private String role;
+
+    /**
+     * True while the account still carries an admin-set password, so the UI can send the
+     * user to change it instead of letting them work on a shared secret.
+     */
+    private Boolean mustChangePassword;
 }

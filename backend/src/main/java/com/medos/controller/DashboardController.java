@@ -109,10 +109,4 @@ public class DashboardController {
     private String tenantName(UUID tenantId) {
         return tenantRepository.findById(tenantId).map(Tenant::getName).orElse(null);
     }
-
-    @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<UserDTO>> listUsers() {
-        return ResponseEntity.ok(userService.listTenantUsers());
-    }
 }

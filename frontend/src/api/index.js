@@ -25,6 +25,17 @@ export const authApi = {
   getMe: () => client.get('/users/me'),
 };
 
+/**
+ * Staff management. ADMIN-only on the server; the UI gates the route as well so a
+ * non-admin is not offered a page that would only ever return 403.
+ */
+export const userApi = {
+  list: () => client.get('/users'),
+  create: (data) => client.post('/users', data),
+  setRole: (userId, role) => client.put(`/users/${userId}/role`, { role }),
+  setActive: (userId, active) => client.put(`/users/${userId}/active`, { active }),
+};
+
 export const onboardingApi = {
   registerTenant: (data) => client.post('/onboarding/register', data),
 };

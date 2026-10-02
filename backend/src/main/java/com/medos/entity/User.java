@@ -35,6 +35,10 @@ public class User {
     private String specialization;
 
 
+    // @Builder.Default is required, not decorative: Lombok's builder ignores a plain field
+    // initialiser, so without it every builder-built User carries null into a NOT NULL
+    // column. Onboarding and the bootstrap runner both build this way.
+    @Builder.Default
     @Column(nullable = false)
     private Boolean active = true;
 
@@ -43,6 +47,16 @@ public class User {
 
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
+
+    /**
+     * True while the account still carries an admin-set password.
+     *
+     * <p>That password was chosen by one person and handed to another, so until its owner
+     * replaces it, two people know it. Cleared once they choose their own.
+     */
+    @Builder.Default
+    @Column(name = "must_change_password", nullable = false)
+    private Boolean mustChangePassword = false;
 
     @PrePersist
     protected void onCreate() {
