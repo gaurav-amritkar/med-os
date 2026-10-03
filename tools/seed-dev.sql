@@ -54,22 +54,6 @@ FROM demo_roles r
 JOIN users u ON u.username = r.username
 ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = EXCLUDED.role;
 
-INSERT INTO patients (id, tenant_id, uhid, name, age, gender, phone, email, blood_group, dpdp_consent, dpdp_consent_at, version) VALUES
-('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'UHID000001', 'Rahul Mehta', 34, 'male', '9876543210', 'rahul@example.com', 'B+', TRUE, CURRENT_TIMESTAMP, 0),
-('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000001', 'UHID000002', 'Anita Joshi', 28, 'female', '9876543211', 'anita@example.com', 'O+', TRUE, CURRENT_TIMESTAMP, 0),
-('00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000001', 'UHID000003', 'Suresh Reddy', 62, 'male', '9876543212', 'suresh@example.com', 'A+', TRUE, CURRENT_TIMESTAMP, 0),
-('00000000-0000-4000-8000-000000000204', '00000000-0000-4000-8000-000000000001', 'UHID000004', 'Kavita Nair', 45, 'female', '9876543213', 'kavita@example.com', 'AB+', TRUE, CURRENT_TIMESTAMP, 0),
-('00000000-0000-4000-8000-000000000205', '00000000-0000-4000-8000-000000000001', 'UHID000005', 'Aman Khan', 22, 'male', '9876543214', 'aman@example.com', 'O-', FALSE, NULL, 0)
-ON CONFLICT (uhid) DO UPDATE SET
-  tenant_id = EXCLUDED.tenant_id,
-  name = EXCLUDED.name,
-  age = EXCLUDED.age,
-  gender = EXCLUDED.gender,
-  phone = EXCLUDED.phone,
-  email = EXCLUDED.email,
-  blood_group = EXCLUDED.blood_group,
-  dpdp_consent = EXCLUDED.dpdp_consent,
-  dpdp_consent_at = EXCLUDED.dpdp_consent_at;
 
 -- IPD room inventory (master data; no API exists to create rooms).
 -- version column is NOT NULL (optimistic locking) — default 0.
