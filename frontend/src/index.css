@@ -1117,3 +1117,63 @@ button:disabled,
 
   .rail-item[aria-current='page'] { outline: 2px solid Highlight; }
 }
+
+/* Inline field validation.
+ *
+ * An error is never signalled by colour alone: the border, the message and the icon-free
+ * text all carry it, and `role="alert"` announces it. WCAG 1.4.1.
+ */
+.field-hint {
+  font-size: var(--t-micro);
+  color: var(--ink-faint);
+  margin-top: 5px;
+}
+
+.field-error {
+  font-size: var(--t-micro);
+  color: var(--critical);
+  margin-top: 5px;
+  font-weight: 600;
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 6%, transparent);
+}
+
+/* Staff page helpers. Styles live here rather than inline so the design-system guard
+ * stays meaningful for new code. */
+.staff-name {
+  font-weight: 600;
+}
+
+.staff-meta {
+  font-size: var(--t-micro);
+  color: var(--ink-faint);
+}
+
+.staff-username {
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+}
+
+.staff-role {
+  min-width: 130px;
+}
+
+.staff-actions {
+  text-align: right;
+}
+
+/* Deactivated staff are dimmed rather than removed, so an admin can see who left and
+ * restore them. */
+.staff-row-inactive {
+  opacity: 0.55;
+}
+
+.staff-note {
+  margin-bottom: var(--s4);
+  color: var(--ink-faint);
+  font-size: var(--t-label);
+}

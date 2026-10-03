@@ -8,6 +8,7 @@ import Encounters from './pages/Encounters';
 import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
+import Users from './pages/Users';
 import Onboarding from './pages/Onboarding';
 import IconGallery from './pages/IconGallery';
 import ToastContainer from './components/ToastContainer';
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/pharmacy" element={<ProtectedRoute roles={['ADMIN','PHARMACIST','DOCTOR']}><Pharmacy /></ProtectedRoute>} />
           <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Admissions /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
+          <Route path="/staff" element={<ProtectedRoute roles={['ADMIN']}><Users /></ProtectedRoute>} />
         </Route>
 
         {/* Dev-only: inspection page for the hand-authored icon set. Stripped

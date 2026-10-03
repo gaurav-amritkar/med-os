@@ -28,6 +28,22 @@ public class TenantUser {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    /**
+     * Whether this person may sign in to this hospital.
+     *
+     * <p>Deliberately per membership rather than on {@code User}: one clinician may work
+     * at two clinics, and revoking access at one must not revoke it at the other.
+     */
+    // @Builder.Default, because Lombok's builder ignores a plain initialiser: a
+    // builder-built membership would carry null into a NOT NULL column.
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean active = true;
+
+    public boolean isActive() {
+        return !Boolean.FALSE.equals(active);
+    }
+
     public enum UserRole {
         admin, doctor, nurse, receptionist, pharmacist, billing
     }
