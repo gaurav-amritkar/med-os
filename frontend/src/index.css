@@ -1177,3 +1177,18 @@ select[aria-invalid='true'] {
   color: var(--ink-faint);
   font-size: var(--t-label);
 }
+
+/* A failed list request. Deliberately not the empty-state styling: "could not load" and
+ * "nothing to show" must not look alike, or a server fault reads as an absence of records. */
+.list-error {
+  text-align: center;
+  padding: var(--s6) var(--s5);
+  color: var(--critical);
+  font-weight: 600;
+}
+
+.list-empty {
+  text-align: center;
+  padding: var(--s6) var(--s5);
+  color: var(--ink-faint);
+}

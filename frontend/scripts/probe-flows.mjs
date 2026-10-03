@@ -79,12 +79,20 @@ const pat = await call('POST /patients (register)', 'POST', '/patients', {
 }, { expect: [200, 201] });
 const patientId = pat?.body?.id;
 
-await call('GET  /patients (list)', 'GET', '/patients');
 await call('GET  /patients?search=', 'GET', '/patients?search=Flow');
 if (patientId && typeof patientId === 'string' && patientId.length === 36) {
   await call('GET  /patients/{id}', 'GET', `/patients/${patientId}`);
 }
-await call('GET  /patients/uhid/{uhid}', 'GET', '/patients/uhid/UHID000001');
+// Resolve a real UHID rather than assuming one. The sequence does not restart when rows are
+// deleted, so a hardcoded UHID000001 eventually stops existing and the probe reports a 404
+// that looks like a product fault.
+const uhidRes = await call('GET  /patients (list)', 'GET', '/patients');
+const sampleUhid = uhidRes?.body?.content?.[0]?.uhid;
+if (sampleUhid) {
+  await call('GET  /patients/uhid/{uhid}', 'GET', `/patients/uhid/${sampleUhid}`);
+} else {
+  console.log('  SKIP  GET  /patients/uhid/{uhid}  -- no patient exists to look up');
+}
 
 // --- pharmacy catalogue (needed before a prescription can reference it) ---
 const med = await call('POST /pharmacy/medicines  (create)', 'POST', '/pharmacy/medicines', {

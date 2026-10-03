@@ -14,6 +14,9 @@ export default function Patients() {
   const [profileTab, setProfileTab] = useState('encounters');
   const [page, setPage] = useState(0);
   const [pageMeta, setPageMeta] = useState(null);
+  // A failed request is not an empty result. Held separately from `patients` so the table
+  // can say so, rather than reporting a server fault as "this hospital has no patients".
+  const [loadError, setLoadError] = useState(null);
   const addToast = useToastStore((s) => s.addToast);
 
   const [form, setForm] = useState({
@@ -34,7 +37,18 @@ export default function Patients() {
       setPatients(data);
       setPageMeta(meta);
       setPage(nextPage);
-    } catch {} finally { setLoading(false); }
+      setLoadError(null);
+    } catch (err) {
+      // Reporting this as "No patients found" tells a clinician the record does not exist,
+      // when in fact nothing was known: the server failed. Keep the two apart.
+      setPatients([]);
+      setPageMeta(null);
+      setLoadError(
+        err.response?.data?.message
+          ? `Could not load patients: ${err.response.data.message}`
+          : 'Could not load patients. The server did not respond as expected.'
+      );
+    } finally { setLoading(false); }
   };
 
   const currentSearchTerm = () => (search.length > 2 ? search : undefined);
@@ -194,7 +208,20 @@ export default function Patients() {
                     </td>
                   </tr>
                 ))}
-                {patients.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--ink-faint)' }}>No patients found. Register a new patient.</td></tr>}
+                {loadError && (
+                  <tr>
+                    <td colSpan={8} className="list-error" role="alert">
+                      {loadError}
+                    </td>
+                  </tr>
+                )}
+                {!loadError && patients.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="list-empty">
+                      No patients found. Register a new patient.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           )}
