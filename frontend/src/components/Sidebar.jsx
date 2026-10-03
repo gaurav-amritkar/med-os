@@ -10,7 +10,6 @@ const navItems = {
     { to: '/admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
     { to: '/billing', label: 'Billing', icon: 'billing' },
-    { to: '/onboarding', label: 'Onboarding', icon: 'plus' },
   ],
   doctor: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
