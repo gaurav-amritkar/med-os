@@ -32,11 +32,14 @@ test('an admin adds a doctor, and that doctor can sign in and is confined to the
 
   await page.getByRole('button', { name: /add staff/i }).click();
 
-  await page.getByLabel(/full name/i).fill(`E2E Doctor ${stamp}`);
-  await page.getByLabel(/username/i).fill(DOCTOR.username);
-  await page.getByLabel(/role/i).selectOption('doctor');
-  await page.getByLabel(/temporary password/i).fill(DOCTOR.password);
-  await page.getByLabel(/email/i).fill(`${DOCTOR.username}@example.test`);
+  // Scoped to the dialog: every roster row also renders a "Role for <name>" select, so an
+  // unscoped /role/i locator is ambiguous once the table has any staff in it.
+  const dialog = page.locator('.modal');
+  await dialog.getByLabel(/full name/i).fill(`E2E Doctor ${stamp}`);
+  await dialog.getByLabel(/username/i).fill(DOCTOR.username);
+  await dialog.getByLabel(/role/i).selectOption('doctor');
+  await dialog.getByLabel(/temporary password/i).fill(DOCTOR.password);
+  await dialog.getByLabel(/email/i).fill(`${DOCTOR.username}@example.test`);
 
   await page.getByRole('button', { name: /^add staff$/i }).click();
 
@@ -45,10 +48,16 @@ test('an admin adds a doctor, and that doctor can sign in and is confined to the
   await expect(row).toBeVisible({ timeout: 15000 });
   await expect(row).toContainText(/must change password/i);
 
-  // Now sign in as that doctor, in a clean context with no admin token.
+  // Now sign in as that doctor, with no admin token left anywhere. The auth store persists to
+  // sessionStorage as well as localStorage, so clearing only the latter left the admin
+  // session alive and /login never rendered a form.
   await page.context().clearCookies();
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
   await page.goto('/login');
+  await expect(page.locator('input#username')).toBeVisible({ timeout: 15000 });
   await page.getByLabel(/username/i).fill(DOCTOR.username);
   await page.getByLabel(/password/i).fill(DOCTOR.password);
   await page.getByRole('button', { name: /sign in/i }).click();
