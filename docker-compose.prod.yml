@@ -122,6 +122,11 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # Platform secret for POST /api/v1/onboarding/register. Deliberately NOT
+      # required (`:?`): blank disables tenant provisioning, which is the safe
+      # default. Must be passed through explicitly, or the property can never be
+      # set in a container and provisioning stays permanently off.
+      ONBOARDING_REGISTRATION_TOKEN: ${ONBOARDING_REGISTRATION_TOKEN:-}
       # Managed PostgreSQL via the pooler. sslmode is required: patient records
       # cross this connection.
       SPRING_DATASOURCE_URL: ${SUPABASE_POOLER_URL:?SUPABASE_POOLER_URL must be set}
