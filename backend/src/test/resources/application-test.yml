@@ -29,6 +29,8 @@ medos:
     # Closed by default per ADR-0003. Anonymous tenant registration must be
     # refused; only a platform super-admin may register a tenant.
     public-signup: false
+    # Must match what OnboardingRegistrationAccessTest presents.
+    registration-token: test-registration-token
   cors:
     allowed-origins: http://localhost:5173
 
