@@ -34,6 +34,7 @@ public class BillingController {
     @GetMapping("/patients/{patientId}/invoices")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Invoice>> getInvoices(@PathVariable UUID patientId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.ok(billingService.getPatientInvoices(patientId));
     }
 
@@ -47,6 +48,7 @@ public class BillingController {
     @GetMapping("/invoices/{invoiceId}/charges")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Charge>> getInvoiceCharges(@PathVariable UUID invoiceId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.ok(billingService.getChargesByInvoice(invoiceId));
     }
 
@@ -60,6 +62,7 @@ public class BillingController {
     @GetMapping("/invoices/{invoiceId}/payments")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Payment>> getPayments(@PathVariable UUID invoiceId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.ok(billingService.getPaymentsByInvoice(invoiceId));
     }
 }

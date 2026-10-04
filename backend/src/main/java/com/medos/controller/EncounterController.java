@@ -49,6 +49,7 @@ public class EncounterController {
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<EncounterDTO> getEncounter(@PathVariable UUID id) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.getEncounter(id));
     }
 
@@ -58,6 +59,7 @@ public class EncounterController {
             @PathVariable UUID patientId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.listByPatient(patientId, page, size));
     }
 
@@ -71,24 +73,28 @@ public class EncounterController {
     @PostMapping("/{id}/prescriptions")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<PrescriptionDTO> addPrescription(@Valid @RequestBody PrescriptionRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.addPrescription(request));
     }
 
     @GetMapping("/{id}/prescriptions")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<PrescriptionDTO>> listPrescriptions(@PathVariable UUID id) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.listPrescriptions(id));
     }
 
     @GetMapping("/prescriptions/pending")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<List<PrescriptionDTO>> pendingPrescriptions() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.pendingPrescriptions());
     }
 
     @PostMapping("/suggest-medicines")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<List<MedicineSuggestion>> suggestMedicines(@RequestBody AiSuggestRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(aiMedicineService.suggestMedicines(request));
     }
 }

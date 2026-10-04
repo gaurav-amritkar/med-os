@@ -47,7 +47,7 @@ medos:
     pii-encryption-key: ${PII_ENCRYPTION_KEY}
   ai:
     enabled: false
-    bootstrap:
+  bootstrap:
       admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
       superadmin-username: ${BOOTSTRAP_SUPERADMIN_USERNAME:platform}
       superadmin-password: ${BOOTSTRAP_SUPERADMIN_PASSWORD:}

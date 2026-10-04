@@ -49,18 +49,21 @@ public class AdmissionController {
     @GetMapping("/patient/{patientId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Admission>> getPatientHistory(@PathVariable UUID patientId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getPatientHistory(patientId));
     }
 
     @GetMapping("/rooms")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Room>> getAllRooms() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getAllRooms());
     }
 
     @GetMapping("/rooms/available")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Room>> getAvailableRooms() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getAvailableRooms());
     }
 }

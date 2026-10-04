@@ -86,7 +86,7 @@ medos:
     registration-token: ${ONBOARDING_REGISTRATION_TOKEN:}
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
     model: claude-3-5-sonnet-20241022
-    bootstrap:
+  bootstrap:
       admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
       superadmin-username: ${BOOTSTRAP_SUPERADMIN_USERNAME:platform}
       superadmin-password: ${BOOTSTRAP_SUPERADMIN_PASSWORD:}
