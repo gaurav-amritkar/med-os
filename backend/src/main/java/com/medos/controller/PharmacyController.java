@@ -31,30 +31,35 @@ import java.util.UUID;
 public class PharmacyController {
 
     private final MedicineCatalogService medicineCatalogService;
+    private final com.medos.security.FeatureFlags featureFlags;
     private final InventoryService inventoryService;
     private final DispenseService dispenseService;
 
     @GetMapping("/medicines")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MedicineCatalog>> listMedicines() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.ok(medicineCatalogService.listAllMedicines());
     }
 
     @GetMapping("/medicines/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<MedicineCatalog> getMedicine(@PathVariable UUID id) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.ok(inventoryService.getMedicine(id));
     }
 
     @PostMapping("/medicines")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<MedicineCatalog> createMedicine(@RequestBody MedicineCatalog med) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.status(HttpStatus.CREATED).body(inventoryService.createMedicine(med));
     }
 
     @GetMapping("/medicines/{id}/batches")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MedicineBatch>> getBatches(@PathVariable UUID id) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.ok(inventoryService.getBatches(id));
     }
 
@@ -67,6 +72,7 @@ public class PharmacyController {
             @RequestParam int quantity,
             @RequestParam(required = false) BigDecimal purchasePrice,
             @RequestParam(required = false) String supplier) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(inventoryService.addStock(id, batchNo, expiryDate, quantity, purchasePrice, supplier));
     }
@@ -74,6 +80,7 @@ public class PharmacyController {
     @PostMapping("/dispense")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<Void> dispense(@Valid @RequestBody DispenseRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         dispenseService.dispense(request);
         return ResponseEntity.ok().build();
     }
@@ -82,6 +89,7 @@ public class PharmacyController {
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<List<StockTransaction>> getTransactions(
             @RequestParam(required = false) UUID medicineId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         if (medicineId != null) {
             return ResponseEntity.ok(inventoryService.getStockLedger(medicineId));
         }

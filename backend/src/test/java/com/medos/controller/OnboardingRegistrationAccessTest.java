@@ -70,17 +70,62 @@ class OnboardingRegistrationAccessTest {
     }
 
     private String body(String registrationToken) {
+        return body(registrationToken, null);
+    }
+
+    private String body(String registrationToken, String featuresJson) {
         return """
                 {"name":"Some Hospital","type":"HOSPITAL","slug":"some-hospital-%s",
                  "contactEmail":"contact@example.test","contactPhone":"+919000000000",
                  "adminUsername":"owner-%s","adminPassword":"Temp@12345",
-                 "adminEmail":"owner-%s@example.test","adminFullName":"Owner Person"%s}
+                 "adminEmail":"owner-%s@example.test","adminFullName":"Owner Person"%s%s}
                 """.formatted(
                 UUID.randomUUID().toString().substring(0, 8),
                 UUID.randomUUID().toString().substring(0, 8),
                 UUID.randomUUID().toString().substring(0, 8),
                 registrationToken == null ? ""
-                        : ",\"registrationToken\":\"" + registrationToken + "\"");
+                        : ",\"registrationToken\":\"" + registrationToken + "\"",
+                featuresJson == null ? "" : ",\"features\":" + featuresJson);
+    }
+
+    @Test
+    @DisplayName("a platform super_admin provisions a tenant without the registration secret")
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void superAdminCanRegisterWithoutSecret() throws Exception {
+        mockMvc.perform(post("/api/v1/onboarding/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(null)))
+                .andExpect(status().isOk());
+
+        verify(tenantService).createTenant(anyString(), any(), anyString(), anyString(),
+                anyString(), any());
+    }
+
+    @Test
+    @DisplayName("the selected modules are persisted with the tenant")
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void featureBundleIsPersisted() throws Exception {
+        mockMvc.perform(post("/api/v1/onboarding/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(null, "[\"billing\",\"pharmacy\"]")))
+                .andExpect(status().isOk());
+
+        verify(tenantService).setConfig(any(UUID.class),
+                org.mockito.ArgumentMatchers.eq("features"),
+                org.mockito.ArgumentMatchers.eq("billing,pharmacy"));
+    }
+
+    @Test
+    @DisplayName("an unknown module is rejected and no tenant is created")
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void unknownFeatureIsRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/onboarding/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(null, "[\"billing\",\"quantum-healing\"]")))
+                .andExpect(status().isBadRequest());
+
+        verify(tenantService, never()).createTenant(anyString(), any(), anyString(),
+                anyString(), anyString(), any());
     }
 
     @Test

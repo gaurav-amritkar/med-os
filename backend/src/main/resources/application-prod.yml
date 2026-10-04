@@ -48,7 +48,9 @@ medos:
   ai:
     enabled: false
   bootstrap:
-    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
+      admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
+      superadmin-username: ${BOOTSTRAP_SUPERADMIN_USERNAME:platform}
+      superadmin-password: ${BOOTSTRAP_SUPERADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ORIGINS}
 

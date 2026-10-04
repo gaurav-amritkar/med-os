@@ -1,43 +1,48 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { authApi } from '../api';
 import Icon from './icons';
 
 const navItems = {
+  super_admin: [
+    { to: '/onboarding', label: 'Register Hospital', icon: 'user' },
+  ],
   admin: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
-    { to: '/encounters', label: 'OPD', icon: 'encounters' },
-    { to: '/admissions', label: 'IPD / Wards', icon: 'admissions' },
-    { to: '/pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
-    { to: '/billing', label: 'Billing', icon: 'billing' },
+    { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
+    { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
+    { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/staff', label: 'Staff', icon: 'user' },
   ],
   doctor: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
-    { to: '/encounters', label: 'OPD', icon: 'encounters' },
-    { to: '/admissions', label: 'IPD / Wards', icon: 'admissions' },
-    { to: '/pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
+    { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
+    { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
   ],
   nurse: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
-    { to: '/encounters', label: 'Encounters', icon: 'encounters' },
-    { to: '/admissions', label: 'Admissions', icon: 'admissions' },
+    { to: '/encounters', feature: 'encounters', label: 'Encounters', icon: 'encounters' },
+    { to: '/admissions', feature: 'admissions', label: 'Admissions', icon: 'admissions' },
   ],
   receptionist: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
-    { to: '/encounters', label: 'Appointments', icon: 'encounters' },
+    { to: '/encounters', feature: 'encounters', label: 'Appointments', icon: 'encounters' },
   ],
   pharmacist: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
-    { to: '/billing', label: 'Ledger', icon: 'billing' },
+    { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/billing', feature: 'billing', label: 'Ledger', icon: 'billing' },
   ],
   billing: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/billing', label: 'Billing', icon: 'billing' },
+    { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
   ],
 };
@@ -56,7 +61,20 @@ export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const role = user?.role?.toLowerCase() || 'admin';
+const [tenantFeatures, setTenantFeatures] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    authApi.getMe()
+      .then(({ data }) => {
+        if (!cancelled && Array.isArray(data?.features)) setTenantFeatures(data.features);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [role]);
   const items = navItems[role] || navItems.admin;
+  const visibleItems = tenantFeatures === null
+    ? items
+    : items.filter((item) => !item.feature || tenantFeatures.includes(item.feature));
 
   return (
     <>
@@ -84,7 +102,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="rail__nav" aria-label="Primary">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const active = location.pathname === item.to;
             return (
               <Link

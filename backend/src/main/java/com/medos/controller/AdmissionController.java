@@ -21,10 +21,12 @@ import java.util.UUID;
 public class AdmissionController {
 
     private final AdmissionService admissionService;
+    private final com.medos.security.FeatureFlags featureFlags;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DOCTOR','NURSE','ADMIN')")
     public ResponseEntity<Admission> admitPatient(@Valid @RequestBody AdmissionRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.status(HttpStatus.CREATED).body(admissionService.admitPatient(request));
     }
 
@@ -33,30 +35,35 @@ public class AdmissionController {
     public ResponseEntity<Admission> dischargePatient(
             @PathVariable UUID id,
             @Valid @RequestBody DischargeRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.dischargePatient(id, request));
     }
 
     @GetMapping("/active")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Admission>> getActiveAdmissions() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getActiveAdmissions());
     }
 
     @GetMapping("/patient/{patientId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Admission>> getPatientHistory(@PathVariable UUID patientId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getPatientHistory(patientId));
     }
 
     @GetMapping("/rooms")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Room>> getAllRooms() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getAllRooms());
     }
 
     @GetMapping("/rooms/available")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Room>> getAvailableRooms() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getAvailableRooms());
     }
 }

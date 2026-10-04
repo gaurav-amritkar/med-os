@@ -10,6 +10,13 @@ const TENANT_TYPES = [
   { value: 'PHARMACY', label: 'Pharmacy' },
 ];
 
+const FEATURE_OPTIONS = [
+  { value: 'encounters', label: 'Encounters & appointments', hint: 'OPD desk, consultations, visit notes' },
+  { value: 'admissions', label: 'Admissions & wards', hint: 'Inpatient beds, ward rounds, discharge' },
+  { value: 'pharmacy', label: 'Pharmacy', hint: 'Dispensing, stock, purchase orders' },
+  { value: 'billing', label: 'Billing', hint: 'Invoices, payments, ledgers' },
+];
+
 const initial = {
   name: '',
   type: 'HOSPITAL',
@@ -17,6 +24,7 @@ const initial = {
   contactEmail: '',
   contactPhone: '',
   address: '',
+  features: FEATURE_OPTIONS.map((f) => f.value),
   adminUsername: '',
   adminPassword: '',
   adminEmail: '',
@@ -85,8 +93,21 @@ export default function Onboarding() {
       setForm((f) => ({ ...f, [key]: type === 'checkbox' ? checked : value }));
     };
 
+  const toggleFeature =
+    (value) => () =>
+      setForm((f) => ({
+        ...f,
+        features: f.features.includes(value)
+          ? f.features.filter((v) => v !== value)
+          : [...f.features, value],
+      }));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (form.features.length === 0) {
+      setSubmitError('Select at least one module before submitting.');
+      return;
+    }
     setLoading(true);
     setSubmitError(null);
     try {
@@ -203,6 +224,54 @@ export default function Onboarding() {
               <Field label="Contact Phone" value={form.contactPhone} onChange={set('contactPhone')} required />
               <Field label="Address" value={form.address} onChange={set('address')} />
             </div>
+          </div>
+
+          <div style={fmt.section}>
+            <h2 style={{ fontSize: '1rem', margin: '0 0 14px', color: 'var(--ink)' }}>Enabled Modules</h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: '0 0 12px' }}>
+              Only the modules you switch on here are visible and reachable for this organisation. At least one is required.
+            </p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {FEATURE_OPTIONS.map((f) => {
+                const id = `onboarding-feature-${f.value}`;
+                const checked = form.features.includes(f.value);
+                return (
+                  <label
+                    key={f.value}
+                    htmlFor={id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 12px',
+                      border: `1px solid ${checked ? 'var(--action)' : 'var(--ink-faint)'}`,
+                      borderRadius: 'var(--r-sm)',
+                      background: checked ? 'var(--canvas)' : 'transparent',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      id={id}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleFeature(f.value)}
+                    />
+                    <span>
+                      {f.label}
+                      <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
+                        {f.hint}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {form.features.length === 0 && (
+              <p role="alert" style={{ fontSize: '0.82rem', color: 'var(--critical)', margin: '10px 0 0' }}>
+                Select at least one module.
+              </p>
+            )}
           </div>
 
           <div style={fmt.section}>

@@ -13,11 +13,14 @@ export default function Login() {
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
 
+  const role = useAuthStore((s) => s.role);
+  const landing = (role || '').toLowerCase() === 'super_admin' ? '/onboarding' : '/dashboard';
+
   useEffect(() => {
     if (token) {
-      navigate('/dashboard', { replace: true });
+      navigate(landing, { replace: true });
     }
-  }, [token, navigate]);
+  }, [token, landing, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +36,7 @@ export default function Login() {
         tenantId: data.tenantId,
       }, data.expiresIn);
       addToast(`Welcome back, ${data.fullName}`, 'success');
-      navigate('/dashboard', { replace: true });
+      navigate((data.role || '').toLowerCase() === 'super_admin' ? '/onboarding' : '/dashboard', { replace: true });
     } catch (err) {
       addToast(err.response?.data?.message || 'Login failed', 'critical');
     } finally {

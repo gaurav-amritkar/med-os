@@ -39,6 +39,9 @@ public class CurrentUserDTO {
     private Boolean active;
     private UUID tenantId;
     private String tenantName;
+
+    /** Modules enabled for this hospital (#127). Null for super-admin (no tenant). */
+    private java.util.List<String> features;
     private TenantUser.UserRole role;
 
     /**
@@ -51,11 +54,12 @@ public class CurrentUserDTO {
      * @param role     the role the user holds in that tenant
      */
     public static CurrentUserDTO of(User user, UUID tenantId, String tenantName,
-                                    TenantUser.UserRole role) {
+                                    TenantUser.UserRole role, java.util.List<String> features) {
         if (user == null) {
             return null;
         }
         return CurrentUserDTO.builder()
+                .features(features)
                 .id(user.getId())
                 .username(user.getUsername())
                 .fullName(user.getFullName())

@@ -68,10 +68,22 @@ public class OnboardingController {
      */
     @PostMapping("/register")
     public ResponseEntity<Tenant> onboardTenant(@Valid @RequestBody OnboardingRequest request) {
-        if (!publicSignupEnabled) {
+        boolean platformOperator = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication() != null
+                && org.springframework.security.core.context.SecurityContextHolder.getContext()
+                        .getAuthentication().getAuthorities().stream()
+                        .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority()));
+
+        if (!platformOperator && !publicSignupEnabled) {
             // Not the self-serve mode, so this is an operator action and must be proven.
             requireRegistrationToken(request.getRegistrationToken());
         }
+
+        java.util.List<String> requestedFeatures = request.getFeatures() == null || request.getFeatures().isEmpty()
+                ? java.util.List.of("admissions", "billing", "encounters", "pharmacy")
+                : request.getFeatures();
+        com.medos.security.FeatureFlags.validateRequested(requestedFeatures);
+        String featuresCsv = String.join(",", requestedFeatures);
 
         Tenant tenant = tenantService.createTenant(
                 request.getName(),
@@ -102,6 +114,8 @@ public class OnboardingController {
         if (request.getConfig() != null) {
             request.getConfig().forEach((k, v) -> tenantService.setConfig(tenant.getId(), k, v));
         }
+
+        tenantService.setConfig(tenant.getId(), com.medos.security.FeatureFlags.CONFIG_KEY, featuresCsv);
 
         return ResponseEntity.ok(tenant);
     }

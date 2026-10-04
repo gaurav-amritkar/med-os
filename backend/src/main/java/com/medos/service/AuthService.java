@@ -68,17 +68,22 @@ public class AuthService {
             throw new BusinessException(HttpStatus.FORBIDDEN,
                     "Your access is not active. Contact your administrator.");
         }
-        // No membership at all is a bootstrap/superadmin session, which carries
-        // no tenant. Those must keep working or a fresh install cannot be
-        // administered.
-        TenantUser.UserRole role = activeMembership == null ?
-                TenantUser.UserRole.admin : activeMembership.getRole();
+        // No membership at all used to be a synthetic admin-with-no-tenant, which made it
+        // impossible to tell a bootstrap supersession apart from a tenant-less account.
+        // The platform super-admin is now an explicit flag on the user row; everything else
+        // with no membership keeps the bootstrap fallback.
+        String roleString = Boolean.TRUE.equals(user.getIsSuperAdmin())
+                ? "super_admin"
+                : activeMembership == null
+                        ? TenantUser.UserRole.admin.name()
+                        : activeMembership.getRole().name();
         UUID tenantId = activeMembership == null ? null : activeMembership.getTenant().getId();
+        TenantUser.UserRole role = TenantUser.UserRole.valueOf(roleString);
 
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        String token = tokenProvider.generateToken(user.getId(), user.getUsername(), role.name(), tenantId);
+        String token = tokenProvider.generateToken(user.getId(), user.getUsername(), roleString, tenantId);
 
         return new LoginResponse(
                 token,
@@ -86,7 +91,7 @@ public class AuthService {
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
-                role.name(),
+                roleString,
                 user.getSpecialization(),
                 tenantId,
                 Boolean.TRUE.equals(user.getMustChangePassword())

@@ -17,6 +17,9 @@ public class OnboardingRequest {
     @NotBlank private String adminPassword;
     @NotBlank @Email private String adminEmail;
     private String adminFullName;
+    /** Modules this hospital opted into (#127). Absent/empty = all of them. */
+    private java.util.List<String> features;
+
     private Map<String, String> config;
 
     /**
