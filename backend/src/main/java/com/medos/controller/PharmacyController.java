@@ -31,12 +31,14 @@ import java.util.UUID;
 public class PharmacyController {
 
     private final MedicineCatalogService medicineCatalogService;
+    private final com.medos.security.FeatureFlags featureFlags;
     private final InventoryService inventoryService;
     private final DispenseService dispenseService;
 
     @GetMapping("/medicines")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MedicineCatalog>> listMedicines() {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.ok(medicineCatalogService.listAllMedicines());
     }
 
@@ -49,6 +51,7 @@ public class PharmacyController {
     @PostMapping("/medicines")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<MedicineCatalog> createMedicine(@RequestBody MedicineCatalog med) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         return ResponseEntity.status(HttpStatus.CREATED).body(inventoryService.createMedicine(med));
     }
 
@@ -74,6 +77,7 @@ public class PharmacyController {
     @PostMapping("/dispense")
     @PreAuthorize("hasAnyRole('PHARMACIST','ADMIN')")
     public ResponseEntity<Void> dispense(@Valid @RequestBody DispenseRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "pharmacy");
         dispenseService.dispense(request);
         return ResponseEntity.ok().build();
     }

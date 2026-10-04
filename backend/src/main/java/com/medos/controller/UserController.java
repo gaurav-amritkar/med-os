@@ -53,6 +53,13 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserDTO> createUser(@Valid @RequestBody CreateUserRequest request) {
+        if (request.getRole() == com.medos.entity.TenantUser.UserRole.super_admin) {
+            // super_admin is provisioned once at boot and must never be grantable here —
+            // otherwise one hospital admin could mint a duplicate platform admin.
+            throw new com.medos.exception.BusinessException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "super_admin cannot be assigned through staff management");
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(userService.createUser(actingTenant(), request));
     }
@@ -60,6 +67,11 @@ public class UserController {
     @PutMapping("/{userId}/role")
     public ResponseEntity<UserDTO> updateRole(@PathVariable UUID userId,
                                               @RequestBody RoleRequest request) {
+        if (request.role() == com.medos.entity.TenantUser.UserRole.super_admin) {
+            throw new com.medos.exception.BusinessException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "super_admin cannot be assigned through staff management");
+        }
         return ResponseEntity.ok(userService.updateRole(actingTenant(), userId, request.role()));
     }
 

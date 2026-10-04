@@ -58,6 +58,17 @@ public class User {
     @Column(name = "must_change_password", nullable = false)
     private Boolean mustChangePassword = false;
 
+    /**
+     * True only for the platform account that provisions tenants. Holds no {@code
+     * tenant_users} row and signs in with {@code tenantId=null}. Anyone receiving this
+     * flag must tread carefully: without it there is no horizontal scoping, so the
+     * controller-level role gate for {@code super_admin} creation is the only thing
+     * preventing a tenant admin from minting their own.
+     */
+    @Builder.Default
+    @Column(name = "is_super_admin", nullable = false)
+    private Boolean isSuperAdmin = false;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

@@ -10,6 +10,8 @@ import com.medos.repository.UserRepository;
 import com.medos.dto.CurrentUserDTO;
 import com.medos.dto.UserDTO;
 import com.medos.service.DashboardService;
+import com.medos.service.TenantService;
+import com.medos.service.TenantService;
 import com.medos.service.UserService;
 import com.medos.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class DashboardController {
     private final UserService userService;
     private final NotificationRepository notificationRepository;
     private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
 
     private User resolveUser(Authentication auth) {
         try {
@@ -99,12 +102,21 @@ public class DashboardController {
                 .map(a -> a.substring("ROLE_".length()))
                 .findFirst()
                 .orElse(null);
-        return ResponseEntity.ok(CurrentUserDTO.of(
-                user,
-                tenantId,
-                tenantId == null ? null : tenantName(tenantId),
-                role == null ? null : TenantUser.UserRole.valueOf(role.toLowerCase())));
-    }
+          java.util.List<String> features = java.util.List.of();
+          if (tenantId != null) {
+              String csv = tenantService.getConfig(tenantId, "features");
+              if (csv != null && !csv.isBlank()) {
+                  features = java.util.Arrays.stream(csv.split(","))
+                          .map(String::trim).filter(f -> !f.isEmpty()).toList();
+              }
+          }
+          return ResponseEntity.ok(CurrentUserDTO.of(
+                  user,
+                  tenantId,
+                  tenantId == null ? null : tenantName(tenantId),
+                  role == null ? null : TenantUser.UserRole.valueOf(role.toLowerCase()),
+                  features));
+      }
 
     private String tenantName(UUID tenantId) {
         return tenantRepository.findById(tenantId).map(Tenant::getName).orElse(null);

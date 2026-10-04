@@ -15,6 +15,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
  * Bootstraps the first admin account and the hospital it administers.
@@ -57,12 +59,41 @@ public class AdminBootstrapRunner implements ApplicationRunner {
     @Value("${medos.bootstrap.tenant-name:MedOS Hospital}")
     private String bootstrapTenantName;
 
+    @Value("${medos.bootstrap.superadmin-username:platform}")
+    private String bootstrapSuperAdminUsername;
+
+    @Value("${medos.bootstrap.superadmin-password:}")
+    private String bootstrapSuperAdminPassword;
+
     @Value("${medos.bootstrap.tenant-slug:primary}")
     private String bootstrapTenantSlug;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        // Platform super-admin (#127). Created only when the env password is set, so a
+        // production boot never mints one silently. It holds no tenant membership on
+        // purpose: LoginResponse returns tenantId=null, and that marks it apart from a
+        // tenant-less regular admin, which is a fallback for fresh installs.
+        if (bootstrapSuperAdminPassword != null && !bootstrapSuperAdminPassword.isBlank()) {
+            userRepository.findByUsername(bootstrapSuperAdminUsername)
+                    .or(() -> {
+                        log.info("Creating platform super-admin '{}'", bootstrapSuperAdminUsername);
+                        return Optional.of(userRepository.save(User.builder()
+                                .username(bootstrapSuperAdminUsername)
+                                .passwordHash(passwordEncoder.encode(bootstrapSuperAdminPassword))
+                                .fullName("Platform Super Admin")
+                                .email(bootstrapSuperAdminUsername + "@medos.local")
+                                .active(true)
+                                .isSuperAdmin(true)
+                                .mustChangePassword(true)
+                                .build()));
+                    });
+        } else {
+            log.info("No MEDOS bootstrap super-admin password set; skipping super-admin creation. "
+                    + "Tenant provisioning will remain gated on registration-token.");
+        }
+
         boolean adminExists = userRepository.findByUsername("admin")
                 .map(u -> u.getActive())
                 .orElse(false);

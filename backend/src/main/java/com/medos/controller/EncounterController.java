@@ -25,11 +25,13 @@ import java.util.UUID;
 public class EncounterController {
 
     private final EncounterService encounterService;
+    private final com.medos.security.FeatureFlags featureFlags;
     private final AiMedicineService aiMedicineService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('DOCTOR','NURSE','ADMIN')")
     public ResponseEntity<EncounterDTO> createEncounter(@Valid @RequestBody EncounterRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.status(HttpStatus.CREATED).body(encounterService.createEncounter(request));
     }
 
@@ -40,6 +42,7 @@ public class EncounterController {
             @RequestParam(defaultValue = "false") boolean mine,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.list(status, mine, page, size));
     }
 
@@ -61,6 +64,7 @@ public class EncounterController {
     @PostMapping("/{id}/sign")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<EncounterDTO> signEncounter(@PathVariable UUID id) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "encounters");
         return ResponseEntity.ok(encounterService.signEncounter(id));
     }
 

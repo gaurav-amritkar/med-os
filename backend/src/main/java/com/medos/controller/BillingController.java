@@ -22,10 +22,12 @@ import java.util.UUID;
 public class BillingController {
 
     private final BillingService billingService;
+    private final com.medos.security.FeatureFlags featureFlags;
 
     @PostMapping("/invoices")
     @PreAuthorize("hasAnyRole('BILLING','ADMIN')")
     public ResponseEntity<Invoice> generateInvoice(@Valid @RequestBody InvoiceRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.status(HttpStatus.CREATED).body(billingService.generateInvoice(request));
     }
 
@@ -38,6 +40,7 @@ public class BillingController {
     @GetMapping("/patients/{patientId}/unbilled")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Charge>> getUnbilled(@PathVariable UUID patientId) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.ok(billingService.getUnbilledCharges(patientId));
     }
 
@@ -50,6 +53,7 @@ public class BillingController {
     @PostMapping("/payments")
     @PreAuthorize("hasAnyRole('BILLING','ADMIN')")
     public ResponseEntity<Payment> recordPayment(@Valid @RequestBody PaymentRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "billing");
         return ResponseEntity.status(HttpStatus.CREATED).body(billingService.recordPayment(request));
     }
 

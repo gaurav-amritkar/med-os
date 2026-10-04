@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -68,6 +69,9 @@ class DashboardControllerMeEndpointTest {
 
     @Autowired
     private UserService userService;
+
+    @MockitoBean
+    private com.medos.service.TenantService tenantService;
 
     private UUID tenantId;
     private UUID userId;
@@ -194,7 +198,7 @@ class DashboardControllerMeEndpointTest {
         // controller's own null handling.
         var controller = new DashboardController(
                 dashboardService, userRepository, userService,
-                notificationRepository, tenantRepository);
+                notificationRepository, tenantRepository, tenantService);
         var auth = new UsernamePasswordAuthenticationToken(
                 "no-such-principal-anywhere", null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
@@ -211,7 +215,8 @@ class DashboardControllerMeEndpointTest {
     @DisplayName("CurrentUserDTO.of never copies the hash")
     void dtoFactoryExcludesHash() throws Exception {
         User user = userRepository.findById(userId).orElseThrow();
-        var dto = com.medos.dto.CurrentUserDTO.of(user, tenantId, "T", TenantUser.UserRole.admin);
+        var dto = com.medos.dto.CurrentUserDTO.of(user, tenantId, "T", TenantUser.UserRole.admin,
+                  List.of("billing"));
 
         var serialised = objectMapper.writeValueAsString(dto);
         assertThat(serialised).doesNotContain("passwordHash").doesNotContain("hash-canary");
