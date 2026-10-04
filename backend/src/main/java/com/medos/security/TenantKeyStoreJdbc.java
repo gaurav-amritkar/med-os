@@ -126,6 +126,12 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
     }
 
     @Override
+    public int maxKekVersionInUse() {
+        Integer max = jdbc.queryForObject("SELECT COALESCE(MAX(wrapped_kek_version), 0) FROM tenant_keys",
+                Integer.class);
+        return max == null ? 0 : max;
+    }
+
     public List<UUID> findTenantsPendingKekVersion(int kekVersion) {
         return jdbc.queryForList("SELECT tenant_id FROM tenant_keys WHERE wrapped_kek_version < ? "
                 + "ORDER BY tenant_id", UUID.class, kekVersion);

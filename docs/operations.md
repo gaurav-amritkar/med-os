@@ -391,6 +391,108 @@ curl -X POST http://localhost:8080/api/billing/payments \
 
 ## 7c. Certificate Management
 
+---
+
+## 7d. Rotating the PII Encryption Key (KEK)
+
+Patient records are encrypted per tenant with a data key (DEK), and every DEK is itself
+wrapped by a **key-encryption key (KEK)**. Rotating the KEK re-wraps those DEKs and
+**rewrites no patient data at all** — the ciphertext does not change, only the wrapper
+around the key that encrypted it. That is what makes this an online operation with no
+maintenance window, and it is why rollback is total.
+
+Requires: shell access to the host, the current `PII_ENCRYPTION_KEY`, and a maintenance
+window you do not need.
+
+### Modes
+
+The rotation is a runner on the backend. It does nothing unless asked.
+
+Modes are **environment variables**, not command-line flags. `docker compose run SERVICE
+--flag` replaces the container command instead of appending to it, so argv flags never
+reach the JVM; and a key on a command line is visible in `docker inspect` and in the
+host's process list.
+
+| Environment | Effect |
+|---|---|
+| none set | Ordinary boot. Reports a dry run to the log, writes nothing, keeps serving. |
+| `MEDOS_KEY_ROTATION_MODE=dry-run` | **Dry run**, then exits. Reports tenant count, tenants to re-wrap, and any tenant that cannot unwrap. |
+| `MEDOS_KEY_ROTATION_MODE=apply` plus `MEDOS_KEY_ROTATION_NEW_KEK`, `MEDOS_KEY_ROTATION_TARGET_VERSION` | Re-wraps, reads it back, then exits. |
+| `MEDOS_KEY_ROTATION_MODE=verify` | Reads every tenant with the KEK this process booted with, fails loudly if any cannot unwrap, then exits. |
+
+`MEDOS_KEY_ROTATION_INITIATED_BY` is recorded on the `key_rotations` row — always set it,
+it is the DPDP §8(5) evidence trail. An unrecognised mode fails the boot rather than
+being read as "no mode requested".
+
+### Procedure
+
+```bash
+# 0. Record the current state. You need this to roll back.
+docker compose exec backend printenv PII_ENCRYPTION_KEY > /secure/kek-v1.b64
+chmod 600 /secure/kek-v1.b64
+
+# 1. Dry run. Read the output. If it says ABORT, stop and fix that tenant first.
+docker compose run --rm -e MEDOS_KEY_ROTATION_MODE=dry-run \
+  -e MEDOS_KEY_ROTATION_TARGET_VERSION=2 backend
+
+# 2. Generate the new KEK. Never overwrite v1.
+openssl rand -base64 32 > /secure/kek-v2.b64
+chmod 600 /secure/kek-v2.b64
+
+# 3. Re-wrap. Safe to re-run: tenants already at the target version are skipped, so an
+#    interrupted run finishes by being run again.
+docker compose run --rm \
+  -e MEDOS_KEY_ROTATION_MODE=apply \
+  -e MEDOS_KEY_ROTATION_NEW_KEK="$(cat /secure/kek-v2.b64)" \
+  -e MEDOS_KEY_ROTATION_TARGET_VERSION=2 \
+  -e MEDOS_KEY_ROTATION_INITIATED_BY="ops@example.test" backend
+
+# 4. Install v2 and restart.
+docker compose up -d --force-recreate backend
+
+# 5. Verify against the running application. Do not skip this.
+docker compose run --rm -e MEDOS_KEY_ROTATION_MODE=verify backend
+
+# 6. Only now, retire v1. Not before step 5 passes for every tenant.
+```
+
+### Hard rules
+
+1. **Never delete the old KEK version first.** Keeping v1 is what makes this reversible.
+2. **Keep v1 until `--verify` has passed for every tenant** after a restart. Not before.
+3. **Restore-and-restart is a total rollback**, because no data was rewritten. To roll
+   back: put `kek-v1.b64` back, `docker compose up -d --force-recreate backend`, then
+   `--verify`. There is nothing to restore in the database.
+4. **Do not retire v1 while any tenant still fails `--verify`.** The runner will tell you
+   which tenants; it will not guess.
+
+### Verifying it actually worked
+
+`key_rotations` holds one row per run, and the row is the evidence:
+
+```sql
+SELECT id, operation, kek_version, status, rows_rewritten,
+       initiated_by, started_at, completed_at
+FROM key_rotations
+WHERE operation = 'kek_rewrap'
+ORDER BY started_at DESC
+LIMIT 5;
+```
+
+A completed rotation has `status = 'completed'` and `rows_rewritten` equal to the number
+of tenants the dry run reported as pending. An interrupted run stays `in_progress` —
+re-run `--apply` to complete it.
+
+### What a KEK rotation is **not**
+
+**This procedure is not reversible for DEK rotation.** Rotating a *tenant's DEK*
+re-encrypts that tenant's patient rows; restoring a key file does not undo it, because
+the old DEK is gone. DEK rotation is only for when the DEK itself is suspected
+compromised, it is scoped to one hospital, it requires a verified backup first, and it
+must be handled as a separate procedure. Do not assume the rollback above applies.
+
+---
+
 ## 8. Incident Response
 
 ### Database Connection Exhaustion
