@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * search rather than as a key problem. Keeping a separately wrapped key means a re-wrap
  * changes only the wrapper around the same index key bytes, so the digests still match.
  */
-final class BlindIndexKeyService {
+class BlindIndexKeyService implements BlindIndexKeyProvider {
 
     private static final Logger log = LoggerFactory.getLogger(BlindIndexKeyService.class);
 
@@ -58,7 +58,7 @@ final class BlindIndexKeyService {
      * roll back, so a key INSERT issued during a lookup is discarded and the tenant stays
      * permanently keyless.
      */
-    byte[] findOrNull(UUID tenantId) {
+    public byte[] findOrNull(UUID tenantId) {
         long now = System.currentTimeMillis();
         Entry cached = cache.get(tenantId);
         if (cached != null && now - cached.loadedAt() < cacheTtlMillis) {
@@ -79,7 +79,7 @@ final class BlindIndexKeyService {
      * <p>Ordered after the data key by its callers: the index key lives on the same
      * {@code tenant_keys} row, so there is nothing to attach it to until that row exists.
      */
-    void ensureExists(UUID tenantId) {
+    public void ensureExists(UUID tenantId) {
         if (findOrNull(tenantId) != null) {
             return;
         }
@@ -109,7 +109,7 @@ final class BlindIndexKeyService {
      * point of a rotation suspected of index-key compromise — so the caller must re-index.
      * No patient row is rewritten here.
      */
-    void rotateIndependently(UUID tenantId) {
+    public void rotateIndependently(UUID tenantId) {
         byte[] key = new byte[KeyWrapCipher.KEY_LENGTH];
         random.nextBytes(key);
         int generation = keyStore.biKeyGenerationOf(tenantId).orElse(0) + 1;
@@ -130,7 +130,7 @@ final class BlindIndexKeyService {
      *
      * @return how many tenants were re-wrapped
      */
-    int rewrapAll() {
+    public int rewrapAll() {
         int count = 0;
         for (UUID tenantId : keyStore.tenantIdsWithKeys()) {
             byte[] wrapped = keyStore.wrappedBiKeyOf(tenantId).orElse(null);
@@ -151,7 +151,7 @@ final class BlindIndexKeyService {
         return count;
     }
 
-    void clearCache() {
+    public void clearCache() {
         cache.clear();
     }
 

@@ -87,8 +87,8 @@ public class PiiCiphertextFormat {
      */
     public static DekResolver tenantResolver() {
         return generation -> {
-            var holder = com.medos.security.TenantKeyHolder.get();
-            byte[] dek = holder.dekFor(null);
+            var holder = com.medos.security.TenantKeyResolverFactory.get();
+            byte[] dek = holder.resolveDek(null);
             return dek == null ? null : new javax.crypto.spec.SecretKeySpec(dek, "AES");
         };
     }
