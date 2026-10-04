@@ -39,9 +39,11 @@ class BlindIndexKeyIndependenceTest {
 
     @BeforeEach
     void setUp() {
+        TenantKeyHolder.reset();
         TenantKeyResolverFactory.reset();
         store = new FakeTenantKeyStore();
         holder = new TenantKeyHolder(KEK_B64, store);
+        TenantKeyHolder.setInstance((TenantKeyHolder) holder);
         TenantKeyResolverFactory.setInstance(holder);
         TenantContext.setTenantId(TENANT_A);
         // A tenant only has an index key once something has been written. The write

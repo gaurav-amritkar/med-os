@@ -1,6 +1,7 @@
 package com.medos.config;
 
 import com.medos.security.TenantKeyHolder;
+import com.medos.security.TenantKeyResolverFactory;
 import com.medos.security.TenantKeyStore;
 import com.medos.util.EncryptionUtil;
 import jakarta.annotation.PostConstruct;
@@ -36,7 +37,13 @@ public class EncryptionConfig {
                     "PII encryption key (medos.security.pii-encryption-key) is required. "
                             + "Generate with: openssl rand -base64 32");
         }
-        TenantKeyHolder.setInstance(new TenantKeyHolder(piiEncryptionKey, tenantKeyStore, txManager));
+        TenantKeyHolder holder = new TenantKeyHolder(piiEncryptionKey, tenantKeyStore, txManager);
+        TenantKeyHolder.setInstance(holder);
+        // PiiCiphertextFormat resolves the acting tenant's DEK through the factory, so the
+        // holder has to be registered there too. Setting only the holder leaves the factory
+        // empty and the first PII read or write fails with "TenantKeyResolver is not
+        // initialised" — which no unit test notices until it runs against a real context.
+        TenantKeyResolverFactory.setInstance(holder);
         EncryptionUtil.init(piiEncryptionKey);
     }
 }
