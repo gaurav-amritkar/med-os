@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * performance cost, not a disclosure.
  */
 @Slf4j
-public class TenantKeyHolder {
+public class TenantKeyHolder implements TenantKeyResolver {
 
     private static final int DEK_LENGTH = 32;
     private static final int WRAP_IV_LENGTH = 12;
@@ -130,6 +130,10 @@ public class TenantKeyHolder {
      * <p>No tenant means no key. Falling back to a shared key here would silently
      * re-introduce the cross-tenant disclosure this class exists to prevent.
      */
+    public byte[] resolveDek(UUID tenantId) {
+        return dekFor(tenantId);
+    }
+
     public byte[] dekFor(UUID tenantId) {
         UUID acting = requireTenant(tenantId);
         long now = System.currentTimeMillis();
@@ -408,7 +412,7 @@ public class TenantKeyHolder {
      * A holder that can re-wrap material written under {@code previousKekBase64} into
      * the current KEK.
      */
-    public TenantKeyHolder withPreviousKek(String previousKekBase64) {
+    public TenantKeyResolver withPreviousKek(String previousKekBase64) {
         this.previousKek = decodeKek(previousKekBase64);
         // Drop the index-key service so it is rebuilt holding the previous KEK: a rotation
         // that cannot read the material it is meant to re-wrap is the failure this guards.
@@ -426,6 +430,12 @@ public class TenantKeyHolder {
      */
     private byte[] unwrapForRotation(byte[] wrapped) {
         return previousKek == null ? unwrap(wrapped) : unwrapWith(wrapped, previousKek);
+    }
+
+    public int currentGeneration() {
+        // The generation for new writes is always 1 until per-tenant DEKs are implemented.
+        // This matches the behavior of PiiCiphertextFormat.withWriteGeneration(1) used in EncryptionUtil.init().
+        return 1;
     }
 
     public void clearCache() {

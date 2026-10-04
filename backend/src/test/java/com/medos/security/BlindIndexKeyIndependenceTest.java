@@ -35,14 +35,14 @@ class BlindIndexKeyIndependenceTest {
     private static final String NAME = "Anita Sharma";
 
     private FakeTenantKeyStore store;
-    private TenantKeyHolder holder;
+    private TenantKeyResolver holder;
 
     @BeforeEach
     void setUp() {
-        TenantKeyHolder.reset();
+        TenantKeyResolverFactory.reset();
         store = new FakeTenantKeyStore();
         holder = new TenantKeyHolder(KEK_B64, store);
-        TenantKeyHolder.setInstance(holder);
+        TenantKeyResolverFactory.setInstance(holder);
         TenantContext.setTenantId(TENANT_A);
         // A tenant only has an index key once something has been written. The write
         // path creates it (see PatientService), so the fixture does the same.
@@ -52,7 +52,7 @@ class BlindIndexKeyIndependenceTest {
 
     @AfterEach
     void tearDown() {
-        TenantKeyHolder.reset();
+        TenantKeyResolverFactory.reset();
         TenantContext.clear();
     }
 
@@ -91,10 +91,10 @@ class BlindIndexKeyIndependenceTest {
         byte[] newKekBytes = new byte[32];
         Arrays.fill(newKekBytes, (byte) 0x5A);
         String newKek = Base64.getEncoder().encodeToString(newKekBytes);
-        TenantKeyHolder rotated = new TenantKeyHolder(newKek, store).withPreviousKek(KEK_B64);
+        TenantKeyResolver rotated = new TenantKeyHolder(newKek, store).withPreviousKek(KEK_B64);
         int rewrapped = rotated.rewrapAll();
         assertThat(rewrapped).as("the re-wrap must visit every tenant holding key material").isEqualTo(1);
-        TenantKeyHolder.setInstance(rotated);
+        TenantKeyResolverFactory.setInstance(rotated);
         holder = rotated;
 
         String after = indexWithCurrentSetup();
@@ -108,7 +108,7 @@ class BlindIndexKeyIndependenceTest {
     @Test
     @DisplayName("the blind index key is not the PII data key")
     void indexKeyIsDistinctFromDek() {
-        byte[] dek = holder.dekFor(TENANT_A);
+        byte[] dek = holder.resolveDek(TENANT_A);
         String index = indexWithCurrentSetup();
 
         assertThat(index).isNotNull();
@@ -190,14 +190,14 @@ class BlindIndexKeyIndependenceTest {
     @Test
     @DisplayName("rotating the blind index key alone does not require re-encrypting ciphertext")
     void biKeyRotationIsIndependentOfDek() {
-        byte[] dekBefore = holder.dekFor(TENANT_A);
+        byte[] dekBefore = holder.resolveDek(TENANT_A);
         int generationBefore = holder.generationFor(TENANT_A);
         String ciphertextBefore = "kv1.d" + generationBefore + ":someCiphertextBytes";
 
         // Advance only the index key's generation, as a targeted BI rotation would.
         store.advanceBiKeyGeneration(TENANT_A, 2);
 
-        byte[] dekAfter = holder.dekFor(TENANT_A);
+        byte[] dekAfter = holder.resolveDek(TENANT_A);
 
         assertThat(holder.generationFor(TENANT_A))
                 .as("the data key's generation must be untouched by an index-key rotation")
@@ -213,14 +213,14 @@ class BlindIndexKeyIndependenceTest {
             + "and its ciphertext untouched")
     void biKeyRotationRewritesNoCiphertext() {
         String before = indexWithCurrentSetup();
-        byte[] dekBefore = holder.dekFor(TENANT_A);
+        byte[] dekBefore = holder.resolveDek(TENANT_A);
         int dekGeneration = holder.generationFor(TENANT_A);
         byte[] wrappedDekBefore = store.storedDek(TENANT_A);
         String ciphertext = "kv1.d" + dekGeneration + ":ciphertextBytes";
 
-        BlindIndexKeyService service = new BlindIndexKeyService(
+        BlindIndexKeyProvider provider = new BlindIndexKeyService(
                 store, Base64.getDecoder().decode(KEK_B64), 60_000L, new SecureRandom());
-        service.rotateIndependently(TENANT_A);
+        provider.rotateIndependently(TENANT_A);
         holder.clearCache();
 
         String after = indexWithCurrentSetup();
@@ -228,7 +228,7 @@ class BlindIndexKeyIndependenceTest {
         assertThat(after)
                 .as("a rotated index key must produce different digests, or it is not a rotation")
                 .isNotEqualTo(before);
-        assertThat(holder.dekFor(TENANT_A))
+        assertThat(holder.resolveDek(TENANT_A))
                 .as("the data key is untouched, so no ciphertext needs re-encrypting")
                 .isEqualTo(dekBefore);
         assertThat(holder.generationFor(TENANT_A))
@@ -263,7 +263,7 @@ class BlindIndexKeyIndependenceTest {
 
         byte[] newKekBytes = new byte[32];
         Arrays.fill(newKekBytes, (byte) 0x5A);
-        TenantKeyHolder rotated = new TenantKeyHolder(
+        TenantKeyResolver rotated = new TenantKeyHolder(
                 Base64.getEncoder().encodeToString(newKekBytes), store).withPreviousKek(KEK_B64);
         rotated.rewrapAll();
 
@@ -278,7 +278,7 @@ class BlindIndexKeyIndependenceTest {
         assertThat(KeyWrapCipher.unwrap(wrappedAfter, newKekBytes))
                 .as("the current KEK must open it")
                 .hasSize(32);
-        TenantKeyHolder.setInstance(rotated);
+        TenantKeyResolverFactory.setInstance(rotated);
         assertThat(indexWithCurrentSetup())
                 .as("search must still match after the rotation completed")
                 .isEqualTo(before);

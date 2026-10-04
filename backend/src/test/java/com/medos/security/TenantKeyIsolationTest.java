@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
+import com.medos.security.TenantKeyResolverFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,7 +37,7 @@ class TenantKeyIsolationTest {
 
     @AfterEach
     void tearDown() {
-        TenantKeyHolder.reset();
+        TenantKeyResolverFactory.reset();
         TenantContext.clear();
     }
 
@@ -57,6 +58,7 @@ class TenantKeyIsolationTest {
     @DisplayName("a value encrypted for tenant A cannot be decrypted in tenant B's context")
     void crossTenantReadFails() throws Exception {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
 
         TenantContext.setTenantId(TENANT_A);
         byte[] dekA = holder.dekFor(TENANT_A);
@@ -86,6 +88,7 @@ class TenantKeyIsolationTest {
     @DisplayName("distinct tenants get distinct DEKs, checked directly")
     void distinctTenantsGetDistinctDeks() throws Exception {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
 
         TenantContext.setTenantId(TENANT_A);
         byte[] a = holder.dekFor(TENANT_A);
@@ -107,6 +110,7 @@ class TenantKeyIsolationTest {
     @DisplayName("a tenant's DEK is stable across writes")
     void dekIsStablePerTenant() throws Exception {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
 
         TenantContext.setTenantId(TENANT_A);
         byte[] first = holder.dekFor(TENANT_A);
@@ -120,6 +124,7 @@ class TenantKeyIsolationTest {
     @DisplayName("resolving with no acting tenant fails closed instead of using a global key")
     void noTenantFailsClosed() throws Exception {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
         TenantContext.clear();
 
         assertThatThrownBy(() -> holder.dekFor(null))
@@ -130,10 +135,10 @@ class TenantKeyIsolationTest {
     @Test
     @DisplayName("the holder refuses to operate before the KEK is configured")
     void missingKekFailsClosed() {
-        TenantKeyHolder.reset();
+        TenantKeyResolverFactory.reset();
         TenantContext.setTenantId(TENANT_A);
 
-        assertThatThrownBy(() -> TenantKeyHolder.get().dekFor(TENANT_A))
+        assertThatThrownBy(() -> TenantKeyResolverFactory.get().resolveDek(TENANT_A))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -141,6 +146,7 @@ class TenantKeyIsolationTest {
     @DisplayName("two DEKs for different tenants unwrap from the same KEK")
     void dekIsWrappedByKek() {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
 
         TenantContext.setTenantId(TENANT_A);
         byte[] a = holder.dekFor(TENANT_A);
@@ -157,6 +163,7 @@ class TenantKeyIsolationTest {
     @DisplayName("a tenant's DEK survives a KEK re-wrap unchanged, since the DEK itself did not change")
     void dekSurvivesKekReWrap() {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
         TenantContext.setTenantId(TENANT_A);
         byte[] before = holder.dekFor(TENANT_A);
 
@@ -178,6 +185,7 @@ class TenantKeyIsolationTest {
     void realRewrapPreservesDekBytes() {
         FakeTenantKeyStore repo = new FakeTenantKeyStore();
         TenantKeyHolder holder = new TenantKeyHolder(KEK_B64, repo);
+        TenantKeyResolverFactory.setInstance(holder);
 
         TenantContext.setTenantId(TENANT_A);
         byte[] before = holder.dekFor(TENANT_A);
@@ -195,6 +203,7 @@ class TenantKeyIsolationTest {
     @DisplayName("a corrupted stored DEK fails loudly rather than yielding a wrong key")
     void corruptedWrappedDekFailsLoudly() {
         TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(KEK_B64);
+        TenantKeyResolverFactory.setInstance(holder);
         TenantContext.setTenantId(TENANT_A);
         holder.dekFor(TENANT_A);
 

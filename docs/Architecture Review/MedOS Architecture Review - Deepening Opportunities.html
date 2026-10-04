@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedOS Architecture Review - Deepening Opportunities</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        .card { @apply border rounded-lg p-4 mb-4 bg-white shadow-sm; }
+        .badge { @apply px-2 py-1 rounded text-xs font-medium; }
+        .badge-strong { @apply bg-green-100 text-green-800; }
+        .badge-worth { @apply bg-blue-100 text-blue-800; }
+        .badge-speculative { @apply bg-yellow-100 text-yellow-800; }
+        .mermaid { @apply text-center mt-4; }
+        h1, h2, h3 { @apply mb-4; }
+        h1 { @apply text-2xl font-bold; }
+        h2 { @apply text-xl font-semibold; }
+        h3 { @apply text-lg font-medium; }
+        .problem { @apply bg-red-50 border-l-4 border-red-500 p-3 mb-4; }
+        .solution { @apply bg-green-50 border-l-4 border-green-500 p-3 mb-4; }
+        .benefits { @apply bg-blue-50 border-l-4 border-blue-500 p-3 mb-4; }
+        .adrs { @apply bg-purple-50 border-l-4 border-purple-500 p-3 mb-4; }
+        .warning { @apply bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-4; }
+        pre { @apply bg-gray-50 p-3 rounded overflow-x-auto; }
+        .files { @apply font-mono text-sm bg-gray-50 p-2 rounded; }
+    </style>
+</head>
+<body class="p-6 bg-gray-50">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-center mb-8">MedOS Architecture Review: Deepening Opportunities</h1>
+        <p class="text-center text-gray-600 mb-8">Identifying shallow modules and opportunities for depth per codebase-design principles</p>
+
+        <!-- Candidate 1: TenantKeyHolder -->
+        <div class="card">
+            <h2>Candidate 1: TenantKeyHolder Depth Enhancement</h2>
+            <div class="files">backend/src/main/java/com/medos/security/TenantKeyHolder.java</div>
+
+            <div class="problem">
+                <strong>Problem:</strong> TenantKeyHolder is a shallow module with an interface nearly as complex as its implementation. It mixes concerns of DEK resolution, blind-index key management, caching, rotation logic, and static accessor patterns. Understanding requires bouncing between DekResolver, TenantKeyStore, and cache management.
+            </div>
+
+            <div class="solution">
+                <strong>Solution:</strong> Extract DekResolver interface into a separate module, moving cache and rotation logic into dedicated adapters. TenantKeyHolder becomes a thin orchestrator over DEKResolver and BlindIndexKeyResolver, focusing only on tenant isolation and static accessor coordination.
+            </div>
+
+            <div class="benefits">
+                <strong>Benefits:</strong>
+                <ul class="list-disc list-inside">
+                    <li><strong>Leverage:</strong> Callers get DEK resolution through a simple DekResolver interface instead of complex TenantKeyHolder</li>
+                    <li><strong>Locality:</strong> Cache invalidation and rotation logic concentrate in dedicated modules</li>
+                    <li><strong>Testability:</strong> DekResolver can be mocked without dealing with TenantKeyHolder's static state and caching complexity</li>
+                    <li><strong>Deletion test:</strong> Removing the deepened DekResolver would push cache/rotation logic back to callers, increasing complexity</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eee', 'secondaryColor': '#ddd', 'tertiaryColor': '#ccc'}}}%%
+                flowchart LR
+                    A[Caller] --> B[TenantKeyHolder Interface]
+                    B --> C[DekResolver]
+                    B --> D[BlindIndexKeyResolver]
+                    C --> E[Cache Layer]
+                    C --> F[DEK Generation Logic]
+                    D --> G[Blind Index Cache]
+                    D --> H[Index Key Rotation]
+                    E --> I[TenantKeyStore]
+                    F --> I
+                    G --> I
+                    H --> I
+                style A fill:#f9f,stroke:#333
+                style B fill:#bbf,stroke:#333
+                style C fill:#bfb,stroke:#333
+                style D fill:#bfb,stroke:#333
+                style E fill:#ffb,stroke:#333
+                style F fill:#ffb,stroke:#333
+                style G fill:#ffb,stroke:#333
+                style H fill:#ffb,stroke:#333
+                style I fill:#fbb,stroke:#333
+            </div>
+
+            <div class="badge badge-strong">Strong</div>
+        </div>
+
+        <!-- Candidate 2: EncryptionUtil -->
+        <div class="card">
+            <h2>Candidate 2: EncryptionUtil Interface Deepening</h2>
+            <div class="files">backend/src/main/java/com/medos/util/EncryptionUtil.java</div>
+
+            <div class="problem">
+                <strong>Problem:</strong> EncryptionUtil is a shallow AttributeConverter that delegates all complexity to PiiCiphertextFormat while managing static initialization and tenant-aware vs single-key resolver switching. The interface (convertToDatabaseColumn/convertToEntityAttribute) is simple but delegates to a complex format object with multiple resolver strategies.
+            </div>
+
+            <div class="solution">
+                <strong>Solution:</strong> Extract PiiCiphertextFormat initialization and resolver selection into a separate EncryptionFormatFactory. EncryptionUtil becomes a pure delegate to the factory-produced format, removing static state management and initialization logic from the converter interface.
+            </div>
+
+            <div class="benefits">
+                <strong>Benefits:</strong>
+                <ul class="list-disc list-inside">
+                    <li><strong>Leverage:</strong> Hibernate/JPA gets a simple converter; complexity moved to factory</li>
+                    <li><strong>Locality:</strong> Encryption key initialization and resolver strategy centralized</li>
+                    <li><strong>Testability:</strong> Factory can be mocked to return test formats without touching static state</li>
+                    <li><strong>Deletion test:</strong> Removing factory would force EncryptionUtil to manage initialization and resolver logic directly</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eee', 'secondaryColor': '#ddd', 'tertiaryColor': '#ccc'}}}%%
+                flowchart LR
+                    A[Hibernate] --> B[EncryptionUtil Interface]
+                    B --> C[EncryptionFormatFactory]
+                    C --> D[TenantAware PiiCiphertextFormat]
+                    C --> E[SingleKey PiiCiphertextFormat]
+                    D --> F[TenantKeyHolder Delegation]
+                    E --> G[Static Key Delegation]
+                style A fill:#f9f,stroke:#333
+                style B fill:#bbf,stroke:#333
+                style C fill:#bfb,stroke:#333
+                style D fill:#ffb,stroke:#333
+                style E fill:#ffb,stroke:#333
+                style F fill:#fbb,stroke:#333
+                style G fill:#fbb,stroke:#333
+            </div>
+
+            <div class="badge badge-worth">Worth exploring</div>
+        </div>
+
+        <!-- Candidate 3: KeyRewrapService -->
+        <div class="card">
+            <h2>Candidate 3: KeyRewrapService Orchestration Refinement</h2>
+            <div class="files">backend/src/main/java/com/medos/security/KeyRewrapService.java</div>
+
+            <div class="problem">
+                <strong>Problem:</strong> KeyRewrapService mixes orchestration logic (dry-run planning, failure handling, rotation execution) with direct key store operations. While it already delegates to TenantKeyStore, the Plan and Result records are tightly coupled to the service interface, making it hard to test rotation logic without dealing with entity persistence.
+            </div>
+
+            <div class="solution">
+                <strong>Solution:</strong> Extract rotation planning and execution logic into a pure KeyRotationEngine interface. KeyRewrapService becomes a transactional orchestrator that converts between domain entities (KeyRotation) and engine operations, focusing only on persistence and transaction boundaries.
+            </div>
+
+            <div class="benefits">
+                <strong>Benefits:</strong>
+                <ul class="list-disc list-inside">
+                    <li><strong>Leverage:</strong> Callers get rotation logic through a simple engine interface</li>
+                    <li><strong>Locality:</strong> Rotation algorithm (unwrap/re-wrap/set version) concentrates in engine</li>
+                    <li><strong>Testability:</strong> Engine can be tested with mock TenantKeyStore without Spring or persistence</li>
+                    <li><strong>Deletion test:</strong> Removing engine would push rotation logic into service methods, increasing complexity</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eee', 'secondaryColor': '#ddd', 'tertiaryColor': '#ccc'}}}%%
+                flowchart LR
+                    A[Caller] --> B[KeyRewrapService]
+                    B --> C[KeyRotationEngine]
+                    C --> D[TenantKeyStore Operations]
+                    B --> E[KeyRotation Repository]
+                    E --> F[KeyRotation Entity Persistence]
+                    D --> G[Key Material Unwrap/Wrap]
+                    D --> H[KEK Version Updates]
+                style A fill:#f9f,stroke:#333
+                style B fill:#bbf,stroke:#333
+                style C fill:#bfb,stroke:#333
+                style D fill:#ffb,stroke:#333
+                style E fill:#fbb,stroke:#333
+                style F fill:#fbb,stroke:#333
+                style G fill:#ffb,stroke:#333
+                style H fill:#ffb,stroke:#333
+            </div>
+
+            <div class="badge badge-worth">Worth exploring</div>
+        </div>
+
+        <!-- Candidate 4: BlindIndexKeyService -->
+        <div class="card">
+            <h2>Candidate 4: BlindIndexKeyService Cache Deepening</h2>
+            <div class="files">backend/src/main/java/com/medos/security/BlindIndexKeyService.java</div>
+
+            <div class="problem">
+                <strong>Problem:</strong> BlindIndexKeyService mixes caching logic with key retrieval and rotation operations. The cache is implemented as a ConcurrentHashMap with manual Entry wrapping, mixed with key validation and KEK rotation handling. Understanding requires tracking cache hits/misses alongside key operations.
+            </div>
+
+            <div class="solution">
+                <strong>Solution:</strong> Extract cache management into a separate CacheLayer interface with get/put/evict operations. BlindIndexKeyService focuses solely on key retrieval/unwrapping/wrapping and rotation coordination, delegating caching concerns.
+            </div>
+
+            <div class="benefits">
+                <strong>Benefits:</strong>
+                <ul class="list-disc list-inside">
+                    <li><strong>Leverage:</strong> Callers get blind-index keys through a simple service interface; caching details hidden</li>
+                    <li><strong>Locality:</strong> Cache invalidation, TTL management, and seeding logic concentrated</li>
+                    <li><strong>Testability:</strong> Cache layer can be mocked to test service behavior under cache hit/miss scenarios</li>
+                    <li><strong>Deletion test:</strong> Removing cache layer would force service to manage ConcurrentHashMap directly</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#eee', 'secondaryColor': '#ddd', 'tertiaryColor': '#ccc'}}}%%
+                flowchart LR
+                    A[Caller] --> B[BlindIndexKeyService Interface]
+                    B --> C[Key Retrieval/Unwrap Logic]
+                    B --> D[Key Wrapping/Rotation Logic]
+                    C --> E[Cache Layer: Get]
+                    D --> F[Cache Layer: Put/Evict]
+                    E --> G[TenantKeyStore]
+                    F --> G
+                style A fill:#f9f,stroke:#333
+                style B fill:#bbf,stroke:#333
+                style C fill:#bfb,stroke:#333
+                style D fill:#bfb,stroke:#333
+                style E fill:#ffb,stroke:#333
+                style F fill:#ffb,stroke:#333
+                style G fill:#fbb,stroke:#333
+            </div>
+
+            <div class="badge badge-speculative">Speculative</div>
+        </div>
+
+        <div class="text-center mt-8">
+            <h2 class="text-xl font-bold mb-4">Top Recommendation</h2>
+            <p class="text-lg mb-4">
+                <strong>TenantKeyHolder depth enhancement</strong> is the strongest candidate because:
+            </p>
+            <ul class="text-left mx-8 mb-6">
+                <li class="mb-2">It addresses the core tenant isolation concern - a cross-cutting concern affecting all PII operations</li>
+                <li class="mb-2">The deletion test clearly shows complexity would push to callers (every service needing tenant DEKs)</li>
+                <li class="mb-2">It enables true testability of PII encryption logic without Spring context or static state</li>
+                <li class="mb-2">It aligns with existing patterns seen in TenantKeyStore (already has real + fake adapters)</li>
+                <li class="mb-2">It reduces coupling between encryption utilities, key services, and tenant context</li>
+            </ul>
+            <p class="text-gray-600">
+                Addressing this first would provide immediate leverage for testing and maintaining the PII encryption system.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'base' });
+    </script>
+</body>
+</html>
