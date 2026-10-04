@@ -39,4 +39,11 @@ public interface TenantKeyStore {
     int advanceBiKeyGeneration(UUID tenantId, int generation);
 
     List<UUID> findTenantsPendingKekVersion(int kekVersion);
+
+    /**
+     * Highest KEK version any tenant is wrapped with, or 0 when no tenant has keys yet.
+     * An operator tool needs this to refuse a target version that is not actually ahead,
+     * rather than silently doing nothing.
+     */
+    int maxKekVersionInUse();
 }

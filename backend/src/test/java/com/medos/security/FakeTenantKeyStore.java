@@ -125,4 +125,10 @@ public class FakeTenantKeyStore implements TenantKeyStore {
     public void corruptStoredDek(UUID tenantId) {
         deks.put(tenantId, new byte[4]);
     }
+
+    @Override
+    public int maxKekVersionInUse() {
+        return kekVersions.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+    }
+
 }

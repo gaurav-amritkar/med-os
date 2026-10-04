@@ -90,4 +90,10 @@ public class InMemoryTenantKeyStore implements TenantKeyStore {
     void corruptDek(UUID tenantId) {
         deks.put(tenantId, new byte[4]);
     }
+
+    @Override
+    public int maxKekVersionInUse() {
+        return 0;
+    }
+
 }

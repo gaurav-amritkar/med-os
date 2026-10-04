@@ -90,6 +90,13 @@ medos:
       admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
       superadmin-username: ${BOOTSTRAP_SUPERADMIN_USERNAME:platform}
       superadmin-password: ${BOOTSTRAP_SUPERADMIN_PASSWORD:}
+  key-rotation:
+    # Unset in normal operation: the runner reports a dry run and carries on serving.
+    # Set to dry-run, apply or verify to run it as a one-off container.
+    mode: ${MEDOS_KEY_ROTATION_MODE:}
+    new-kek: ${MEDOS_KEY_ROTATION_NEW_KEK:}
+    target-version: ${MEDOS_KEY_ROTATION_TARGET_VERSION:}
+    initiated-by: ${MEDOS_KEY_ROTATION_INITIATED_BY:}
   cors:
     # Read from the CORS_ORIGINS env var (same key used in docker-compose / .env)
     # so edits to .env take effect in the dev/standalone profile too. Fall back to

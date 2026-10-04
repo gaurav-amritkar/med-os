@@ -309,5 +309,12 @@ class KeyRewrapServiceTest {
                     .map(Map.Entry::getKey)
                     .toList();
         }
+
+        @Override
+        public int maxKekVersionInUse() {
+            return rows.values().stream().mapToInt(r -> r.kekVersion()).max().orElse(0);
+        }
     }
+
+
 }
