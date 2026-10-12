@@ -68,8 +68,13 @@ Requested as item 10. **Status: fixed.** The endpoint is no longer public.
   account. Brute-forceable in principle.
 - ⚠️ It remains a **bearer-style shared secret in the request body**, not a
   platform identity — so there is no per-operator attribution.
-- ⚠️ Tenant creation is still unaudited (`AuditLogger` is used by billing,
-  payment and admissions, not here).
+- ✅ Tenant creation **is** audited — `OnboardingController` calls `AuditLogger`
+  with the tenant and the admin it provisioned
+  (`OnboardingController.java:109-111`). *#133 wrongly recorded this as unaudited;
+  it was corrected after being caught in #134.*
+- ⚠️ What the audit row does **not** carry: the requester's identity. A `403`
+  from a wrong secret, or a successful provisioning by the shared secret, is not
+  distinguishable in the trail — there is no per-operator attribution.
 - ADR-0003's fuller design — `PENDING → ACTIVE` lifecycle, email verification,
   captcha, per-IP limits — remains unimplemented. The code calls the current
   guard "the interim that closes the hole now".
