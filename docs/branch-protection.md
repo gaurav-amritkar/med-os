@@ -12,7 +12,7 @@ on paper.
 
 | Setting | Value |
 |---|---|
-| Required status checks | `Backend (build + tests)`, `Frontend (lint + tests + build)`, `Container definitions` |
+| Required status checks | `Backend (build + tests)`, `Frontend (lint + tests + build)`, `Container definitions`, `Image vulnerability scan` |
 | Strict (checks must be current) | yes |
 | Enforce for administrators | yes |
 | Required approving reviews | 1, stale reviews dismissed |
@@ -20,6 +20,20 @@ on paper.
 | Linear history | yes |
 | Force pushes | blocked |
 | Deletion | blocked |
+
+> ✅ **Verified against the live repo on 12 Oct 2026** via
+> `gh api repos/:owner/:repo/branches/main/protection`. The four contexts above
+> are the `name:` values of the four `ci.yml` jobs, and all four are enforced
+> including for administrators — a failing push is rejected outright with
+> *"4 of 4 required status checks are expected"*.
+>
+> One correction to the original version of this table, which listed only three:
+> **CI grew a fourth job** (`security`, the Trivy image scan) and it *is*
+> required. An earlier correction here wrongly said it was not — the API
+> confirms otherwise.
+>
+> A separate real problem remains: there is **no `.github/CODEOWNERS` file**, so
+> the "Require review from Code Owners" setting below has no effect.
 
 ## Verify
 
@@ -45,9 +59,9 @@ main
 | **Require a pull request before merging** | ✅ Enforced | All changes must go through PR |
 | **Require approvals** | 1 | At least 1 approving review |
 | **Dismiss stale PR approvals when new commits are pushed** | ✅ Enforced | Prevents stale approvals |
-| **Require review from Code Owners** | ✅ Enforced | If CODEOWNERS file exists |
+| **Require review from Code Owners** | ⚠️ No effect | **No `.github/CODEOWNERS` exists** — add one or turn the setting off |
 | **Require status checks to pass before merging** | ✅ Enforced | **Critical for P0** |
-| **Status checks required** | `ci` | Must match GitHub Actions workflow name |
+| **Status checks required** | `Backend (build + tests)`, `Frontend (lint + tests + build)`, `Container definitions`, `Image vulnerability scan` | Must match each job's `name:` in `ci.yml`, not the workflow name |
 | **Require branches to be up to date before merging** | ✅ Enforced | Prevents merge conflicts |
 | **Require linear history** | ✅ Enforced | No merge commits |
 | **Require conversation resolution before merging** | ✅ Enforced | All comments resolved |
@@ -58,25 +72,34 @@ main
 
 ### Status Checks (Critical)
 
-The CI workflow must be named `ci` in `.github/workflows/ci.yml`:
+A required status check is matched against a job's **`name:`** (its display name),
+falling back to the job ID only when `name:` is absent. The workflow's own
+`name: CI` is never what you select:
 
 ```yaml
-name: ci
+name: CI          # workflow name — NOT a status check
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+jobs:
+  backend:
+    name: Backend (build + tests)          # <- this is the required context
+  frontend:
+    name: Frontend (lint + tests + build)  # <- this one too
+  containers:
+    name: Container definitions
+  security:
+    name: Image vulnerability scan        # Trivy
 ```
 
-The workflow must include these jobs that pass before merge:
-- `backend-test` - Maven test + compile
-- `frontend-test` - npm test + lint + build
+Original revisions of this document told you to name the workflow `ci` and
+select `ci`. That is wrong twice over: the workflow is already named `CI`, and
+the contexts that matter are the four `name:` values above. Rename a job's
+`name:` and the required check silently stops matching — which is the failure
+mode worth knowing about here.
 
 ### Example: Verify Status Check Name
 
-After pushing a PR, check the "Checks" tab - the workflow name shown there must exactly match the status check name configured in branch protection (e.g., `ci`).
+After pushing a PR, check the "Checks" tab — the labels shown there must exactly
+match the four contexts configured in branch protection.
 
 ## Verification
 
@@ -89,8 +112,14 @@ After enabling:
 
 ## Current CI Workflow
 
-The existing `.github/workflows/ci.yml` runs:
-- Backend: `mvn test` (compiles, runs 70 tests)
-- Frontend: `npm test` + `npm run lint` + `npm run build`
+`.github/workflows/ci.yml` runs four jobs:
 
-All must pass for merge to proceed.
+| Job | Does |
+|---|---|
+| `backend` | `mvn test`, then `mvn -DskipTests package` (JDK 21 builder) |
+| `frontend` | `npm ci` → `npm test` → `npm run lint` → `npm run build` (Node 22) |
+| `containers` | compose validation, image builds, live Flyway `validate` against Postgres 16, `tools/verify-migrations.sh` + its self-test, and invariant assertions over the resolved prod compose model |
+| `security` | Trivy scan of the backend, frontend and Caddy images (HIGH/CRITICAL, ratcheted against `.trivyignore`), SARIF uploaded |
+
+✅ All four are required, so a red Trivy scan **does** block merge. Verified
+against the live branch-protection rule on 12 Oct 2026.

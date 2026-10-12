@@ -1,46 +1,80 @@
-# MedOS Project Snapshot (2026-08 refresh)
+# MedOS Project Snapshot
 
-This snapshot is optimized for quick agent orientation. Treat as a starting point, then verify targeted files before edits.
+Optimized for quick agent orientation. Treat as a starting point, then verify
+targeted files before edits. **The code is the source of truth — this snapshot
+and `NEXT_STEPS.md` have both been stale in the past.**
 
 ## Top-level layout
-- `backend/` — Spring Boot backend (Java, Maven)
-- `frontend/` — React + Vite frontend
-- `database/` — database-related assets/scripts (project-specific)
-- `requirements/` — BRD/PRD docs
-- `tools/` — utility tooling
-- `.github/workflows/ci.yml` — CI pipeline
-- `docker-compose.yml` — local/full-stack orchestration
-- `NEXT_STEPS.md` — active roadmap and phased release priorities
+- `backend/` — Spring Boot backend (Java 17, Maven, Spring Boot 3.5.x)
+- `frontend/` — React 19 + Vite frontend
+- `database/migrations/` — **Flyway SQL migrations — the single schema owner.**
+  This is the one path agents most often get wrong: there is **no**
+  `backend/src/main/resources/db/migration/`. Migrations are owned by the
+  dedicated `migrate` container (`database/migrations.Dockerfile`), enforced by
+  `tools/verify-migrations.sh` (ADR-0005). Never edit an applied migration.
+- `cache/` — Redis image + `redis.conf` + entrypoint
+- `caddy/` — TLS terminator (`Caddyfile`, `Dockerfile`); production only
+- `docker-compose.yml` — local/dev stack (includes an in-host `db`)
+- `docker-compose.prod.yml` — production stack (**no** `db`; managed Postgres)
+- `docs/adr/` — architecture decision records (0001–0009, all Accepted)
+- `docs/operations.md` — runbooks, incl. §7d PII key rotation
+- `tools/` — migration gate, dev seeder, Trivy baseline
+- `.github/workflows/ci.yml` — CI (4 required jobs)
 
 ## Backend quick map
 - Build config: `backend/pom.xml`
 - App code: `backend/src/main/java/com/medos/`
-  - `config/`, `controller/`, `service/`, `repository/`, `entity/`, `security/`, `exception/`
-- Config: `backend/src/main/resources/application*.yml`
-- DB migrations: `backend/src/main/resources/db/migration/`
-- Tests: `backend/src/test/java/com/medos/` (present)
+  - `config/`, `controller/`, `dto/`, `entity/`, `exception/`, `mapper/`,
+    `modules/` (billing, clinical, pharmacy, payment), `repository/`,
+    `security/`, `service/`, `util/`
+- Config: `backend/src/main/resources/application.yml`, `application-prod.yml`
+- Tests: `backend/src/test/java/com/medos/` — ~41 test classes
+
+### PII encryption (easy to get wrong — verify before claiming anything)
+`PII_ENCRYPTION_KEY` is the **KEK**, not the data key. It wraps a **per-tenant
+DEK** stored in `tenant_keys.wrapped_dek`.
+
+| Concern | Where |
+|---|---|
+| Wiring / startup init | `config/EncryptionConfig.java` |
+| KEK owner, DEK resolution, 5-min cache | `security/TenantKeyHolder.java` |
+| AES-256-GCM KEK↔DEK wrap/unwrap | `security/KeyWrapCipher.java` |
+| Ciphertext `kv1.d<gen>:<b64>` + legacy read | `util/PiiCiphertextFormat.java` |
+| Blind index (independent key) | `util/BlindIndexUtil.java`, `security/BlindIndexKeyService.java` |
+| KEK re-wrap (dry-run/apply/verify) | `security/KeyRewrapService.java`, `security/PiiKeyRotationRunner.java` |
+| Acting-tenant `ThreadLocal` | `security/TenantContext.java` |
+
+Nine encrypted columns: 5 on `Patient`, 4 on `Encounter`.
+25 tables total. 7 roles (`super_admin` is easy to forget).
+
+**Implemented:** per-tenant DEK, versioned ciphertext, independent blind-index
+key, KEK re-wrap + runbook.
+**Not implemented:** per-tenant DEK rotation (`dek_rotation`) — `currentGeneration()`
+hardcodes `1`; blind-index key rotation has no operator surface.
 
 ## Frontend quick map
 - Build config/scripts: `frontend/package.json`
-- App code: `frontend/src/`
-  - `api/`, `components/`, `pages/`, `store/`, `test/`
-- Tests present (examples):
-  - `frontend/src/pages/Login.test.jsx`
-  - `frontend/src/store/authStore.test.js`
+- App code: `frontend/src/` — `api/`, `components/`, `pages/`, `store/`, `test/`
+- E2E: `frontend/e2e/` (Playwright; needs `E2E_PASSWORD`), `probe:flows` script
 - Runtime proxy/hardening: `frontend/nginx.conf`
 
-## CI status in repo
-- Workflow exists: `.github/workflows/ci.yml`
-- Jobs include backend build/tests, frontend lint/tests/build, and container/compose checks.
+## Known hotspots
+- Security/auth: `config/SecurityConfig.java`, `security/*`, `service/AuthService.java`
+- Tenant isolation: `TenantStatementInspector.java` — **`SELECT` root-`FROM` only;
+  writes rely on services setting `tenantId` explicitly**
+- Error contract: `exception/*`, `controller/*`
+- Prod deploy: `docker-compose.prod.yml`, `caddy/Caddyfile`, `secrets/*`
+  (gitignored — never read values, only presence)
 
-## Known planning artifacts
-- `PRODUCTION_READINESS_PLAN_gpt5.3codex.md`
-- `GITHUB_ISSUES_PRODUCTION_READINESS_gpt5.3codex.md`
-- `NEXT_STEPS.md` (most up-to-date execution roadmap)
+## Open blockers worth knowing before you start
+- `BOOTSTRAP_ADMIN_PASSWORD` is **not wired** into `docker-compose.prod.yml`;
+  the prod backend cannot start as committed.
+- `/api/v1/users/me` returns the password hash (#106), P0.
+- Observability (#9) is at zero: no Prometheus, no JSON logs, no correlation IDs.
 
 ## Recommended default commands
 From `backend/`:
-- `mvn test`
+- `mvn clean test`   (use `clean` — stale reports in `target/` misreport results)
 - `mvn -DskipTests package`
 
 From `frontend/`:
@@ -51,21 +85,11 @@ From `frontend/`:
 From repo root:
 - `docker compose config --quiet`
 - `docker compose build`
-
-## Hotspots for production readiness
-- Security config and auth flow:
-  - `backend/src/main/java/com/medos/config/SecurityConfig.java`
-  - `backend/src/main/java/com/medos/security/*`
-  - `backend/src/main/java/com/medos/service/AuthService.java`
-- API consistency and error contract:
-  - `backend/src/main/java/com/medos/controller/*`
-  - `backend/src/main/java/com/medos/exception/*`
-- Data integrity and critical business logic:
-  - `backend/src/main/java/com/medos/service/*`
-  - migrations under `backend/src/main/resources/db/migration/`
+- `./tools/verify-migrations.sh` — run this after any migration change
 
 ## Token-saving playbook
-1. Read roadmap + one relevant config file first.
-2. Locate exact target file with `find_path`/`grep` in scoped subtree.
+1. Read `NEXT_STEPS.md` + one relevant config file first.
+2. Locate the exact target with `grep`/`glob` scoped to `backend/**` or
+   `frontend/**`.
 3. Read only the needed file sections.
-4. Validate with minimal relevant command(s), then broaden only if needed.
+4. Validate with the smallest relevant command, then broaden only if needed.

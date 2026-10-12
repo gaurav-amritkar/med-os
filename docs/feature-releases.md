@@ -4,7 +4,12 @@ Backlog of requested product features, as distinct from the infrastructure and
 release-readiness work tracked in [`NEXT_STEPS.md`](../NEXT_STEPS.md).
 
 - **Source:** feature requests from the product owner.
-- **Verified against:** `main` @ `417cf0b` (28 Sep 2026).
+- **Originally verified against:** `main` @ `417cf0b` (28 Sep 2026).
+- ⚠️ **Corrected 12 Oct 2026.** This file was verified against a commit several
+  months old and had drifted badly. Four of its security findings are **now
+  closed**, and two feature items had shipped. See the correction banner above
+  each of S1, S2, S3 and items 3 and 9. Treat the remaining "verified state"
+  notes as indicative, not authoritative — check the code.
 - **Status of every "current state" note below:** read from the code, not
   assumed. Where a claim was cheap to test at runtime, it was tested — that is
   called out explicitly.
@@ -17,87 +22,88 @@ release-readiness work tracked in [`NEXT_STEPS.md`](../NEXT_STEPS.md).
 |---|---|---|---|
 | 1 | Landing page, alongside login | **Missing** | R2 |
 | 2 | Show tenant name after login | **Missing** (data exists, never sent) | R1 |
-| 3 | Add staff accounts (doctor, nurse, pharmacist…) | **Missing** (no create path at all) | R1 |
+| 3 | Add staff accounts (doctor, nurse, pharmacist…) | ✅ **Shipped** — `UserController` create/role/active + `Users.jsx` at `/staff` | R1 ✅ |
 | 4 | Printable receipt with tenant, unique id, patient details | **Missing** (ids exist, no print) | R2 |
 | 5 | Configurable GST, gov-rule-proof | **Partial** (hardcoded rates) | R3 |
 | 6 | Add wards and rooms | **Partial** (rooms read-only, ward is a string) | R1 |
 | 7 | Tenant admin should have all access | **Already true** (confirm intent) | R1 |
 | 8 | Payment gateway in billing | **Missing** (manual ledger only) | R4 |
-| 9 | Super admin: list / edit / deboard / lock tenants | **Missing** (service code exists, unreachable) | R1 |
-| 10 | Tenant admin must not onboard tenants | **Missing — open P0 vulnerability** | R1 |
+| 9 | Super admin: list / edit / deboard / lock tenants | 🟡 **Partial** — role shipped (`super_admin`, V4/V5) + per-tenant feature flags; **deboard/lock not built** | R1 |
+| 10 | Tenant admin must not onboard tenants | ✅ **Shipped** — gated by platform secret or `super_admin` (see S1) | R1 ✅ |
 
 Two security defects were found while verifying this list. They are not feature
 work and are not scheduled behind anything else.
 
 ---
 
-## Security findings — fix before the feature work
+## Security findings
 
-### S1. Any anonymous caller can create a tenant with full admin rights (P0)
+> ✅ **Corrected 12 Oct 2026: S1, S2 and S3 are all CLOSED.** They were real when
+> written against `main` @ `417cf0b`, and each was fixed afterwards. The write-ups
+> below are kept for history, with the correction stated first in each. Do not
+> re-triage them as open P0s — the genuinely open security work is listed at the
+> end of this section.
 
-Requested as item 10, and it is worse than "a tenant admin should not be able to
-onboard". The endpoint is **public**.
+### S1. Any anonymous caller can create a tenant with full admin rights — ✅ CLOSED
 
-- `SecurityConfig.java:52` lists the path as permitted:
-  ```java
-  .requestMatchers("/api/v1/auth/**", "/api/v1/onboarding/register").permitAll()
-  ```
-- `OnboardingController.java:27` is a bare `@PostMapping` — no `@PreAuthorize`
-  on the method, none on the class.
-- `TenantService.createTenant` takes no actor and inspects no role, so the
-  service is not a second line of defence.
+Requested as item 10. **Status: fixed.** The endpoint is no longer public.
 
-The endpoint creates a tenant, a user, and an `admin` membership from the request
-body, so an unauthenticated caller provisions a fully-administered hospital. The
-only real limits are data constraints: a unique slug and a unique username.
+- `public-signup` defaults to `false`, and `SecurityConfig` only lists
+  `/api/v1/onboarding/register` as `permitAll` when that flag is explicitly
+  enabled. By default it is absent from the `permitAll` matchers and falls
+  through to `anyRequest().authenticated()`.
+- The handler requires either `ROLE_SUPER_ADMIN` (which now exists — item 9
+  shipped) or a **platform registration secret**, compared with
+  `MessageDigest.isEqual` (constant time). A blank configured secret means
+  **deny** (403), so misconfiguration fails closed rather than open.
+- Tests: `OnboardingProvisioningDisabledByDefaultTest`,
+  `OnboardingRegistrationAccessTest`, `OnboardingRegistrationGuardTest`,
+  `OnboardingRegistrationOptInTest`.
 
-It is not rate limited either — `LoginRateLimiter` is wired into
-`AuthService.login` only. Tenant creation is also unaudited; `AuditLogger` is
-used by billing, payment and admissions but not here.
+**What is still open, and is the reason this stays on the page:**
 
-**This is already known and specified.** ADR-0003 (`docs/adr/0003-gated-self-serve-onboarding.md:8`)
-describes exactly this state and prescribes the fix: a `PENDING → ACTIVE`
-lifecycle, email verification before any token is issued, captcha, Redis
-rate limits, and a `medos.onboarding.public-signup` flag defaulting to `false`.
-The ADR is Accepted; **none of it is implemented.** This roadmap does not
-supersede it — it sequences the same work.
+- ⚠️ **No rate limiting on this endpoint.** `LoginRateLimiter` covers
+  `AuthService.login` only. The guard is a single shared secret with no lockout
+  and no rotation story, and the endpoint provisions a tenant with an `admin`
+  account. Brute-forceable in principle.
+- ⚠️ It remains a **bearer-style shared secret in the request body**, not a
+  platform identity — so there is no per-operator attribution.
+- ⚠️ Tenant creation is still unaudited (`AuditLogger` is used by billing,
+  payment and admissions, not here).
+- ADR-0003's fuller design — `PENDING → ACTIVE` lifecycle, email verification,
+  captcha, per-IP limits — remains unimplemented. The code calls the current
+  guard "the interim that closes the hole now".
 
-**Dependency:** the ADR's answer is to gate signup behind a super-admin role,
-which does not exist yet (item 9). Fixing the hole without shipping a
-replacement first means turning self-serve onboarding off entirely. Sequence
-item 9 before closing S1, or ship the `public-signup=false` flag as an
-interim measure.
+### S2. `GET /api/v1/users` returns users from every tenant — ✅ CLOSED
 
-### S2. `GET /api/v1/users` returns users from every tenant (P0)
+**Status: fixed.** The roster moved to `UserController`, where it is
+`@PreAuthorize("hasRole('ADMIN')")` and scoped through `TenantContext` →
+`UserService.listUsers(actingTenant())`. The unowned, unscoped mapping on
+`DashboardController` is gone (that controller now exposes only `/users/me`).
 
-Found while verifying item 3, not requested. **Confirmed at runtime**, not just
-by reading:
+Tests: `UserControllerAccessTest`, `UserTenantScopingTest`.
 
-```
-GET /api/v1/users as the "MedOS Hospital" admin  ->  2 users
-    admin     | admin@medos.local
-    myclinic  | myclinic@email.com     <-- belongs to the "My Clinic" tenant
-```
+### S3. `Tenant.active` is never enforced — ✅ CLOSED
 
-`DashboardController.java:80-84` returns `userRepository.findByActiveTrue()`.
-`User` is not `TenantOwned` and has no `tenant_id`, and read scoping is applied
-by `TenantStatementInspector` only to tenant-owned tables, so no predicate is
-added. A tenant admin sees every other tenant's usernames and emails.
+**Status: fixed, and stronger than the ask.** Tenant state is re-checked on
+**every authenticated request**, not merely at login — which matters, because
+the access token lives 10 hours and a check at login alone would leave a
+deactivated tenant working for the rest of that window. A missing tenant row is
+treated as inactive rather than trusted.
 
-This blocks item 3: a staff-management screen built on this endpoint would
-inherit the leak. Fix it first, then build on it.
+Tests: `AuthServiceTenantStateIntegrationTest`,
+`JwtAuthenticationFilterTenantStateTest`.
 
-### S3. `Tenant.active` is never enforced (P1, and it makes item 9 a trap)
+So the trap this finding warned about (shipping a "deboard tenant" button while
+the flag does nothing) no longer applies: the flag has teeth.
 
-`AuthService.login` checks `user.getActive()` (`AuthService.java:48`) and then
-goes straight to the tenant lookup at line 62. It **never checks the tenant's
-own `active` flag**, and neither does `JwtAuthenticationFilter`.
+### Still open (not from this doc's original findings)
 
-So today, deactivating a tenant is a cosmetic database flag with **no effect on
-access** — its staff can still sign in and work. Item 9 asks for the ability to
-deboard a tenant. Shipping that button without the login check would produce an
-admin console that reports a tenant as disabled while that tenant keeps working.
-Enforce the flag in the same change.
+- `/api/v1/users/me` returns the password hash — #106, P0.
+- No CSP, `X-Frame-Options` or `Permissions-Policy` (HSTS is set, by Caddy).
+- `RbacMatrixTest` still covers **no** user, tenant or onboarding endpoint — the
+  observation in item 3 below remains the most useful part of this file.
+- `/api/v1/onboarding/register` is unrated and unaudited, as above.
 
 ---
 
@@ -113,6 +119,18 @@ endpoint), and **S2 before 3** (don't build a staff screen on a leaking query).
 
 Requested: a super admin who can see all tenants, edit them, deboard them, and
 lock their access.
+
+> ✅ **Partially shipped (12 Oct 2026).** `super_admin` **is** now a real role —
+> `TenantUser.UserRole` has seven values (`TenantUser.java:48`) and the DB
+> constraint was widened in `V5__tenant_users_role_super_admin.sql` (so this is
+> no longer a `V3__` task). Per-tenant **feature flags** also landed in
+> `V4__superadmin_and_feature_flags.sql`. What is still **not** built is the
+> deboard/lock half: there is no `TenantController`, and `Tenant` still has a
+> single nullable `active BOOLEAN` with no `SUSPENDED`/`locked`/`deleted_at`
+> state. The "absence of a tenant claim in the JWT" that the old text called "the
+> super admin" is now a role *and* a distinct thing — the unscoped-visibility
+> branch in `TenantStatementInspector` is what a `super_admin` token uses.
+> The text below is the original analysis, kept for the parts still outstanding.
 
 There is **no super-admin role**. `TenantUser.UserRole` has six values — `admin,
 doctor, nurse, receptionist, pharmacist, billing` (`TenantUser.java:31-33`) —
@@ -139,13 +157,11 @@ database level but has no access effect (S3). `Tenant` has a single
 `active BOOLEAN` — nullable, no default — and no `suspended`, `locked` or
 `deleted_at`.
 
-**Scope:** add `super_admin` to the role enum **and** the DB `CHECK` constraint
-in a new `V3__` migration (V1 is frozen — `V1__initial_schema.sql:16-17`);
-add a `TenantController` guarded by `@PreAuthorize("hasRole('SUPER_ADMIN')")`;
-add the missing `updateTenant`; replace the `active` boolean with a real status
-(`PENDING → ACTIVE → SUSPENDED`) exactly as ADR-0003 already specifies; enforce
-it in `AuthService.login`; add a `TenantList.jsx` page, a sidebar section, and
-an admin-only route.
+**Still outstanding (post-shipping):** add a `TenantController` guarded by
+`@PreAuthorize("hasRole('SUPER_ADMIN')")`; add the missing `updateTenant`;
+replace the `active` boolean with a real status (`PENDING → ACTIVE → SUSPENDED`)
+exactly as ADR-0003 already specifies; add a `TenantList.jsx` page, a sidebar
+section, and an admin-only route.
 
 **Decision needed:** ADR-0003 reserves `SUSPENDED` but does not define
 reactivation or data retention on permanent deletion. Hard delete is
@@ -174,6 +190,18 @@ has **no row for users, tenants, or onboarding** (`RbacMatrixTest.java:32-56`).
 Requested: after onboarding creates the admin, there must be a way to add the
 rest of the team.
 
+> ✅ **Shipped (12 Oct 2026).** The analysis below was correct when written and
+> is now history. Landed: `UserController` with list / create / change-role /
+> set-active, all tenant-scoped via `TenantContext`; a `UserService` owning
+> password encoding; `Users.jsx` with a `/staff` route and an admin-gated nav
+> entry. Commits `3be5a5f` (#55) and `14e122f` (#126). It was sequenced *after*
+> S2 was fixed, so it did not inherit the cross-tenant leak.
+>
+> **One part of the original scope is still open:** the endpoint is still absent
+> from the RBAC matrix test, which has **no row for users, tenants, or
+> onboarding**. That observation remains the single most useful line in this
+> section.
+
 **There is no way to create a user except at onboarding.** There is no
 `UserController` in the project at all. The only user endpoints are in
 `DashboardController`: `GET /users/me` and an admin-only, read-only
@@ -184,8 +212,8 @@ The only non-test creator is onboarding, hardcoded to the `admin` role
 (`OnboardingController.java:38-48`). `AdminBootstrapRunner` is a first-boot
 seeder, also always `admin`.
 
-All six roles already exist in the enum and the DB constraint, so the data model
-needs no change — the gap is purely the API and the UI.
+All **seven** roles now exist in the enum and the DB constraint (`super_admin`
+added in `V5`), so the data model needed no further change.
 
 **Scope:** new `UserController`; a `UserService` that owns password encoding
 (today only the onboarding controller and the bootstrap runner hold a
@@ -417,7 +445,7 @@ caveats**:
   400**, on the theory that validation runs before authorization
   (`RbacMatrixTest.java:418`). A 400 does not prove denial.
 - **There is no permission model.** RBAC is role strings in annotations, with no
-  authorities or permission constants. Fine at six roles; worth revisiting if
+  authorities or permission constants. Fine at seven roles; worth revisiting if
   item 7 grows into custom roles later.
 
 **Recommendation:** treat item 7 as satisfied. Spend the effort on extending the

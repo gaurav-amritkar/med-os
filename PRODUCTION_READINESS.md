@@ -1,50 +1,93 @@
 # MedOS Production Readiness Assessment
 
-## Executive Summary
-MedOS is a Spring Boot 3.2 + React 19 multi-tenant Hospital Management System with core functionality implemented. Security controls are present but production deployment requires infrastructure hardening and architectural improvements.
+> ⚠️ **Heavily corrected 12 Oct 2026.** This assessment was written on
+> 2026-09-22 against a pre-hardening codebase and had drifted into actively
+> misleading territory: it listed `ddl-auto: update` in production as the **#1
+> critical issue** when the profile has said `validate` for weeks, and it scored
+> "no production deployment descriptor", "no TLS", "no image scanning" and "no
+> key rotation" as gaps when all four are implemented and on `main`.
+>
+> **Current status: far more ready than this document says.** The genuinely open
+> work is listed under [Real remaining gaps](#real-remaining-gaps) below. Treat
+> the historical sections as history unless flagged **CORRECTED**.
 
-## Current State Assessment
+## Executive Summary
+MedOS is a Spring Boot 3.5 + React 19 multi-tenant Hospital Management System
+with core functionality implemented, a production deployment descriptor, TLS
+termination, a hardened CI pipeline and envelope encryption for patient PII.
+Security controls are present and mostly enforced. What remains is
+**observability** (nothing is instrumented), **container hardening**, and **two
+concrete blockers** listed below.
+
+## Current State Assessment (corrected 2026-10-12)
 
 ### Architecture
-- **Backend**: Spring Boot 3.2 monolith with 7 controllers, 9 services, 19 entities
+- **Backend**: Spring Boot 3.5.16 monolith — 10 controllers, 20 `*Service` classes,
+      24 `@Entity` types across 25 tables
 - **Frontend**: React 19 + Vite with auth/loading/toast stores
-- **Database**: PostgreSQL + Redis cache
-- **Multi-tenancy**: Row-level via `tenant_id` column with filter + statement inspector
-- **Deployment**: Docker Compose (local/dev)
+- **Database**: PostgreSQL 16. Managed via Supabase in production (ADR-0008);
+      an in-host `db` service exists for development only
+- **Multi-tenancy**: row-level via `tenant_id` + `TenantStatementInspector`
+      ⚠️ **`SELECT` root-`FROM` only** — `INSERT`/`UPDATE`/`DELETE` are not
+      scoped, so writes depend on services setting `tenantId` explicitly
+- **Deployment**: `docker-compose.yml` (dev) and **`docker-compose.prod.yml`
+      (production)** — the latter publishes only Caddy, runs migrations as a
+      one-shot gated job, and bridges an `internal: true` network
 
 ### Security Controls ✅
-- JWT authentication with secret validation (≥32 bytes Base64)
-- Tenant isolation enforced at data access layer
+- JWT authentication with secret validation (≥32 bytes Base64) and issuer assertion
+- Tenant isolation at the read path; ⚠️ not at the write path (see above)
 - Password hashing with BCrypt
-- Rate limiting: 5 failed attempts/IP → 15 min lockout
-- PII encryption (AES-GCM) configured
+- Rate limiting: 5 failed attempts per **(username + IP)** → 15 min lockout.
+      ⚠️ Login only — there is no general API rate limiter, and
+      `/api/v1/onboarding/register` is unrated
+- Tenant provisioning gated by a platform secret (constant-time, blank ⇒ deny) or
+      `super_admin`
+- PII encryption: **envelope** — a KEK wraps a per-tenant DEK; the blind-index
+      key is separately wrapped. KEK re-wrap is implemented and audited
 - Idempotency filter for duplicate request prevention
 - CSRF disabled (appropriate for stateless JWT)
-- CORS configured with specific origins
+- CORS configured with specific origins; WebSocket `CONNECT` requires a valid
+      Bearer token and a permitted origin
+- Actuator at `/manage` exposing only `health,info`; swagger/OpenAPI is ADMIN-only
+- TLS via Caddy with ACME, HTTP→HTTPS redirect and HSTS
 
 ### Identified Gaps
 
-#### Critical Issues (Must Fix Before Production)
-1. **DDL Auto Update in Prod** (`application-prod.yml`)
-   - Current: `ddl-auto: update` 
-   - Risk: Schema drift, unexpected table alterations
-   - Fix: Change to `validate` or `none` with Flyway managed migrations
+#### ~~Critical Issues (Must Fix Before Production)~~
+**CORRECTED — the two blockers below are the real critical issues.**
 
-2. **God Services** 
-   - PharmacyService: 212 lines (prescription, inventory, billing, patient ops)
-   - BillingService: 176 lines (invoice generation, payment processing, reporting)
-   - Risk: High coupling, difficult testing, single point of failure
-   - Fix: Split into bounded contexts (PrescriptionService, InventoryService, BillingService, PaymentService)
+1. ~~**DDL Auto Update in Prod** (`application-prod.yml`)~~
+   ❌ **False.** It is `ddl-auto: validate` (`application-prod.yml:16`), with
+   app-side Flyway disabled. Schema ownership is Flyway via the `migrate`
+   container, enforced by a three-layer CI gate.
 
-3. **Infrastructure Missing**
-   - No API gateway (direct service exposure)
-   - No async processing (all operations synchronous)
-   - No distributed tracing
-   - No centralized logging (ELK/OpenSearch)
-   - No monitoring stack (Prometheus/Grafana)
-   - Secrets in `.env` files (should be Vault/AWS Secrets Manager)
-   - No Redis cluster (single point of failure)
-   - No database read replicas
+2. **God Services** — still valid in spirit, but the named classes no longer
+   exist; pharmacy is now split into `DispenseService` / `InventoryService` /
+   `MedicineCatalogService` / `PrescriptionService`. The point stands.
+
+3. **Infrastructure** — mixed, corrected inline below:
+   - ✅ No API gateway — **and in production there is no direct exposure either**:
+     only Caddy publishes 80/443, backend and Redis sit on `internal: true`
+   - ✅ No distributed tracing — still true (a v1 non-goal, ADR-0006)
+   - ✅ No centralized logging — still true
+   - ✅ No monitoring stack (Prometheus/Grafana) — still true, and this is the
+     largest remaining gap
+   - ✅ Secrets in `.env` files — **production reads file-backed secrets from
+     `/run/secrets`** (ADR-0004). Dev still uses `.env`.
+   - ~~No Redis cluster~~ — **not a defect.** ADR-0007 declares Redis
+     non-authoritative: it holds cache and idempotency keys, never system of
+     record. Remove this entry.
+   - ❌ No database read replicas — still true, deferred per ADR-0001.
+
+#### 🔴 The two real blockers
+1. **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`.**
+   `application-prod.yml` requires it with no default; the backend service
+   neither sets the variable nor mounts the secret, although
+   `secrets/bootstrap-admin-password.txt` exists and a compose comment claims
+   `entrypoint.sh` reads it. **The prod backend container cannot start as
+   committed.** Fix: add the secret to the service's `secrets:` list.
+2. **`/api/v1/users/me` returns the password hash** (#106), P0.
 
 #### Important Improvements (Recommended for Production)
 1. **Resilience Patterns**
@@ -65,31 +108,84 @@ MedOS is a Spring Boot 3.2 + React 19 multi-tenant Hospital Management System wi
    - Blue/green or canary release strategy
    - Pod disruption budgets and resource limits
    - Automated backup verification procedures
-   - Secret rotation automation
-   - Container image scanning in CI
+   - Secret rotation automation — ⚠️ the KEK path **is** automated
+     (`docs/operations.md` §7d); the DB/Redis password path is not
+   - ✅ Container image scanning in CI — **done** (Trivy, digest-pinned,
+     ratcheted against `.trivyignore`, SARIF uploaded)
 
 4. **Data & Reliability**
    - PostgreSQL read replicas for read-heavy workloads
-   - Redis cluster for high availability
-   - Automated PII encryption key rotation
+   - ~~Redis cluster for high availability~~ — **not required**; ADR-0007 makes
+     Redis non-authoritative
+   - ✅ Automated PII **KEK** rotation — **done** (dry-run/apply/verify, resumable,
+     fail-closed, audited to `key_rotations`)
+   - ❌ Automated **DEK** rotation (`dek_rotation`) — still missing; needs a data
+     migration, and `currentGeneration()` hardcodes `1`
    - Regular disaster recovery drills
    - Backup restoration testing procedures
-   - Database connection pool tuning
+   - Database connection pool tuning — ⚠️ `DB_POOL_SIZE` in `.env.prod` is
+     **inert**; `application-prod.yml` hardcodes the pool size
 
 #### Security Enhancements
 1. **Regular Testing**
    - OWASP ZAP penetration testing in CI
-   - PII encryption end-to-end validation
-   - Migration validation (`mvn flyway:validate`)
-   - Role-based access control testing
-   - Dependency vulnerability scanning
+   - PII encryption end-to-end validation — 🟡 partial (key isolation,
+     blind-index independence, versioned/legacy ciphertext and migration tests
+     exist; no full encrypt → rotate → decrypt journey)
+   - ✅ Migration validation — **done** (live Flyway `validate` + checksum
+     immutability gate + gate self-test, in CI)
+   - ✅ Role-based access control testing — **done** (`RbacMatrixTest`, 22 cases;
+     ⚠️ but no row for users, tenants or onboarding)
+   - ❌ Dependency vulnerability scanning — still missing; `npm ci` runs with
+     `--no-audit`, and there is no OWASP Dependency-Check or CodeQL
 
 2. **API Security**
-   - API gateway with rate limiting per tenant
+   - API gateway with rate limiting per tenant — ❌ no gateway exists; ⚠️ and
+     there is **no general API rate limiter at all** (login only)
    - Input validation strengthening
    - Output encoding where applicable
-   - Security headers (HSTS, CSP, X-Frame-Options)
-   - JWT refresh token rotation
+   - Security headers — 🟡 **HSTS is set** (Caddy); ❌ still missing `CSP`,
+     `X-Frame-Options`, `Permissions-Policy`
+   - JWT refresh token rotation — ❌ no refresh tokens exist; sessions are
+     stateless with a 10h TTL, so `JWT_SECRET` rotation is the only way to
+     invalidate outstanding tokens
+
+## Real remaining gaps (2026-10-12)
+
+If you only read one section, read this one. Everything above is the original
+assessment, corrected inline.
+
+**Blockers**
+1. Wire `BOOTSTRAP_ADMIN_PASSWORD` into `docker-compose.prod.yml` — prod backend
+   will not start without it.
+2. `/api/v1/users/me` returns the password hash (#106).
+
+**Largest genuine gap**
+3. **Observability is at zero.** No `micrometer-registry-prometheus`, no JSON
+   logging (no `logback*.xml` — plain console text), no correlation ID, no
+   tracing, and actuator exposes only `health,info`. Operationally you are flying
+   blind: no way to tell a slow query from a slow payment.
+
+**Security hardening**
+4. Tenant scoping does not cover `INSERT`/`UPDATE`/`DELETE`.
+5. `/api/v1/onboarding/register` has no rate limit and no secret rotation; its
+   guard is a single shared secret with no per-operator attribution, and tenant
+   creation is not audited.
+6. No CSP, `X-Frame-Options` or `Permissions-Policy`.
+7. `LoginRateLimiter` and `AuditLogger` trust `X-Forwarded-For` directly — safe
+   only because Caddy overwrites it. Direct-to-backend access makes both spoofable.
+8. No secret scanning or pre-commit hook (ADR-0004 flags this as still open after
+   the #73 credential purge).
+9. `redis`, `caddy` and `migrate` images still run as root.
+10. `.trivyignore` is a ~4.8 KB accepted-finding ratchet; the image gate is only
+    as good as that baseline.
+
+**Reliability / infra**
+11. No resource limits, `read_only`, `cap_drop` or `no-new-privileges` on any
+    service in either compose file.
+12. `ACME_EMAIL` is not passed to the Caddy service — expiry notices go nowhere.
+13. No DR drill; no Redis persistence/failover test (T7, T10).
+14. Springdoc is wired and ADMIN-gated, but there is no API versioning plan (#11).
 
 ## Production Readiness Checklist
 
@@ -113,7 +209,7 @@ MedOS is a Spring Boot 3.2 + React 19 multi-tenant Hospital Management System wi
 - [ ] Implement monitoring stack (Prometheus/Grafana)
 - [ ] Add centralized logging (ELK/OpenSearch)
 - [ ] Move secrets to Vault/AWS Secrets Manager
-- [ ] Set up Redis cluster
+- [ ] ~~Set up Redis cluster~~ (not required — ADR-0007)
 - [ ] Configure PostgreSQL read replicas
 - [ ] Implement circuit breaker pattern
 - [ ] Add comprehensive health checks
@@ -183,4 +279,4 @@ MedOS is a Spring Boot 3.2 + React 19 multi-tenant Hospital Management System wi
 - [ ] Performance benchmarks meet SLAs under expected load
 
 ---
-*Assessment based on code review as of 2026-09-22. Production readiness is an ongoing process requiring continuous monitoring and improvement.*
+*Originally a code review as of 2026-09-22; corrected against `main` on 2026-10-12. See [Real remaining gaps](#real-remaining-gaps-2026-10-12) for current status.*
