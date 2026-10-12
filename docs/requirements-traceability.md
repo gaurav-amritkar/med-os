@@ -5,7 +5,11 @@ Comparison of the v3.0 requirements documents against what is actually built.
 - **Sources:** `requirements/BRD.pdf` / `requirements/MedOS_Business_Requirements_Document.html`,
   and `requirements/PRD.pdf` / `requirements/MedOS_Product_Requirements_Document.html`
   (both stamped `2026-04-18`, `STATUS: VERIFIED_DEPLOYMENT`).
-- **Verified against:** `main` @ `dc8a8cc`.
+- **Originally verified against:** `main` @ `dc8a8cc`.
+- ⚠️ **Corrected 12 Oct 2026.** That commit predates staff management,
+  `super_admin`, feature flags, the PII key lifecycle and the production
+  deployment descriptor. The rows below were re-checked; the corrections are
+  marked **CORRECTED**. Still-valid findings are left as they were.
 - **Method:** every row was checked against the code, the schema, or the running
   app. Nothing here is inferred from a document alone.
 - **Tracked as issues:** [#50](https://github.com/gaurav-amritkar/med-os/issues/50) (appointments),
@@ -25,7 +29,7 @@ Comparison of the v3.0 requirements documents against what is actually built.
 
 Both documents specify a **Node.js / Express / SQLite / Knex / bcrypt / Anthropic
 Claude** product, deployed as a **single-tenant** instance (PRD §7, BRD §4, §10,
-§14). The implementation is **Java 21 / Spring Boot 3 / PostgreSQL / AES-GCM /
+§14). The implementation is **Java 17 / Spring Boot 3.5 / PostgreSQL / AES-GCM /
 multi-tenant**.
 
 So this is a comparison at the level of *capabilities and data model*, not stack.
@@ -47,12 +51,12 @@ Three consequences:
 | Area | Spec | State |
 |---|---|---|
 | Data model — patients, encounters, admissions, stock | PRD §1 | **Met** |
-| Data model — table count | PRD §1 (19) | **Exceeded** (23) |
+| Data model — table count | PRD §1 (19) | **Exceeded** (25) |
 | Auth — bcrypt, 10h JWT, 15m/5 rate limit | PRD §2 | **Met, exact** |
 | Patient ledger sync | PRD §5.1 | **Met and improved** |
 | FEFO inventory | PRD §5.2 | **Met and hardened** |
 | Front office — registration, DPDP, audit | BRD §5 | **Met** |
-| Front office — role management | BRD §5 | **Missing** |
+| Front office — role management | BRD §5 | ✅ **Met (CORRECTED)** — was "Missing" |
 | OPD — notes, vitals, AI advisor, orders | BRD §5 | **Partial** (orders missing; "AI advisor" is not AI) |
 | IPD — bed allocation, occupancy map, discharge | BRD §5 | **Met** |
 | Pharmacy — stock in, FEFO out, ledger drilldown | BRD §5 | **Partial** |
@@ -77,7 +81,7 @@ evidence either way.
 
 | # | Requirement | State | Evidence / gap |
 |---|---|---|---|
-| 1.1 | 19 connected entities, UUID primary keys | **Exceeded** | 23 tables (`V1__initial_schema.sql`); UUID PKs throughout |
+| 1.1 | 19 connected entities, UUID primary keys | **Exceeded** | 25 tables across `V1`–`V5`; UUID PKs except `key_rotations`, which uses `gen_random_uuid()` |
 | 1.2 | `patients.uhid` unique, auto-increment via `MAX()` | **Diverged (better)** | Postgres sequence `uhid_seq` (`:21`, `getNextUhidSeq`). `MAX()` was racy — issues #19–#23 |
 | 1.3 | `patients.name` NOT NULL | Met | `Patient.java` |
 | 1.4 | `patients.age` validate 0–150 | Met | `@Min(0) @Max(150)` — `PatientRegistrationRequest.java:13-14` |
@@ -139,7 +143,7 @@ evidence either way.
 | 6.4 | Z-index hierarchy (`--z-sidebar` … `--z-toast`) | **Missing** | No z-index tokens in `index.css` |
 | 6.5 | Centralised empty-state layout | **Partial** | Empty states exist in 10+ places, but ad hoc per page, not centralised |
 | 7.1 | Parameterised SQL (anti-injection) | **Exceeded** | JPA parameter binding throughout |
-| 7.2 | Input validation before persistence | Met | `@Valid` on all 8 controllers |
+| 7.2 | Input validation before persistence | Met | `@Valid` on 9 of 10 controllers |
 | 7.3 | Rate limiting on identity endpoints | **Exceeded** | Redis-backed, survives restart, unlike in-process limiting |
 | 7.4 | SQLite single-file deployment | **Diverged** | PostgreSQL — BRD §11 named SQLite locking as a risk |
 
@@ -150,7 +154,7 @@ evidence either way.
 | 5.1 | Patient registration | Met | Form-driven, journey-tested |
 | 5.2 | DPDP consent capture | Met | Checkbox + consent purpose at registration |
 | 5.3 | Audit logging | Met | `AuditLogger` on financial and identity events |
-| 5.4 | **Role management** | **Missing** | No user management at all — tracked as #55 |
+| 5.4 | **Role management** | ✅ **Met (CORRECTED)** | Was "Missing — no user management at all (#55)". `UserController` + `UserService` + `Users.jsx` at `/staff` shipped in `3be5a5f` (#55) |
 | 5.5 | Encounter notes + vitals capture | Met | |
 | 5.6 | AI medicine advisor | **Missing (as AI)** | Keyword matcher only — see §1.1 of the findings |
 | 5.7 | **Orders** (lab) | **Missing** | `LabOrder` entity + tenant-scoped table, **no controller, no UI** |
@@ -212,8 +216,8 @@ evidence either way.
 | Skip link, focus-visible, live regions, keyboard tests | Same |
 | Real-time notifications (WebSocket/STOMP) | Absent from both documents |
 | Self-serve tenant onboarding | Spec assumed one pre-provisioned instance |
-| 93 backend / 35 frontend tests, flow matrix, journey, 3-job CI | Not specified |
-| Six ADRs recording decisions | Not specified |
+| ~41 backend test classes / 8 frontend test files, flow matrix, journey, 4-job CI | Not specified |
+| Nine ADRs (0001–0009) recording decisions | Not specified |
 
 ---
 
@@ -320,8 +324,7 @@ spec excluded LLM latency and the LLM does not exist.
 
 ### 1.8 Smaller gaps
 
-- **Role management** (BRD §5 Front Office): no user management at all. Tracked
-  as #55.
+- ~~**Role management** (BRD §5 Front Office): no user management at all.~~ ✅ **CORRECTED — shipped.** `UserController` (list / create / change-role / set-active, all tenant-scoped) plus `Users.jsx` at `/staff`. Commits `3be5a5f` (#55), `14e122f` (#126).
 - **Pharmacy ledger drilldown** (PRD §3: "data grid with expandable rows to
   `transaction_history`"): transactions render as a flat table
   (`Pharmacy.jsx:242-250`), not expandable per item.
@@ -338,10 +341,10 @@ spec excluded LLM latency and the LLM does not exist.
 | SQLite single file, ~5GB ceiling (PRD §7, BRD §7) | PostgreSQL | BRD §11 itself lists "SQLite Data Locking under hyper-concurrency" as a technical risk, mitigated by "migrate strictly to PG on scale". Done preemptively. ADR-0001. |
 | Single-tenant, "architecture allows migration to multi-tenant" (BRD §10) | Multi-tenant with row-level isolation | Migration already executed. ADR-0002. |
 | `localStorage` token (PRD §4) | `sessionStorage` | Reduces token exfiltration window from XSS. |
-| Anonymous signup implied | `permitAll` onboarding endpoint | **This one is a defect, not a feature** — tracked as #51. |
+| Anonymous signup implied | Gated onboarding endpoint | ✅ **CORRECTED — was "a defect, not a feature" (#51).** `public-signup` defaults `false`, so the path is not `permitAll`; it requires a platform secret (constant-time compared, blank ⇒ 403) or `super_admin`. Commits `443b4df`, `e6b5c72`. Still open: no rate limit and no secret rotation on that endpoint. |
 | Dark luxury glassmorphism, `#06060b`, backdrop-filter, hover-lift (PRD §6, BRD §6) | Light clinical theme, dark navigation frame | **BRD §13 names this exact risk as an invalidation trigger**: "User feedback consistently reports the 'Dark Mode' severely limits visibility in bright clinic environments (forcing a light-mode refactor)." The refactor happened early, deliberately. |
 | `Context`-based state, `can()` middleware | Zustand, `@PreAuthorize` | Equivalent, with a 22-case RBAC matrix test. |
-| 19 tables (PRD §1) | 23 tables | Tenant tables, `tenant_configs`, blind index, idempotency and audit structures. |
+| 19 tables (PRD §1) | 25 tables | Tenant tables, `tenant_configs`, blind index, idempotency, audit structures, and the PII keyring (`tenant_keys`, `key_rotations`). |
 
 The glassmorphism removal is the one divergence a stakeholder is most likely to
 notice, and it is the one with the clearest documentary justification.
@@ -392,7 +395,7 @@ None of the following is requested anywhere in the BRD or PRD. All of it exists.
 - WebSocket token enforcement with origin restriction.
 - Security headers, CORS restriction, standardized error contract.
 - Audit logging on financial and identity events.
-- Six ADRs recording decisions the spec never made explicit.
+- Nine ADRs (0001–0009) recording decisions the spec never made explicit.
 
 **Product surface**
 - **Self-serve tenant onboarding** — the spec assumed a single pre-provisioned
@@ -411,8 +414,9 @@ None of the following is requested anywhere in the BRD or PRD. All of it exists.
   clearest case of the product exceeding its own specification.
 - Skip link, focus-visible states, live regions for async errors, and keyboard
   focus tests in the Playwright suite.
-- 93 backend tests, 35 frontend tests, an API flow matrix (31 checks), a
-  browser journey test, and a 3-job CI pipeline with branch protection.
+- ~41 backend test classes, 8 frontend test files, an API flow matrix, a
+  browser journey test, and a **4-job** CI pipeline (backend, frontend, containers,
+  security) with branch protection.
 - A design-token layer with a no-hardcoded-hex rule, replacing ad-hoc inline
   styles.
 

@@ -75,13 +75,13 @@ If using managed PostgreSQL with WAL archiving:
 **Monthly**: Test restore to a staging environment
 ```bash
 # Create test database
-docker run --name postgres-test -e POSTGRES_PASSWORD=test -d postgres:15
+docker run --name postgres-test -e POSTGRES_PASSWORD=test -d postgres:16
 
 # Restore backup
 gunzip -c backup_20240115_030000.sql.gz | docker exec -i postgres-test psql -U postgres -d postgres
 
 # Run migrations
-docker run --rm -v $(pwd)/database/migrations:/flyway/sql flyway/flyway:9 \
+docker run --rm -v $(pwd)/database/migrations:/flyway/sql flyway/flyway:10.22-alpine \
   -url=jdbc:postgresql://postgres-test:5432/postgres \
   -user=postgres -password=test migrate
 
@@ -131,10 +131,22 @@ requirepass ${REDIS_PASSWORD}  # Set in .env.production
 
 | Key Pattern | TTL | Purpose | Recovery Impact |
 |-------------|-----|---------|-----------------|
-| `ratelimit:login:{ip}:{username}` | 15 min | Login brute-force protection | Low - resets on restart |
-| `ratelimit:api:{ip}` | 1 min | API rate limiting | Low - resets on restart |
-| `session:{token}` | 10 hr | JWT token blacklist (logout) | Medium - users re-login |
-| `websocket:session:{id}` | Connection | STOMP session tracking | Low - reconnects |
+| `medos:login:fail:{username}:{ip}` | 15 min | Login brute-force protection (5 failures → lockout) | Low - resets on restart |
+| idempotency keys | varies | Replay protection for `/billing/payments`, `/billing/invoices`, `/pharmacy/dispense` | **Medium - a lost key permits a replayed request** |
+
+That is the whole list. Three things this table used to claim and that **do not
+exist** in the code, so must not be relied on during an incident:
+
+- ❌ `ratelimit:api:{ip}` — there is **no general API rate limiter**. Only login
+  is rate limited.
+- ❌ `session:{token}` — there is **no session store and no JWT blacklist**. No
+  logout endpoint exists; sessions are stateless and end when the 10-hour token
+  expires. Rotating `JWT_SECRET` is the only way to invalidate outstanding tokens.
+- ❌ `websocket:session:{id}` — WebSocket auth is validated on STOMP `CONNECT`
+  from the token; no server-side session is kept.
+
+Note the login key is keyed by **username *and* IP**, not IP alone — a shared NAT
+outage locks out per-account, not per-network.
 
 ### 2.3 Redis Backup Strategy
 
@@ -199,10 +211,15 @@ file and `docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md`.
    Generate keys with `openssl rand -base64 48` and `openssl rand -base64 32`.
 6. **Validate before deploying:** `docker compose -f docker-compose.prod.yml config --quiet`
 
-> **The PII encryption key has no rotation path.** It encrypts patient names and
-> clinical notes, and the codebase has no re-encryption job, so changing it after
-> patient data exists makes that data unreadable. Generate it once and treat it as
-> permanent. See issue #73.
+> **The PII encryption key can be rotated.** It is the *key-encryption key*
+> (KEK), not the data key: it wraps a per-tenant DEK, so rotating it rewrites
+> `tenant_keys` rows only and never touches a patient record. The blind-index key
+> is separately wrapped, so patient-name search keeps working. Follow
+> **§7d PII key rotation** below — dry-run first, then apply, then verify. Issue
+> #73 was the committed-credentials purge, not key rotation.
+>
+> Not yet available: rotating an *individual tenant's* DEK (`dek_rotation`),
+> which would require re-encrypting that tenant's rows.
 
 ### Deploying
 
@@ -224,7 +241,10 @@ stops the deploy rather than starting the application against a stale schema.
 - [ ] `docker compose -f docker-compose.prod.yml ps` — every service healthy or running
 - [ ] `curl -fsS https://$MEDOS_DOMAIN/manage/health` returns UP
 - [ ] Certificate is publicly trusted: `echo | openssl s_client -connect $MEDOS_DOMAIN:443 2>/dev/null | openssl x509 -noout -issuer`
-- [ ] Sign in as each of the six roles and confirm the expected access
+- [ ] Sign in as each of the **seven** roles (`admin`, `doctor`, `nurse`,
+      `receptionist`, `pharmacist`, `billing`, `super_admin`) and confirm the
+      expected access — `super_admin` most of all, since it is the highest
+      privilege and is easy to leave untested
 - [ ] Confirm the database holds no in-host copy: the descriptor has no `db` service
 - [ ] **Change the bootstrap admin password**, then clear `BOOTSTRAP_ADMIN_PASSWORD` from the secret manager
 - [ ] Confirm no secret appears in `docker compose -f docker-compose.prod.yml logs`
@@ -299,27 +319,36 @@ To rollback a schema change:
 | `JWT_SECRET` | 90 days | Generate new, deploy, invalidate all sessions |
 | `DB_PASSWORD` | 90 days | Update in managed DB, update `.env`, redeploy |
 | `REDIS_PASSWORD` | 90 days | Update Redis, update `.env`, redeploy |
-| `PII_ENCRYPTION_KEY` | 180 days | Generate new, re-encrypt all PII fields (see below), deploy |
+| `PII_ENCRYPTION_KEY` | 180 days | **KEK re-wrap — no data migration.** See §7d and §7d.1 below |
 | `BOOTSTRAP_ADMIN_PASSWORD` | One-time | Remove after first admin login |
 
 ### PII Encryption Key Rotation
 
-Rotating the PII encryption key requires re-encrypting all encrypted fields:
+`PII_ENCRYPTION_KEY` is the **key-encryption key (KEK)**. It wraps a per-tenant
+DEK; it does not encrypt patient data directly. Rotating it therefore re-wraps
+key material in `tenant_keys` and **leaves every ciphertext column untouched** —
+there is no re-encryption job, and none is needed.
 
-1. Generate new key: `openssl rand -base64 32`
-2. Run re-encryption script (decrypt with old key, encrypt with new key):
-   ```sql
-   -- Example for patients table (run for each encrypted column)
-   UPDATE patients SET name = encrypt(decrypt(name, old_key), new_key);
-   ```
-3. Update `PII_ENCRYPTION_KEY` in environment
-4. Redeploy application
-5. Verify decryption works for all roles
+> ⚠️ **There are no `encrypt()` / `decrypt()` SQL functions in this schema.** An
+> earlier revision of this runbook described a rotation as
+> `UPDATE patients SET name = encrypt(decrypt(name, old_key), new_key);`.
+> Those functions do not exist in any migration, the procedure could not have
+> run, and it contradicted §7d of this same document. Do not reconstruct it.
+
+The real procedure is **§7d PII key rotation** (dry-run → apply → verify).
+Rotating an individual tenant's DEK (`dek_rotation`) is **not** implemented; that
+would require re-encrypting that tenant's rows.
 
 ### Certificate Management
-- TLS termination at load balancer / reverse proxy (Caddy, Traefik, ALB)
-- Certificate renewal: Automated via Let's Encrypt / ACME
-- HSTS header: Enable in `frontend/nginx.conf` after TLS verified
+- TLS termination at Caddy (the sole terminator in `docker-compose.prod.yml`; no
+  load balancer or gateway sits in front of it)
+- Certificate issuance and renewal: automatic via Let's Encrypt / ACME
+- HSTS: **already set** by `caddy/Caddyfile`
+  (`Strict-Transport-Security "max-age=31536000; includeSubDomains"`). Do **not**
+  add an HSTS header to `frontend/nginx.conf` — Caddy terminates TLS and the
+  browser only ever sees Caddy's response. A second header there is dead config.
+- Not set anywhere: `Content-Security-Policy`, `X-Frame-Options`,
+  `Permissions-Policy`. Tracked as open gaps.
 
 ---
 
@@ -426,13 +455,21 @@ being read as "no mode requested".
 
 ### Procedure
 
+> ⚠️ **Every command below must carry `-f docker-compose.prod.yml`.** Without it,
+> `docker compose` targets the **development** stack — a different database, and
+> in the prod file a different service graph. An earlier revision of this runbook
+> omitted the flag throughout; running it verbatim would have rotated the key
+> against the dev database and left production untouched.
+
 ```bash
+PROD="-f docker-compose.prod.yml"
+
 # 0. Record the current state. You need this to roll back.
-docker compose exec backend printenv PII_ENCRYPTION_KEY > /secure/kek-v1.b64
+docker compose $PROD exec backend printenv PII_ENCRYPTION_KEY > /secure/kek-v1.b64
 chmod 600 /secure/kek-v1.b64
 
 # 1. Dry run. Read the output. If it says ABORT, stop and fix that tenant first.
-docker compose run --rm -e MEDOS_KEY_ROTATION_MODE=dry-run \
+docker compose $PROD run --rm -e MEDOS_KEY_ROTATION_MODE=dry-run \
   -e MEDOS_KEY_ROTATION_TARGET_VERSION=2 backend
 
 # 2. Generate the new KEK. Never overwrite v1.
@@ -441,29 +478,42 @@ chmod 600 /secure/kek-v2.b64
 
 # 3. Re-wrap. Safe to re-run: tenants already at the target version are skipped, so an
 #    interrupted run finishes by being run again.
-docker compose run --rm \
+docker compose $PROD run --rm \
   -e MEDOS_KEY_ROTATION_MODE=apply \
   -e MEDOS_KEY_ROTATION_NEW_KEK="$(cat /secure/kek-v2.b64)" \
   -e MEDOS_KEY_ROTATION_TARGET_VERSION=2 \
   -e MEDOS_KEY_ROTATION_INITIATED_BY="ops@example.test" backend
 
 # 4. Install v2 and restart.
-docker compose up -d --force-recreate backend
+docker compose $PROD up -d --force-recreate backend
 
 # 5. Verify against the running application. Do not skip this.
-docker compose run --rm -e MEDOS_KEY_ROTATION_MODE=verify backend
+docker compose $PROD run --rm -e MEDOS_KEY_ROTATION_MODE=verify backend
 
 # 6. Only now, retire v1. Not before step 5 passes for every tenant.
 ```
 
+### What `verify` does and does not cover
+
+`verify` unwraps each tenant's **DEK** (`wrapped_dek`) with the KEK the process
+booted with, and names any tenant that fails. It does **not** check
+`wrapped_bi_key` — the separately wrapped blind-index key — even though the
+re-wrap in step 3 rewrites both.
+
+So a clean `verify` proves patient data is readable; it does **not** prove
+patient-**name search** still works. After step 5, exercise a name search in the
+running application (or `GET /api/v1/patients?search=…` for a known name) before
+retiring v1. If that fails, v1 is still on disk: restore it and re-run.
+
 ### Hard rules
 
 1. **Never delete the old KEK version first.** Keeping v1 is what makes this reversible.
-2. **Keep v1 until `--verify` has passed for every tenant** after a restart. Not before.
+2. **Keep v1 until `verify` has passed for every tenant** after a restart, *and* a
+   name search has been exercised. Not before.
 3. **Restore-and-restart is a total rollback**, because no data was rewritten. To roll
-   back: put `kek-v1.b64` back, `docker compose up -d --force-recreate backend`, then
-   `--verify`. There is nothing to restore in the database.
-4. **Do not retire v1 while any tenant still fails `--verify`.** The runner will tell you
+   back: put `kek-v1.b64` back, `docker compose $PROD up -d --force-recreate backend`,
+   then re-run `verify`. There is nothing to restore in the database.
+4. **Do not retire v1 while any tenant still fails `verify`.** The runner will tell you
    which tenants; it will not guess.
 
 ### Verifying it actually worked

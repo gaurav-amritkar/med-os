@@ -16,7 +16,7 @@ Migrations exist in three places. `database/migrations/` holds `V1__init.sql` an
 ## Consequences
 
 - Divergence between two hand-maintained copies becomes impossible.
-- The `caddy` directory keeps only its Caddyfile, TLS role, and entrypoint.
+- The `caddy` directory keeps only its Caddyfile, TLS role, and Dockerfile. (An earlier revision said "entrypoint" — there is no `caddy/entrypoint.sh`; the Amendment below gives the correct contents.)
 - A developer editing a migration must edit it in `database/migrations/` and rebuild; the build must fail if the generated copy is stale.
 - PostgreSQL version drift (15 in compose, 16.9 in `database/Dockerfile`) is resolved in the same change, since migration behaviour can differ across major versions.
 

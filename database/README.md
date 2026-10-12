@@ -144,19 +144,31 @@ The blind index is as sensitive as the plaintext it protects: a holder of the
 database but not the key cannot read names, but **can confirm a guessed name** by
 comparing digests.
 
-### Key rotation is not implemented yet
+### Key rotation: the KEK is rotatable, individual DEKs are not
 
-`PII_ENCRYPTION_KEY` is a single secret used directly as the AES key. **Changing
-it makes every encrypted value permanently unreadable**, and because the blind
-index derives from the same secret, patient search breaks silently at the same
-time — with no error.
+`PII_ENCRYPTION_KEY` is **not** the key that encrypts patient data. It is the
+**key-encryption key (KEK)**: it wraps a separate **per-tenant DEK** stored in
+`tenant_keys.wrapped_dek`, and that DEK is what encrypts the nine ciphertext
+columns. The blind index has a **third**, independently generated key in
+`tenant_keys.wrapped_bi_key`, so it is not derived from either of the others.
 
-The envelope-encryption design that fixes this is accepted in
-[ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md) (per-tenant
-DEKs wrapped by a KEK, so rotation re-wraps keys instead of re-encrypting data).
-Implementation is tracked from
-[#84](https://github.com/gaurav-amritkar/med-os/issues/84) onwards.
+Consequences:
 
-**Practical consequence today:** treat this key as permanent. Rotating it
-manually requires dropping and re-entering data, so do not change it once real
-patient records exist.
+- **Rotating the KEK rewrites key rows only — no patient row is touched.** The
+  `KeyRewrapService` unwraps each tenant DEK with the old KEK and re-wraps it
+  with the new one; ciphertext is unchanged and stays readable.
+- **The blind index survives rotation**, because it is not derived from the PII
+  secret. This was the silent-search-breakage failure mode the split was designed
+  to remove.
+- **Rotating one tenant's DEK (`dek_rotation`) is *not* implemented.** The schema
+  reserves the operation and the audit table records it, but no code path calls
+  `advanceDekGeneration`, and `TenantKeyHolder.currentGeneration()` still returns
+  `1`, so ciphertext cannot currently express a generation above 1. Doing this by
+  hand would require re-encrypting that tenant's rows.
+
+Design: [ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md).
+Operator runbook: [`docs/operations.md` §7d](../docs/operations.md).
+
+**Practical consequence today:** the KEK can be rotated on a normal schedule
+(§7d of the runbook, dry-run → apply → verify). An individual tenant's DEK
+still cannot be rotated without a data migration.

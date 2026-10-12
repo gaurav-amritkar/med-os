@@ -13,7 +13,7 @@
 | **Security** | Spring Security, RBAC, per-tenant row scoping |
 | **API** | RESTful (JSON) + WebSocket (real-time) |
 | **Persistence** | JPA/Hibernate + Flyway migrations |
-| **Encryption** | AES-256-GCM on patient PII; keyed blind index for name search |
+| **Encryption** | Envelope: AES-256-GCM KEK wraps a per-tenant DEK; AES-256-GCM on patient PII; independent keyed blind index for name search |
 | **AI** | Built-in keyword-based medicine advisor |
 
 ## Architecture
@@ -30,15 +30,17 @@ frontend/ (React + Vite)
 
 backend/ (Spring Boot)
   ├── src/main/java/com/medos/
-  │   ├── config/     # Security, Redis Cache, WebSocket
+  │   ├── config/     # Security, encryption init, Redis cache, WebSocket
   │   ├── controller/ # REST controllers
   │   ├── dto/        # Request/Response DTOs
-  │   ├── entity/     # JPA entities (23 tables)
+  │   ├── entity/     # JPA entities (25 tables)
   │   ├── exception/  # Global error handling
+  │   ├── mapper/     # Entity <-> DTO mapping
+  │   ├── modules/    # Feature packages: billing, clinical, pharmacy, payment
   │   ├── repository/ # Spring Data JPA repos
-  │   ├── security/   # JWT, UserDetails, Auth filter
+  │   ├── security/   # JWT, tenant context, KEK/DEK key management, key rotation
   │   ├── service/    # Business logic
-  │   └── util/       # Encryption, blind index, audit logger
+  │   └── util/       # PII cipher, blind index, audit logger
 database/
   ├── migrations/        # Flyway SQL migrations (the single schema owner)
   ├── Dockerfile         # PostgreSQL 16 runtime image (development only)
@@ -53,7 +55,7 @@ docs/adr/    # Architecture decision records
 tools/       # Migration gate, seeding, Trivy baseline
 ```
 
-## Database Schema (23 Tables)
+## Database Schema (25 Tables)
 
 Multi-tenancy first: every clinical table carries a `tenant_id`, and queries are
 scoped per tenant by `TenantStatementInspector`.
@@ -62,7 +64,9 @@ scoped per tenant by `TenantStatementInspector`.
 - `tenant_users` - Memberships: one user may hold a different role per tenant
 - `tenant_configs` - Per-tenant configuration
 - `tenant_settings` - Per-tenant settings
-- `users` - Role-based login (admin, doctor, nurse, receptionist, pharmacist, billing)
+- `tenant_keys` - Per-tenant wrapped DEK + blind-index key, with generation counters
+- `key_rotations` - Append-only audit log of KEK re-wrap operations
+- `users` - Role-based login (admin, doctor, nurse, receptionist, pharmacist, billing, super_admin)
 - `patients` - Demographics, UHID, DPDP consent, outstanding balance
 - `appointments` - Scheduling, check-in/out tracking
 - `encounters` - Clinical visits, vitals, diagnosis, AI notes
@@ -249,6 +253,9 @@ password is whatever you set in `.env`; seeding overwrites it with `password`.
 
 ## API Endpoints
 
+An OpenAPI 3 document is served by springdoc at `/v3/api-docs`, with a Swagger UI
+at `/swagger-ui.html`. **Both require the `admin` role** — they are not public.
+
 ### Idempotency
 `POST /api/v1/pharmacy/dispense`, `POST /api/v1/billing/invoices` and `POST /api/v1/billing/payments` **require an `Idempotency-Key` header** (any unique string per logical operation, e.g. a UUID). Retrying with the same key returns the cached result with `Idempotency-Key-Replayed: true` instead of executing twice.
 
@@ -301,7 +308,7 @@ password is whatever you set in `.env`; seeding overwrites it with `password`.
 4. **DPDP Compliance** - Patient consent tracking for data privacy
 5. **Audit Trail** - All mutations logged with user, IP, and diff
 6. **Real-time Notifications** - WebSocket-based alerts for critical events
-7. **Role-based Access** - 6 roles with granular route and API protection
+7. **Role-based Access** - 7 roles with granular route and API protection
 
 ## Production Deployment
 
@@ -330,8 +337,45 @@ cp .env.prod.example .env.prod
 | `SECRETS_DIR` | Where secret files live | Defaults to `./secrets`. |
 
 The **KEK/DEK key lifecycle** is documented in
-[ADR-0009](docs/adr/0009-envelope-encryption-per-tenant-deks.md); `PII_ENCRYPTION_KEY`
-is currently the single key and cannot be rotated without re-encrypting data.
+[ADR-0009](docs/adr/0009-envelope-encryption-per-tenant-deks.md) and is **implemented
+on `main`**. `PII_ENCRYPTION_KEY` is the *key-encryption key*, not the data key: it
+wraps a per-tenant DEK stored in `tenant_keys.wrapped_dek`, so one hospital's key
+can never decrypt another's records. The blind-index key is a third, separately
+wrapped key, so rotating PII data does not silently break name search.
+
+Ciphertext carries its DEK generation as `kv1.d<generation>:<base64>`, and legacy
+unversioned values are still readable. **KEK rotation is supported** — see below.
+
+### Rotating the KEK
+
+```bash
+# 1. Dry run: reports how many tenant keys would be re-wrapped, writes nothing
+docker compose -f docker-compose.prod.yml run --rm \
+  -e MEDOS_KEY_ROTATION_MODE=dry-run backend
+
+# 2. Apply: re-wraps each tenant DEK under the new KEK. Resumable, and fails
+#    closed with zero writes if any tenant cannot be unwrapped with the old key.
+docker compose -f docker-compose.prod.yml run --rm \
+  -e MEDOS_KEY_ROTATION_MODE=apply \
+  -e MEDOS_KEY_ROTATION_TARGET_VERSION=2 \
+  -e MEDOS_KEY_ROTATION_NEW_KEK="$(cat secrets/pii-encryption-key.next)" \
+  backend
+
+# 3. Verify: unwraps every tenant key with the new KEK, then exits.
+docker compose -f docker-compose.prod.yml run --rm \
+  -e MEDOS_KEY_ROTATION_MODE=verify \
+  -e MEDOS_KEY_ROTATION_NEW_KEK="$(cat secrets/pii-encryption-key.next)" backend
+```
+
+Modes come from environment variables, **not** CLI flags — a key on a command line
+is visible in `docker inspect`. Full runbook: `docs/operations.md` §7d. Every
+rotation is recorded in `key_rotations`.
+
+> **Not yet implemented: DEK rotation.** The KEK can be rotated today without
+> touching a single patient row. Rotating an *individual tenant's* DEK (the
+> `dek_rotation` operation the schema reserves) requires re-encrypting that
+> tenant's rows and is not wired up — `TenantKeyHolder.currentGeneration()` still
+> returns `1`, so ciphertext cannot express a generation above 1.
 
 ### Secrets
 
@@ -365,28 +409,52 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
 
 - **No demo accounts.** Migrations never create users. The admin is created once
   from `BOOTSTRAP_ADMIN_PASSWORD`; demo accounts exist only via the dev seeder.
-- **Fail closed.** No inline default for `JWT_SECRET` or `PII_ENCRYPTION_KEY`.
-- **Tenant isolation.** Every clinical table carries `tenant_id`; queries are
-  scoped per tenant in the persistence layer.
-- **PII at rest.** Patient name, phone, email, address, blood group and clinical
-  notes are AES-256-GCM encrypted. Name search uses a keyed blind index, so the
-  database alone cannot reveal or confirm a name.
+- **Fail closed.** No inline default for `JWT_SECRET` or `PII_ENCRYPTION_KEY`;
+  both are length-validated at startup.
+- **Tenant isolation.** Every clinical table carries `tenant_id`; reads are scoped
+  per tenant in the persistence layer.
+- **PII at rest.** Nine columns across `patients` and `encounters` are
+  AES-256-GCM encrypted under a **per-tenant DEK**, itself wrapped by the KEK.
+  Name search uses an independently keyed blind index, so the database alone
+  cannot reveal or confirm a name.
+- **Tenant provisioning is gated** — `/api/v1/onboarding/register` is *not*
+  public: it requires a shared platform secret (constant-time compared, blank
+  means deny) or a `super_admin` token. Opt-in public signup exists but is off by
+  default and documented as requiring prerequisites that do not yet exist.
 - **Actuator** — only `/manage/health` and `/manage/info` are public; all other
-  `/manage/**` require the `admin` role.
+  `/manage/**` and the OpenAPI docs require the `admin` role.
 - **Login brute-force** — 5 failed attempts per (user+IP) → 15-minute lockout
   (Redis-backed, with an in-memory fallback).
 - **WebSocket** — allowed origins restricted to `CORS_ORIGINS`; STOMP `CONNECT`
   rejected without a valid Bearer token.
-- **TLS** — Caddy is the sole terminator, with ACME certificates and HSTS. Only
-  ports 80/443 are published; database, Redis and backend are internal.
+- **TLS** — Caddy is the sole terminator, with ACME certificates, an HTTP→HTTPS
+  redirect, and HSTS. Only ports 80/443 are published; database, Redis and backend
+  are on an `internal: true` network.
+- **Image scanning** — CI runs Trivy against the backend, frontend and Caddy
+  images, ratcheted against a `.trivyignore` baseline so new HIGH/CRITICAL
+  findings fail the build.
 
 ### Known gaps
 
 Tracked in GitHub issues rather than papered over:
 
 - **`/api/v1/users/me` returns the password hash** — [#106](https://github.com/gaurav-amritkar/med-os/issues/106), P0.
-- **The PII key cannot be rotated** without re-encrypting every row —
-  [#84](https://github.com/gaurav-amritkar/med-os/issues/84) onwards, P0 under DPDP §8(5).
+- **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`** — the
+  backend requires it (`application-prod.yml`) but the service neither sets the
+  variable nor mounts the secret, so **the prod backend container fails to start**
+  as committed. Wire it before the first prod boot.
+- **Per-tenant DEK rotation is not implemented** — only fleet-wide KEK re-wrap is.
+  See the note above and `docs/adr/0009-envelope-encryption-per-tenant-deks.md`.
+- **No observability** — no Prometheus metrics, structured JSON logging, or
+  correlation IDs. Actuator is limited to `/manage/health` and `/manage/info`.
+- **Tenant row scoping covers `SELECT` only** — `TenantStatementInspector` injects
+  `tenant_id` into the root `FROM` of reads; writes rely on services setting
+  `tenantId` explicitly.
+- **No container hardening beyond non-root images** — no resource limits,
+  `read_only`, `cap_drop` or `no-new-privileges` on any service; the `redis`,
+  `caddy` and `migrate` images still run as root.
+- **CI scans images but not dependencies** — no dependency scanning, SAST/CodeQL,
+  or secret scanning.
 - **FHIR / ABDM interoperability** is not implemented — [#92](https://github.com/gaurav-amritkar/med-os/issues/92) onwards.
 
 ### Operations
@@ -421,5 +489,11 @@ weaken it to make the suite green.
 
 CI (`.github/workflows/ci.yml`) runs four required checks on every PR: backend
 build and tests, frontend lint/test/build, container definitions, and an image
-vulnerability scan gated by `.trivyignore`. The migration gate
-(`tools/verify-migrations.sh`) and its own self-test run inside the backend job.
+vulnerability scan gated by `.trivyignore`. The `containers` job additionally runs
+the migration gate (`tools/verify-migrations.sh`), its own self-test
+(`tools/test-verify-migrations.sh`), a live Flyway `validate` against Postgres 16,
+and a set of assertions over the resolved `docker-compose.prod.yml` model (only
+Caddy may publish a port; no in-host `db`; no `*_PASSWORD_FILE` keys).
+
+CI does **not** scan application dependencies, run SAST/CodeQL, or scan for
+committed secrets.

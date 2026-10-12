@@ -45,7 +45,19 @@ user may belong to several tenants and hold a **different role in each** — doc
 one clinic, administrator in another. `AuthService.login` selects the first membership
 whose tenant is active and issues a token scoped to it, and that `tenantId` claim is
 load-bearing: `TenantStatementInspector` reads it to rewrite the tenant predicate onto
-every SQL statement. Tenant isolation is enforced by that mechanism.
+`SELECT` statements. Tenant isolation on the **read path** is enforced by that
+mechanism.
+
+⚠️ **Scope limit worth stating plainly:** the inspector returns early for anything
+that is not a `select`, so `INSERT`/`UPDATE`/`DELETE` are **not** scoped, and the
+predicate is injected into the root `FROM` only — joins, subqueries and
+non-tenant tables (`users`, `tenant_users`, `tenants`) are untouched. Write
+scoping relies on services setting `tenantId` explicitly. An earlier revision of
+this sentence said "every SQL statement", which overstated it.
+
+Also note this environment still trusts the application for isolation; moving to
+Supabase does not change that, and the app-layer AES-256-GCM envelope encryption
+is unaffected by the managed database.
 
 Supabase Auth has `auth.roles`: one role per user, globally, with no concept of
 per-tenant membership. Adopting it would mean either flattening a model the business

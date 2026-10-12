@@ -5,6 +5,27 @@
 - **Supersedes:** nothing. Extends ADR-0004, which decided how secrets are *stored and supplied* but not how PII keys are *structured*.
 - **Related:** ADR-0002 (row-level tenancy), ADR-0004 (secret management), ADR-0008 (Supabase managed PostgreSQL), spec `docs/superpowers/specs/2026-10-01-pii-key-lifecycle-fhir-abdm-design.md`
 
+> ## Implementation status — read this before the Context section
+>
+> The **Context** below describes the *pre-ADR* system. It no longer describes the
+> code. As of `main`, this design is **implemented**:
+>
+> | Capability | State |
+> |---|---|
+> | KEK wraps a per-tenant DEK (`tenant_keys.wrapped_dek`) | ✅ shipped |
+> | Blind-index key separately generated and wrapped (`wrapped_bi_key`) | ✅ shipped |
+> | Ciphertext versioned `kv1.d<generation>:<base64>`; legacy values readable | ✅ shipped |
+> | One tenant's key cannot decrypt another's rows | ✅ shipped (`TenantKeyIsolationTest`) |
+> | KEK re-wrap: dry-run / apply / verify, resumable, fail-closed | ✅ shipped |
+> | Rotation runbook (`docs/operations.md` §7d) | ✅ shipped |
+> | **Per-tenant DEK rotation (`dek_rotation`)** | 🔴 **not implemented** |
+> | **Generation > 1 in ciphertext** | 🔴 **unreachable** (`currentGeneration()` hardcodes `1`) |
+> | Blind-index key rotation | 🔴 no operator surface |
+>
+> If you are looking for a statement that "the PII key cannot be rotated", it is
+> stale — four documents carried it until 2026-10-12 and all four were wrong. The
+> KEK is rotatable online with no data migration.
+
 ## Context
 
 `PII_ENCRYPTION_KEY` is a single Base64 secret loaded into a static field at
@@ -145,16 +166,38 @@ modified during the run. Envelope encryption avoids all three.
 ## Consequences
 
 - Rotation becomes a routine operation touching keyring rows, not a data migration.
-- **The blind index must be separated from the PII secret** (issue #87). Until it
-  is, any rotation breaks patient search silently.
+  **Implemented:** `KeyRewrapService` (dry-run `plan()`, apply `rotate()`;
+  resumable via `wrapped_kek_version`; fails closed with zero writes if any
+  tenant cannot be unwrapped) and `PiiKeyRotationRunner`
+  (`dry-run` / `apply` / `verify`, driven by `MEDOS_KEY_ROTATION_*` env vars, not
+  argv). Audited to `key_rotations`. Runbook: `docs/operations.md` §7d.
+- **The blind index is separated from the PII secret** (issue #87 — **done**).
+  It is a third, independently generated key in `tenant_keys.wrapped_bi_key`, not
+  derived from the DEK, with its own `bi_key_generation`. *An earlier revision of
+  this line said the separation was still pending and that "any rotation breaks
+  patient search silently"; that is closed.*
 - `EncryptionUtil` must become tenant-aware while remaining a JPA
-  `AttributeConverter` for all nine columns.
+  `AttributeConverter` for all nine columns. **Done** — it reads the acting
+  tenant's DEK through `TenantKeyResolverFactory`, populated from a `ThreadLocal`
+  by `JwtAuthenticationFilter`, which fails closed when no tenant is present.
 - Every new encrypted column must be registered with the tenant's DEK. This is a
   real hazard: a forgotten registration would write data no rotation can re-wrap.
-  The regression tests in #86 cover this.
-- `docs/operations.md` must carry the rotation runbook, including the hard rule
-  that the previous KEK version is never deleted before verification passes, and
-  that DEK rotation is **not** reversible by restoring a key file.
+  ⚠️ There is currently **no regression test that enumerates the registered
+  encrypted columns**, so this hazard is unenforced — a new `@Convert` column
+  that resolves no DEK would fail at runtime, not at build time.
+- The `kv1.d<generation>:` prefix identifies the DEK generation. ⚠️ As shipped,
+  `TenantKeyHolder.currentGeneration()` returns `1` and
+  `PiiCiphertextFormat.tenantResolver()` ignores its `generation` argument, so
+  `UnknownGenerationException` cannot fire and **generation > 1 is not reachable**.
+  The prefix is correct and necessary, but currently only generation 1 can ever
+  be written. This is what blocks `dek_rotation`.
+- `docs/operations.md` carries the rotation runbook, including the hard rule
+  that the previous KEK version is never deleted before verification passes.
+  Note the asymmetry: a **KEK** re-wrap *is* fully reversible by restoring the
+  old key file, because no data was rewritten. Only `dek_rotation`, which
+  rewrites ciphertext, is irreversible that way — and it is not implemented.
+- Tenant offboarding destroying the DEK was proposed here but **no code path does
+  it**; there is no tenant-deletion or key-destroy operation today.
 - The keyring table is a high-value target. It contains wrapped key material, so
   read access to it should be restricted to the application's database role.
 - DPDP §8(5) evidence becomes demonstrable: rotation history with initiator and
