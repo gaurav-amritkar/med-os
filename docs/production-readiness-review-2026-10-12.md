@@ -4,6 +4,12 @@
 > (backend security, backend reliability, infra/CI, frontend code, UI design)
 > with every top-severity claim independently re-verified in code.
 >
+> ⚠️ **Two findings were overtaken by #133 before this review merged.** #133
+> corrected the documentation set while this was open, so three rows below are
+> now stale and are marked **[CLOSED BY #133]** inline. All other findings
+> stand as written against `8854d8e` and should be re-verified before acting,
+> since they have not been re-checked against `b4c6c75`.
+>
 > **Verdict:** the codebase is in far better shape than "dull and not
 > production ready" suggests — but it is not production-ready, and the UI's
 > problem is not bad design, it is a half-finished redesign. The critical
@@ -69,7 +75,7 @@
 
 | # | Finding | Evidence | Impact |
 |---|---|---|---|
-| D1 | **23 tables, 4 foreign keys** — only `tenant_users` / `tenant_configs` / `tenant_settings` have FKs. `charges.patient_id/invoice_id`, `payments.invoice_id`, `admissions.patient_id/room_id`, `medicine_batches.medicine_id`, `stock_transactions.*` are all orphan-capable. | `V1__initial_schema.sql` (`grep -c REFERENCES` = 4, verified) | The single biggest schema gap for a medical-billing system |
+| D1 | **25 tables, 4 foreign keys** — only `tenant_users` / `tenant_configs` / `tenant_settings` have FKs. `charges.patient_id/invoice_id`, `payments.invoice_id`, `admissions.patient_id/room_id`, `medicine_batches.medicine_id`, `stock_transactions.*` are all orphan-capable. (Count corrected from 23 by #133; `tenant_keys` and `key_rotations` were added by `V2__pii_key_lifecycle.sql`.) | `V1__initial_schema.sql` (`grep -c REFERENCES` = 4, verified) | The single biggest schema gap for a medical-billing system |
 | D2 | **`tenant_id` nullable** on nearly every domain table while isolation is app-side — a NULL row escapes tenant filtering. | e.g. `V1:184, 240, 265, 307, 327, 364` | Silent cross-tenant escape hatch |
 | D3 | **Async balance recalc is fire-and-forget** — `@Async` + `AFTER_COMMIT` + `REQUIRES_NEW`, no retry/outbox/reconciliation job. Outstanding counts only `billed|paid` charges — reception sees ₹0 for patients with unbilled dispensed drugs or room days; overpayments are hidden by `GREATEST(...,0)`. | `PatientBalanceService.java:37-63`, `PatientBalanceEventListener.java:19-24` | Silently stale `patients.outstanding`; misleading AR picture |
 
@@ -77,16 +83,18 @@
 
 Verified against `docker-compose.prod.yml`, `docs/operations.md`, and issue #16:
 
-1. **`MEDOS_DOMAIN=hms.example.com` placeholder** → Caddy cannot obtain an ACME cert; since Caddy is the only published port, the entire system is unreachable.
-2. **No image registry / CI push step** — every tag is `${MEDOS_TAG:-local}`; the host must build from source.
-3. **`secrets/cors-origins.txt` is a dead second source of truth** — `CORS_ORIGINS` is composed from `${MEDOS_DOMAIN}`; the mounted secret file is never read. **`.env.prod.example` does not exist** while `docs/operations.md:216` tells the operator to copy it.
-4. **The Supabase migrate wrapper has never been run end-to-end** (flagged in #16) — though the baselineVersion=0 fix was validated against the live project.
+1. 🔴 **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`** — *added after this review, found during #133.* `application-prod.yml` requires it with no default; the backend service neither sets the variable nor mounts the secret, although `secrets/bootstrap-admin-password.txt` exists on disk and a compose comment claims `backend/entrypoint.sh` reads it. **The prod backend container cannot start as committed.** This precedes every other item here: it fails at boot, not at first use. One-line fix — add `bootstrap-admin-password` to the service's `secrets:` list.
+2. **`MEDOS_DOMAIN=hms.example.com` placeholder** → Caddy cannot obtain an ACME cert; since Caddy is the only published port, the entire system is unreachable.
+3. **No image registry / CI push step** — every tag is `${MEDOS_TAG:-local}`; the host must build from source.
+4. **`secrets/cors-origins.txt` is a dead second source of truth** — `CORS_ORIGINS` is composed from `${MEDOS_DOMAIN}`; the mounted secret file is never read (the env var wins in `backend/entrypoint.sh`). ~~**`.env.prod.example` does not exist**~~ **[CORRECTED]** — it does exist and is tracked; `docs/operations.md:216` correctly tells the operator to copy it. The dead secret file stands, and #133 added the same note to `.env.prod.example` itself.
+5. **The Supabase migrate wrapper has never been run end-to-end** (flagged in #16) — though the baselineVersion=0 fix was validated against the live project.
+6. **`ACME_EMAIL` never reaches Caddy** — `docker-compose.prod.yml` passes only `MEDOS_DOMAIN` to the `caddy` service and there is no `env_file:`, so `{$ACME_EMAIL:...}` in the Caddyfile falls back to `admin@medos.invalid` and expiry notices go nowhere. Likewise `DB_POOL_SIZE` in `.env.prod` is inert; `application-prod.yml` hardcodes the pool size.
 
 ### 2.5 Operations documentation — dangerous as written
 
 | # | Finding | Evidence | Impact |
 |---|---|---|---|
-| O1 | **PII rotation docs contradict each other.** §7 instructs re-encryption via raw SQL `encrypt(decrypt(...))` against plaintext columns that no longer exist (storage is AES-256-GCM ciphertext); §7d correctly describes the KEK/DEK re-wrap runner; README says rotation breaks all ciphertext. | `docs/operations.md:323-333` vs `:377-450` | An operator following §7 **destroys readable PII**. Correct before anyone rotates on a schedule |
+| O1 | ~~**PII rotation docs contradict each other.**~~ **[CLOSED BY #133]** This was the single most dangerous item in the review and it is now fixed. #133 removed the `encrypt(decrypt(...))` procedure from §7 of `operations.md` (those functions exist in no migration and the procedure could never have run), made §7d run against `docker-compose.prod.yml` instead of the dev stack, and corrected the "the PII key cannot be rotated" claim that `README.md`, `database/README.md`, `.env.prod.example`, ADR-0004 and ADR-0009 all carried. See `b4c6c75`. | `docs/operations.md` §7 / §7d; `README.md`; `docs/adr/0009-*.md` | Was: an operator following §7 would destroy readable PII. **Resolved.** |
 | O2 | **No CSP anywhere** — Caddy sets HSTS/nosniff/Referrer-Policy/no-store; nginx.conf sets no headers at all; no Content-Security-Policy in the repo. | `caddy/Caddyfile:36-42`, `frontend/nginx.conf` | XSS on a patient-record app has no second line of defense |
 | O3 | **No resource limits** on any service in either compose file (only JVM `-Xmx512m`). | `docker-compose.yml`, `docker-compose.prod.yml` | One noisy service OOMs the single host (ADR-0001 accepts single-host) |
 | O4 | **Redis healthcheck leaks password to the process list** (`-a` flag). Use `REDISCLI_AUTH`. | `docker-compose.prod.yml:105` | Host-local secret exposure |
@@ -161,8 +169,8 @@ Wave 0 (token layer, shell, a11y machine-guards) is disciplined clinical craft. 
 
 | Phase | Scope |
 |---|---|
-| **1 — Ship-blockers** | S1–S6, R1–R4, Billing UI defects (#115 + selection leak + payment leak), D1 FK migration + `tenant_id NOT NULL`, O1 ops-doc correction, Login info-leak gating |
-| **2 — Deploy path** | Domain / registry / `.env.prod.example` / dead CORS secret, CSP (O2), resource limits (O3), observability (#9), restore drill (O5) |
+| **1 — Ship-blockers** | S1–S6, R1–R4, Billing UI defects (#115 + selection leak + payment leak), D1 FK migration + `tenant_id NOT NULL`, Login info-leak gating — ~~O1 ops-doc correction~~ (done in #133) |
+| **2 — Deploy path** | Domain / registry / `BOOTSTRAP_ADMIN_PASSWORD` wiring *(not in the original list — see note)* / dead CORS secret, CSP (O2), resource limits (O3), observability (#9), restore drill (O5) |
 | **3 — UI/UX** | Finish Waves 1–4 (clear the 8-page inline-style ratchet), shared `Modal` with focus management, shared `Field` + search debounce hook, then Direction A tokens + recharts dashboard |
 | **4 — Product gaps** | #69 discharge summary, #57 tenant name in header (data already fetched), notifications wiring (endpoint exists, UI dead), configurable GST (#59), printable receipts (#58) |
 
