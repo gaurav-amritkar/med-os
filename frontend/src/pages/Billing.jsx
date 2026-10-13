@@ -20,6 +20,12 @@ export default function Billing() {
 
   const selectPatient = async (patient) => {
     setSelectedPatient(patient);
+    // The selection belongs to the patient it was made for. Carrying it across
+    // posted this patient's id with the previous patient's charge ids, which
+    // invoices the wrong person — reachable by ordinary mis-clicking, and the
+    // happy path looks fine, so it survives manual testing.
+    setSelectedCharges([]);
+    setShowInvoiceModal(false);
     try {
       const [unbilledRes, invRes] = await Promise.all([
         billingApi.getUnbilled(patient.id),
@@ -38,10 +44,19 @@ export default function Billing() {
 
   const generateInvoice = async () => {
     if (!selectedPatient || selectedCharges.length === 0) return;
+    // Second guard: only charge ids that belong to the patient being billed. The
+    // reset above should make this a no-op, but posting another patient's
+    // charge id is the one mistake on this page that reaches the ledger.
+    const payableIds = new Set(unbilledCharges.map((c) => c.id));
+    const chargeIds = selectedCharges.filter((id) => payableIds.has(id));
+    if (chargeIds.length === 0) {
+      addToast('No charges selected for this patient', 'critical');
+      return;
+    }
     try {
       const { data } = await billingApi.createInvoice({
         patientId: selectedPatient.id,
-        chargeIds: selectedCharges,
+        chargeIds,
         discount: invoiceDiscount || 0,
       });
       addToast(`Invoice ${data.invoiceNumber} generated. Total: ₹${data.totalAmount}`, 'success');
