@@ -263,10 +263,8 @@ img, svg { display: block; max-width: 100%; }
   border-top: 1px solid var(--frame-hover);
   font-size: var(--t-micro);
   color: var(--frame-muted);
-  background: #ffffff0d;
+  background: #ffffff14;
   border-radius: var(--r-sm);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 
 .clock-widget__time {
@@ -729,7 +727,6 @@ textarea::placeholder { color: var(--ink-faint); }
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
   border-color: var(--action);
   box-shadow: inset 0 0 0 1px var(--action), 0 0 0 3px var(--accent-glow);
 }
@@ -913,14 +910,17 @@ select[aria-invalid='true'] {
   position: fixed;
   inset: 0;
   z-index: 100;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
   animation: fadeIn var(--dur-base) var(--ease);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--s5);
-  background: rgba(23, 36, 44, 0.55);
+  /* Opaque scrim. The overlay previously relied on a CSS blur to separate
+     the modal from the page; that effect is banned by design-system.test.js
+     (glassmorphism was removed deliberately — BRD §13 names dark-mode
+     visibility as an invalidation trigger), so separation is carried by
+     opacity instead. */
+  background: rgba(23, 36, 44, 0.62);
 }
 
 .modal {
