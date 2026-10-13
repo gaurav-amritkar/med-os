@@ -56,7 +56,8 @@ class LoginRateLimiterTest {
         limiter.recordFailure("admin");
         limiter.reset("admin");
 
-        verify(redis).delete(anyString());
+        // Both counters are cleared: the per-source one and the username-wide one.
+        verify(redis, org.mockito.Mockito.atLeastOnce()).delete(anyString());
         assertFalse(limiter.isBlocked("admin"));
     }
 
@@ -75,6 +76,8 @@ class LoginRateLimiterTest {
     void firstFailureSetsRedisTtl() {
         when(valueOps.increment(anyString())).thenReturn(1L);
         limiter.recordFailure("admin");
-        verify(redis).expire(anyString(), org.mockito.ArgumentMatchers.any());
+        // A window is set on each counter, so the lockout actually expires.
+        verify(redis, org.mockito.Mockito.atLeastOnce())
+                .expire(anyString(), org.mockito.ArgumentMatchers.any());
     }
 }

@@ -425,7 +425,10 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
   default and documented as requiring prerequisites that do not yet exist.
 - **Actuator** — only `/manage/health` and `/manage/info` are public; all other
   `/manage/**` and the OpenAPI docs require the `admin` role.
-- **Login brute-force** — 5 failed attempts per (user+IP) → 15-minute lockout
+- **Login brute-force** — 5 failed attempts per (user, socket peer) → 15-minute
+  lockout, plus a username-wide counter at 20 to bound a distributed attacker.
+  The peer comes from the socket, never from `X-Forwarded-For`, which a client can
+  rotate.
   (Redis-backed, with an in-memory fallback).
 - **WebSocket** — allowed origins restricted to `CORS_ORIGINS`; STOMP `CONNECT`
   rejected without a valid Bearer token.
