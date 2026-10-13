@@ -1,7 +1,9 @@
 package com.medos.security;
 
 import com.medos.entity.Tenant;
+import com.medos.entity.TenantUser;
 import com.medos.repository.TenantRepository;
+import com.medos.repository.TenantUserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
@@ -48,6 +50,7 @@ class JwtAuthenticationFilterTenantStateTest {
 
     @Mock private JwtTokenProvider tokenProvider;
     @Mock private TenantRepository tenantRepository;
+    @Mock private TenantUserRepository tenantUserRepository;
     @Mock private FilterChain filterChain;
 
     private JwtAuthenticationFilter filter;
@@ -56,7 +59,14 @@ class JwtAuthenticationFilterTenantStateTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        filter = new JwtAuthenticationFilter(tokenProvider, tenantRepository);
+        filter = new JwtAuthenticationFilter(tokenProvider, tenantRepository, tenantUserRepository);
+        // This test is about tenant state; membership is exercised separately in
+        // JwtAuthenticationFilterMembershipRevocationTest. An active membership
+        // keeps the tenant assertion here in isolation.
+        TenantUser member = new TenantUser();
+        member.setActive(true);
+        when(tenantUserRepository.findByUserIdAndTenantId(any(), any()))
+                .thenReturn(Optional.of(member));
         when(tokenProvider.validateToken(any())).thenReturn(JwtTokenProvider.TokenValidationResult.VALID);
         capturedAuth = null;
         // The chain is stubbed rather than verified so the security context can

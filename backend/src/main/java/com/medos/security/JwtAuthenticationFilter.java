@@ -1,6 +1,7 @@
 package com.medos.security;
 
 import com.medos.repository.TenantRepository;
+import com.medos.repository.TenantUserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -30,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final TenantRepository tenantRepository;
+    private final TenantUserRepository tenantUserRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -40,24 +42,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (tokenProvider.validateToken(token) == JwtTokenProvider.TokenValidationResult.VALID) {
                     Claims claims = tokenProvider.parseToken(token);
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
+                    UUID userId = UUID.fromString(uid);
                     String role = claims.get("role").toString();
 
-                    // A token lives 10 hours, so enforcing tenant state only at
-                    // login would leave a deboarded facility working for the
-                    // rest of that window. The claim carries the tenant, so the
-                    // state is checked per request — one primary-key lookup.
+                    // A token lives 10 hours, so enforcing state only at login would
+                    // leave a deboarded person working for the rest of that window.
+                    // Both the hospital and the person's membership in it are
+                    // re-checked per request — one primary-key lookup each.
                     //
-                    // No tenantId claim means a bootstrap/superadmin session.
-                    // Those have no tenant to be deactivated and must keep
-                    // working, or a fresh install cannot be administered.
+                    // No tenantId claim means a platform/superadmin session. Those
+                    // hold no membership on purpose, so there is nothing to check
+                    // and they must keep working, or a fresh install cannot be
+                    // administered.
                     boolean admitted = true;
                     if (claims.get("tenantId") != null) {
                         UUID tenantId = UUID.fromString(claims.get("tenantId").toString());
-                        if (isTenantActive(tenantId)) {
+                        if (isTenantActive(tenantId) && isMembershipActive(userId, tenantId)) {
                             TenantContext.setTenantId(tenantId);
                         } else {
                             admitted = false;
-                            log.warn("Rejected token for deactivated tenant {} on {} {}",
+                            log.warn("Rejected token for deactivated tenant {} or membership on {} {}",
                                     tenantId, request.getMethod(), request.getRequestURI());
                         }
                     }
@@ -96,6 +100,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return tenantRepository.findById(tenantId)
                 .map(tenant -> Boolean.TRUE.equals(tenant.getActive()))
                 .orElse(false);
+    }
+
+    /**
+     * Whether this person may still act at this hospital.
+     *
+     * <p>Deactivating someone on the staff page ends one person's access to one
+     * hospital. Enforced at login only, the removal would hold until their token
+     * expired — up to ten hours of continued access to patient records after
+     * they were off the roster.
+     *
+     * <p>A missing row counts as not a member, for the same reason a missing
+     * tenant counts as inactive: for a value that was never written, the safe
+     * reading is the closed one.
+     */
+    private boolean isMembershipActive(UUID userId, UUID tenantId) {
+        if (tenantUserRepository == null) {
+            return true; // not wired (some slice/test profile)
+        }
+        try {
+            return tenantUserRepository.findByUserIdAndTenantId(userId, tenantId)
+                    .map(m -> Boolean.TRUE.equals(m.getActive()))
+                    .orElse(false);
+        } catch (Exception e) {
+            // Fail closed: an unavailable membership store must not become an
+            // open door. The request proceeds unauthenticated and gets a 401.
+            log.warn("Membership lookup failed for user {} at tenant {}; refusing",
+                    userId, tenantId);
+            return false;
+        }
     }
 
     private String extractToken(HttpServletRequest request) {
