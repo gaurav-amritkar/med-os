@@ -6,7 +6,9 @@ import { onboardingApi } from '../api';
 import useToastStore from '../store/toastStore';
 
 vi.mock('../api', () => ({
-  onboardingApi: { registerTenant: vi.fn() },
+  // listTenants arrived with the onboarded-organisations roster. Returning
+  // an empty list keeps these tests focused on the registration form.
+  onboardingApi: { registerTenant: vi.fn(), listTenants: vi.fn().mockResolvedValue({ data: [] }) },
 }));
 
 function renderOnboarding() {

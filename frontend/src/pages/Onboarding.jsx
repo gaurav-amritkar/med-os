@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { onboardingApi } from '../api';
 import useToastStore from '../store/toastStore';
@@ -9,6 +9,8 @@ const TENANT_TYPES = [
   { value: 'INDIVIDUAL_PRACTITIONER', label: 'Individual Practitioner' },
   { value: 'PHARMACY', label: 'Pharmacy' },
 ];
+
+const TYPE_LABEL = Object.fromEntries(TENANT_TYPES.map((t) => [t.value, t.label]));
 
 const FEATURE_OPTIONS = [
   { value: 'encounters', label: 'Encounters & appointments', hint: 'OPD desk, consultations, visit notes' },
@@ -83,8 +85,34 @@ export default function Onboarding() {
   const [form, setForm] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [tenants, setTenants] = useState(null);
+  const [rosterUnavailable, setRosterUnavailable] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
+
+  // What is already onboarded. Without it the only way to discover a duplicate
+  // slug is the 409 the unique constraint throws back at you.
+  //
+  // A failure here is not the page's problem: only a platform super-admin can
+  // read this list, and everyone else still has a working registration form.
+  // So the failure is reported in place and the form carries on regardless.
+  useEffect(() => {
+    let cancelled = false;
+    onboardingApi
+      .listTenants()
+      .then(({ data }) => {
+        if (!cancelled) setTenants(data || []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTenants(null);
+          setRosterUnavailable(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const set =
     (key) =>
@@ -203,6 +231,48 @@ export default function Onboarding() {
           </div>
         )}
 
+        {tenants !== null && (
+          <div style={fmt.section}>
+            <h2 style={{ fontSize: '1rem', margin: '0 0 12px', color: 'var(--ink)' }}>
+              Onboarded organisations
+            </h2>
+            {tenants.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: 0 }}>
+                Nothing onboarded yet. The facility you register below will be the first.
+              </p>
+            ) : (
+              <ul className="tenant-roster">
+                {tenants.map((t) => (
+                  <li
+                    key={t.id}
+                    className={`tenant-roster__row${t.active ? '' : ' tenant-roster__row--off'}`}
+                  >
+                    <span>
+                      <span className="tenant-roster__name">{t.name}</span>
+                      <span className="tenant-roster__slug"> /{t.slug}</span>
+                    </span>
+                    <span className="tenant-roster__meta">
+                      <span className="badge badge-info">{TYPE_LABEL[t.type] || t.type}</span>
+                      <span className={`badge ${t.active ? 'badge-success' : 'badge-danger'}`}>
+                        {t.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {rosterUnavailable && (
+          <div style={fmt.section}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: 0 }}>
+              The list of onboarded organisations is not available to this account. You can
+              still register a facility below.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div style={fmt.section}>
             <div style={fmt.grid}>
@@ -231,7 +301,7 @@ export default function Onboarding() {
             <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: '0 0 12px' }}>
               Only the modules you switch on here are visible and reachable for this organisation. At least one is required.
             </p>
-            <div style={{ display: 'grid', gap: 8 }}>
+            <div className="module-list">
               {FEATURE_OPTIONS.map((f) => {
                 const id = `onboarding-feature-${f.value}`;
                 const checked = form.features.includes(f.value);
@@ -239,17 +309,7 @@ export default function Onboarding() {
                   <label
                     key={f.value}
                     htmlFor={id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      border: `1px solid ${checked ? 'var(--action)' : 'var(--ink-faint)'}`,
-                      borderRadius: 'var(--r-sm)',
-                      background: checked ? 'var(--canvas)' : 'transparent',
-                      fontSize: '0.9rem',
-                      cursor: 'pointer',
-                    }}
+                    className={`module-option${checked ? ' module-option--on' : ''}`}
                   >
                     <input
                       id={id}
@@ -258,10 +318,8 @@ export default function Onboarding() {
                       onChange={() => toggleFeature(f.value)}
                     />
                     <span>
-                      {f.label}
-                      <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
-                        {f.hint}
-                      </span>
+                      <span className="module-option__label">{f.label}</span>
+                      <span className="module-option__hint">{f.hint}</span>
                     </span>
                   </label>
                 );

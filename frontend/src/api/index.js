@@ -38,6 +38,9 @@ export const userApi = {
 
 export const onboardingApi = {
   registerTenant: (data) => client.post('/onboarding/register', data),
+  // Platform-only (SUPER_ADMIN). 403s for anyone else, which the page treats
+  // as "not available here" rather than as an error worth shouting about.
+  listTenants: () => client.get('/tenants'),
 };
 
 export const patientApi = {
