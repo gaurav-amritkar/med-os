@@ -417,6 +417,12 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
   both are length-validated at startup.
 - **Tenant isolation.** Every clinical table carries `tenant_id`; reads are scoped
   per tenant in the persistence layer.
+- **Revocation is per request.** A token lives 10 hours, so both the tenant's
+  `active` flag **and** the person's `tenant_users.active` membership are
+  re-checked on every authenticated request. Removing someone from a hospital's
+  staff page therefore ends their access immediately rather than at token
+  expiry. A token with no `tenantId` — the platform super-admin — is skipped,
+  since it holds no membership by design.
 - **PII at rest.** Nine columns across `patients` and `encounters` are
   AES-256-GCM encrypted under a **per-tenant DEK**, itself wrapped by the KEK.
   Name search uses an independently keyed blind index, so the database alone
