@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { authApi } from '../api';
 import useToastStore from '../store/toastStore';
@@ -9,18 +9,66 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const logout = useAuthStore((s) => s.logout);
   const token = useAuthStore((s) => s.token);
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
 
   const role = useAuthStore((s) => s.role);
+  const usernameInSession = useAuthStore((s) => s.username);
   const landing = (role || '').toLowerCase() === 'super_admin' ? '/onboarding' : '/dashboard';
 
-  useEffect(() => {
-    if (token) {
-      navigate(landing, { replace: true });
-    }
-  }, [token, landing, navigate]);
+  // An authenticated visitor who deliberately came here is told so and offered
+  // a way forward, rather than being redirected on mount.
+  //
+  // That redirect used to be unconditional, and for a super_admin the
+  // destination was /onboarding — the page that carries the "Sign in" link. So
+  // clicking it returned them to where they started and the link read as dead.
+  // Silent redirection is also wrong on its own terms: someone opening the
+  // sign-in page to switch accounts should not be thrown somewhere they did
+  // not ask for.
+  if (token) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--canvas)',
+      }}>
+        <div className="card login-card" style={{ textAlign: 'center' }}>
+          <div className="login-header">
+            <div className="login-wordmark">
+              MED<span>OS</span>
+            </div>
+            <div className="login-subtitle">Hospital Management System v3.0</div>
+          </div>
+
+          <p style={{ fontSize: '0.95rem', color: 'var(--ink)', margin: '0 0 6px' }}>
+            You are already signed in{usernameInSession ? ` as ${usernameInSession}` : ''}.
+          </p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: '0 0 20px' }}>
+            Continue to where you were, or sign out to use a different account.
+          </p>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <Link to={landing} className="btn-primary">Continue</Link>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                logout();
+                setUsername('');
+                setPassword('');
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

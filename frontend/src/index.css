@@ -1355,3 +1355,148 @@ select[aria-invalid='true'] {
   padding: var(--s6) var(--s5);
   color: var(--ink-faint);
 }
+
+/* ============================================================================
+   Module picker — provisioning a new facility
+   ----------------------------------------------------------------------------
+   The native checkbox was doing all the work here: a default-blue box with a
+   heavy tick, floating in a wide row with the label pushed to one side. It
+   read as browser chrome rather than as a clinical checklist.
+
+   The control is drawn from the token layer instead, and the row carries the
+   selected state as an inset edge — the same "this one is live" cue the rail
+   and stat cards use, so the page has one way of saying "active".
+   ========================================================================== */
+
+.module-list {
+  display: grid;
+  gap: var(--s2);
+}
+
+.module-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.module-option:hover {
+  border-color: var(--action);
+  background: var(--surface-inset);
+}
+
+.module-option--on {
+  border-color: var(--action);
+  background: var(--surface-inset);
+  box-shadow: inset 3px 0 0 var(--action);
+}
+
+.module-option input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  border: 1.5px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.module-option:hover input[type='checkbox'] {
+  border-color: var(--action);
+}
+
+/* Focus is a ring rather than a suppressed indicator: design-system.test.js
+   bans suppressing the native one outright, and a checkbox with no visible
+   focus state is a keyboard trap. */
+.module-option input[type='checkbox']:focus-visible {
+  border-color: var(--action);
+  box-shadow: inset 0 0 0 1px var(--action), 0 0 0 3px var(--accent-glow);
+}
+
+.module-option input[type='checkbox']:checked {
+  background-color: var(--action);
+  border-color: var(--action);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M3.2 8.4l3.2 3.2L12.8 5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+}
+
+.module-option__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.module-option__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+/* Onboarded organisations ---------------------------------------------------- */
+
+.tenant-roster {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tenant-roster__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.tenant-roster__row--off {
+  background: var(--sunken);
+}
+
+.tenant-roster__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tenant-roster__slug {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.tenant-roster__meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .tenant-roster__row {
+    flex-wrap: wrap;
+  }
+  .tenant-roster__meta {
+    margin-left: 0;
+    width: 100%;
+  }
+}

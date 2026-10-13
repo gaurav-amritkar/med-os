@@ -66,19 +66,28 @@ describe('Login page', () => {
     expect(useToastStore.getState().toasts[0].message).toMatch(/welcome back/i);
   });
 
-  it('redirects authenticated users to dashboard', async () => {
+  it('tells an authenticated visitor they are signed in instead of redirecting', async () => {
     // Set valid token in sessionStorage
     const expiry = Date.now() + 3600000; // 1 hour from now
     sessionStorage.setItem('medos_token', 'existing-token');
     sessionStorage.setItem('medos_token_expiry', expiry.toString());
     sessionStorage.setItem('medos_user', JSON.stringify({ username: 'admin', role: 'admin' }));
-    
+
     // Re-initialize auth store
     useAuthStore.getState().initAuth();
 
     renderLogin();
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard'));
+    // This used to assert a silent redirect to /dashboard, which is how the
+    // "Sign in" link on the onboarding page became a no-op: for a super_admin
+    // the redirect target was /onboarding, the page carrying the link.
+    //
+    // Now the page explains the situation and offers Continue or Sign out.
+    // Deliberate navigation wins over convenience — someone opening the
+    // sign-in page to switch accounts should not be moved without asking.
+    await waitFor(() => expect(screen.getByText(/already signed in/i)).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /continue/i })).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 
   it('shows an error toast on failed login and stays on the page', async () => {
