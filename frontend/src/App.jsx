@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
 import Encounters from './pages/Encounters';
@@ -32,7 +31,6 @@ export default function App() {
 
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Landing />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>

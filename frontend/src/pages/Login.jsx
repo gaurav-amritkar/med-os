@@ -29,40 +29,35 @@ export default function Login() {
   // not ask for.
   if (token) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--canvas)',
-      }}>
-        <div className="card login-card" style={{ textAlign: 'center' }}>
+      <div className="login-page logged-in-view">
+        <div className="card login-card">
           <div className="login-header">
             <div className="login-wordmark">
               MED<span>OS</span>
             </div>
-            <div className="login-subtitle">Hospital Management System v3.0</div>
+            <div className="login-subtitle">
+              Hospital Management System v3.0
+            </div>
           </div>
 
           <p style={{ fontSize: '0.95rem', color: 'var(--ink)', margin: '0 0 6px' }}>
-            You are already signed in{usernameInSession ? ` as ${usernameInSession}` : ''}.
+            You are already signed in as <strong>{usernameInSession || 'user'}</strong>.
           </p>
-          <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', margin: '0 0 20px' }}>
-            Continue to where you were, or sign out to use a different account.
+          <p style={{ fontSize: '0.95rem', color: 'var(--ink-faint)', margin: '0 0 16px' }}>
+            Your role: <strong>{role || 'unknown'}</strong>
           </p>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <Link to={landing} className="btn-primary">Continue</Link>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to={landing} className="btn-primary" style={{ textDecoration: 'none' }}>
+              Continue to {role === 'SUPER_ADMIN' ? 'Onboarding' : 'Dashboard'}
+            </Link>
             <button
               type="button"
-              className="btn-ghost"
-              onClick={() => {
-                logout();
-                setUsername('');
-                setPassword('');
-              }}
+              className="btn-secondary"
+              onClick={() => logout()}
+              style={{ textDecoration: 'none' }}
             >
-              Sign out
+              Sign out to switch accounts
             </button>
           </div>
         </div>
@@ -76,12 +71,11 @@ export default function Login() {
     try {
       const { data } = await authApi.login({ username, password });
       login(data.token, {
+        expiresIn: data.expiresIn,
         userId: data.userId,
-        username: data.username,
         fullName: data.fullName,
+        username: data.username,
         role: data.role,
-        specialization: data.specialization,
-        tenantId: data.tenantId,
       }, data.expiresIn);
       addToast(`Welcome back, ${data.fullName}`, 'success');
       navigate((data.role || '').toLowerCase() === 'super_admin' ? '/onboarding' : '/dashboard', { replace: true });
@@ -93,42 +87,30 @@ export default function Login() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--canvas)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute',
-        top: '-20%',
-        left: '-10%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-20%',
-        right: '-10%',
-        width: '400px',
-        height: '400px',
-        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-      }} />
+    <div className="login-page">
+      {/* Decorative gradient blobs for visual interest */}
+      <div className="login-blob login-blob-top-left" />
+      <div className="login-blob login-blob-bottom-right" />
 
       <div className="card login-card">
         <div className="login-header">
           <div className="login-wordmark">
             MED<span>OS</span>
           </div>
-          <div className="login-subtitle">Hospital Management System v3.0</div>
+          <div className="login-subtitle">
+            Hospital Management System v3.0
+          </div>
+        </div>
+
+        <div className="login-info">
+          <p className="login-info-paragraph">
+            MedOS is an ultra-premium, role-based Hospital Management System designed to
+            digitize, streamline, and intelligently assist end-to-end hospital workflows.
+          </p>
+          <p className="login-info-paragraph">
+            From patient registration and clinical documentation to pharmacy dispensing and
+            financial reconciliation — all with enterprise-grade security.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -141,9 +123,9 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              autoFocus
             />
           </div>
+
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input
@@ -155,6 +137,7 @@ export default function Login() {
               required
             />
           </div>
+
           <button
             type="submit"
             className="btn-primary login-submit"
@@ -164,19 +147,13 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{
-          marginTop: 28,
-          padding: 16,
-          borderRadius: 'var(--r-sm)',
-          background: 'var(--sunken)',
-          fontSize: '0.75rem',
-          color: 'var(--ink-faint)',
-          lineHeight: 1.7,
-        }}>
-          <strong style={{ color: 'var(--ink-muted)' }}>Local Login Setup:</strong><br />
-          Fresh database: sign in as <strong style={{ color: 'var(--ink-muted)' }}>admin</strong> with your
-          <strong style={{ color: 'var(--ink-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
-          Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--ink-muted)' }}>password</strong>.
+        <div className="login-footer">
+          <Link to="/onboarding" className="no-underline">
+            Don't have an account? Register hospital (super-admin)
+          </Link>
+          <span className="ml-auto" style={{ color: 'var(--ink-faint)', fontSize: '0.8125rem' }}>
+            © 2026 MedOS HMS. All rights reserved.
+          </span>
         </div>
       </div>
     </div>
