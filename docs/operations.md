@@ -131,8 +131,23 @@ requirepass ${REDIS_PASSWORD}  # Set in .env.production
 
 | Key Pattern | TTL | Purpose | Recovery Impact |
 |-------------|-----|---------|-----------------|
-| `medos:login:fail:{username}:{ip}` | 15 min | Login brute-force protection (5 failures → lockout) | Low - resets on restart |
+| `medos:login:fail:{username}:{peer}` | 15 min | Login brute-force, per source (5 failures → lockout) | Low - resets on restart |
+| `medos:login:fail:any:{username}` | 15 min | Login brute-force, username-wide (20 failures → lockout) | Low - resets on restart |
 | idempotency keys | varies | Replay protection for `/billing/payments`, `/billing/invoices`, `/pharmacy/dispense` | **Medium - a lost key permits a replayed request** |
+
+Two login counters per username. `{peer}` is the **socket** address, never a
+`X-Forwarded-For` value — behind Caddy that is always the proxy, so the per-source
+counter no longer separates one client from another, and the username-wide one is
+what bounds a distributed attacker.
+
+⚠️ The username-wide counter is **also a lockout lever**: anyone who knows a
+username can push it over and deny that account access for the window. That is
+why its ceiling is 20 rather than 5, and why the per-source counter still fires
+at 5 for anyone from a single address. Tuning it lower re-opens the
+unlimited-guess hole; tuning it higher re-opens the denial of service.
+
+Note the login keys are keyed by **username and peer**, not IP alone — a shared
+NAT outage locks out per-account, not per-network.
 
 That is the whole list. Three things this table used to claim and that **do not
 exist** in the code, so must not be relied on during an incident:
