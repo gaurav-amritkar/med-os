@@ -261,6 +261,8 @@ at `/swagger-ui.html`. **Both require the `admin` role** — they are not public
 ### Idempotency
 `POST /api/v1/pharmacy/dispense`, `POST /api/v1/billing/invoices` and `POST /api/v1/billing/payments` **require an `Idempotency-Key` header** (any unique string per logical operation, e.g. a UUID). Retrying with the same key returns the cached result with `Idempotency-Key-Replayed: true` instead of executing twice.
 
+Keys are scoped to the calling **tenant and user**, so two hospitals using the same client key cannot collide or see each other's cached payment. The original request wins a single atomic claim, so concurrent requests with one key produce exactly one execution; a request that arrives while another is still running gets **409** and should retry rather than double-charging. A replay carries the **original status code**, not a blanket 200. A failed request releases its claim, so a client can retry a payment it was legitimately attempting.
+
 ### Auth
 - `POST /api/v1/auth/login` - Authenticate & get JWT
 
