@@ -77,9 +77,14 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > applied — `docs/branch-protection.md` described it as a manual
 > "Settings → Branches" step, and the GitHub API confirmed `main` was
 > unprotected. It is now actually enforced: the four CI status checks are
-> required, admins included, with 1 approving review, no force pushes, no
-> deletions and linear history. Consequence: **changes reach `main` via pull
-> request, not direct push.**
+> required, admins included, no force pushes, no deletions and linear history.
+> Consequence: **changes reach `main` via pull request, not direct push.**
+>
+> ⚠️ **Correction (13 Oct 2026):** this passage claimed "1 approving review".
+> `gh api` reports `required_approving_review_count: **0**` — no human review is
+> required. CI is the only gate on landing code on `main`. That is a coherent
+> single-maintainer setup, but it is not what this document said, and anyone
+> reading it would have believed a second pair of eyes was enforced.
 
 ---
 
