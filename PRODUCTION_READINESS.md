@@ -80,14 +80,15 @@ concrete blockers** listed below.
      record. Remove this entry.
    - ❌ No database read replicas — still true, deferred per ADR-0001.
 
-#### 🔴 The two real blockers
-1. **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`.**
-   `application-prod.yml` requires it with no default; the backend service
-   neither sets the variable nor mounts the secret, although
-   `secrets/bootstrap-admin-password.txt` exists and a compose comment claims
-   `entrypoint.sh` reads it. **The prod backend container cannot start as
-   committed.** Fix: add the secret to the service's `secrets:` list.
-2. **`/api/v1/users/me` returns the password hash** (#106), P0.
+#### The one remaining blocker
+1. **`/api/v1/users/me` returns the password hash** (#106), P0.
+
+   ✅ **Resolved since this assessment:** `BOOTSTRAP_ADMIN_PASSWORD` was not
+   wired into `docker-compose.prod.yml`, so the backend could not start in
+   production at all. Fixed in #137 — the secret is now declared and mounted,
+   `.env.prod.example` documents it, and `tools/verify-prod-secrets.sh` fails CI
+   if any secret the app reads at runtime is not mounted, so the class of defect
+   cannot recur silently.
 
 #### Important Improvements (Recommended for Production)
 1. **Resilience Patterns**
@@ -156,8 +157,8 @@ If you only read one section, read this one. Everything above is the original
 assessment, corrected inline.
 
 **Blockers**
-1. Wire `BOOTSTRAP_ADMIN_PASSWORD` into `docker-compose.prod.yml` — prod backend
-   will not start without it.
+1. ~~Wire `BOOTSTRAP_ADMIN_PASSWORD` into `docker-compose.prod.yml`~~ ✅ **done**
+   (#137), with `tools/verify-prod-secrets.sh` in CI to stop it recurring.
 2. `/api/v1/users/me` returns the password hash (#106).
 
 **Largest genuine gap**

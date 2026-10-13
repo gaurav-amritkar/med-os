@@ -83,7 +83,7 @@
 
 Verified against `docker-compose.prod.yml`, `docs/operations.md`, and issue #16:
 
-1. 🔴 **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`** — *added after this review, found during #133.* `application-prod.yml` requires it with no default; the backend service neither sets the variable nor mounts the secret, although `secrets/bootstrap-admin-password.txt` exists on disk and a compose comment claims `backend/entrypoint.sh` reads it. **The prod backend container cannot start as committed.** This precedes every other item here: it fails at boot, not at first use. One-line fix — add `bootstrap-admin-password` to the service's `secrets:` list.
+1. ✅ **`BOOTSTRAP_ADMIN_PASSWORD` was not wired into `docker-compose.prod.yml`** — *added after this review, found during #133; **FIXED in #137**.* `application-prod.yml` required it with no default while the backend service neither set the variable nor mounted the secret, so the prod backend could not start at all. The secret is now declared and mounted, `.env.prod.example` documents it, and `tools/verify-prod-secrets.sh` fails CI whenever a secret the application reads at runtime is not mounted — `docker compose config` validates wiring that exists and is silent about wiring that does not, which is why this survived a green build.
 2. **`MEDOS_DOMAIN=hms.example.com` placeholder** → Caddy cannot obtain an ACME cert; since Caddy is the only published port, the entire system is unreachable.
 3. **No image registry / CI push step** — every tag is `${MEDOS_TAG:-local}`; the host must build from source.
 4. **`secrets/cors-origins.txt` is a dead second source of truth** — `CORS_ORIGINS` is composed from `${MEDOS_DOMAIN}`; the mounted secret file is never read (the env var wins in `backend/entrypoint.sh`). ~~**`.env.prod.example` does not exist**~~ **[CORRECTED]** — it does exist and is tracked; `docs/operations.md:216` correctly tells the operator to copy it. The dead secret file stands, and #133 added the same note to `.env.prod.example` itself.
@@ -170,7 +170,7 @@ Wave 0 (token layer, shell, a11y machine-guards) is disciplined clinical craft. 
 | Phase | Scope |
 |---|---|
 | **1 — Ship-blockers** | S1–S6, R1–R4, Billing UI defects (#115 + selection leak + payment leak), D1 FK migration + `tenant_id NOT NULL`, Login info-leak gating — ~~O1 ops-doc correction~~ (done in #133) |
-| **2 — Deploy path** | Domain / registry / `BOOTSTRAP_ADMIN_PASSWORD` wiring *(not in the original list — see note)* / dead CORS secret, CSP (O2), resource limits (O3), observability (#9), restore drill (O5) |
+| **2 — Deploy path** | Domain / registry / dead CORS secret *(`BOOTSTRAP_ADMIN_PASSWORD` wiring: done in #137)*, CSP (O2), resource limits (O3), observability (#9), restore drill (O5) |
 | **3 — UI/UX** | Finish Waves 1–4 (clear the 8-page inline-style ratchet), shared `Modal` with focus management, shared `Field` + search debounce hook, then Direction A tokens + recharts dashboard |
 | **4 — Product gaps** | #69 discharge summary, #57 tenant name in header (data already fetched), notifications wiring (endpoint exists, UI dead), configurable GST (#59), printable receipts (#58) |
 

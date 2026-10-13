@@ -52,7 +52,7 @@ cache/
   └── redis.conf
 
 docs/adr/    # Architecture decision records
-tools/       # Migration gate, seeding, Trivy baseline
+tools/       # Migration gate, secret-wiring gate, seeding, Trivy baseline
 ```
 
 ## Database Schema (25 Tables)
@@ -193,6 +193,8 @@ seeding overwrites the `admin` password, so re-check the login afterwards.
 | `docker compose down -v` | Stop and **delete** the local database |
 | `./tools/verify-migrations.sh` | Migration drift gate |
 | `./tools/test-verify-migrations.sh` | Tests for the gate itself |
+| `./tools/verify-prod-secrets.sh` | Checks every secret the app reads at runtime is actually mounted |
+| `./tools/test-verify-prod-secrets.sh` | Tests for the secret gate itself |
 | `cd backend && mvn clean test` | Backend unit tests (needs Java 17 + Maven) |
 | `cd frontend && npm test` | Frontend unit tests (needs Node 20 + `npm install`) |
 
@@ -439,10 +441,6 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
 Tracked in GitHub issues rather than papered over:
 
 - **`/api/v1/users/me` returns the password hash** — [#106](https://github.com/gaurav-amritkar/med-os/issues/106), P0.
-- **`BOOTSTRAP_ADMIN_PASSWORD` is not wired into `docker-compose.prod.yml`** — the
-  backend requires it (`application-prod.yml`) but the service neither sets the
-  variable nor mounts the secret, so **the prod backend container fails to start**
-  as committed. Wire it before the first prod boot.
 - **Per-tenant DEK rotation is not implemented** — only fleet-wide KEK re-wrap is.
   See the note above and `docs/adr/0009-envelope-encryption-per-tenant-deks.md`.
 - **No observability** — no Prometheus metrics, structured JSON logging, or
@@ -491,7 +489,9 @@ CI (`.github/workflows/ci.yml`) runs four required checks on every PR: backend
 build and tests, frontend lint/test/build, container definitions, and an image
 vulnerability scan gated by `.trivyignore`. The `containers` job additionally runs
 the migration gate (`tools/verify-migrations.sh`), its own self-test
-(`tools/test-verify-migrations.sh`), a live Flyway `validate` against Postgres 16,
+(`tools/test-verify-migrations.sh`), the secret-wiring gate
+(`tools/verify-prod-secrets.sh`, which is why a secret the backend read but never
+mounted could not reach production again), a live Flyway `validate` against Postgres 16,
 and a set of assertions over the resolved `docker-compose.prod.yml` model (only
 Caddy may publish a port; no in-host `db`; no `*_PASSWORD_FILE` keys).
 
