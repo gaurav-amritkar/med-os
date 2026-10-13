@@ -15,7 +15,7 @@ on paper.
 | Required status checks | `Backend (build + tests)`, `Frontend (lint + tests + build)`, `Container definitions`, `Image vulnerability scan` |
 | Strict (checks must be current) | yes |
 | Enforce for administrators | yes |
-| Required approving reviews | 1, stale reviews dismissed |
+| Required approving reviews | **0 — none required**, stale reviews dismissed |
 | Required conversation resolution | yes |
 | Linear history | yes |
 | Force pushes | blocked |
@@ -32,8 +32,15 @@ on paper.
 > required. An earlier correction here wrongly said it was not — the API
 > confirms otherwise.
 >
-> A separate real problem remains: there is **no `.github/CODEOWNERS` file**, so
-> the "Require review from Code Owners" setting below has no effect.
+> Two real problems remain, both verified against the live rule on 13 Oct 2026:
+>
+> 1. **No review is required.** `required_approving_review_count` is 0, so a PR
+>    merges once the four status checks pass and conversations are resolved. The
+>    only gate on landing code on `main` is CI, not a human — which is a
+>    deliberate single-maintainer setup, but it should be a decision rather than
+>    an accident documented as the opposite.
+> 2. **There is no `.github/CODEOWNERS` file**, so the "Require review from Code
+>    Owners" setting has no effect.
 
 ## Verify
 
@@ -57,7 +64,7 @@ main
 | Setting | Value | Description |
 |---------|-------|-------------|
 | **Require a pull request before merging** | ✅ Enforced | All changes must go through PR |
-| **Require approvals** | 1 | At least 1 approving review |
+| **Require approvals** | ⚠️ **0** | **No human review is required to merge.** Corrected 13 Oct 2026: this document claimed `1`; `gh api` reports `required_approving_review_count: 0`. An earlier revision of this file asserted branch protection was "enforced, not aspirational", which was true of the checks and not of the review count. |
 | **Dismiss stale PR approvals when new commits are pushed** | ✅ Enforced | Prevents stale approvals |
 | **Require review from Code Owners** | ⚠️ No effect | **No `.github/CODEOWNERS` exists** — add one or turn the setting off |
 | **Require status checks to pass before merging** | ✅ Enforced | **Critical for P0** |
