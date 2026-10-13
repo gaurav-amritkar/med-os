@@ -46,7 +46,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 | 1 | ~~PII encryption at rest (patient demographics, clinical notes)~~ | security | ✅ Done (commit `7c105b6`) |
 | 2 | ~~Return 401 (not 403) for unauthenticated API requests~~ | security/api | ✅ Done (commit `7c105b6`) |
 | 3 | ~~Branch protection: require CI status checks on main~~ | devops | ✅ Enforced |
-| — | `BOOTSTRAP_ADMIN_PASSWORD` not wired into `docker-compose.prod.yml` | devops | 🔴 **Open — blocks first prod boot** |
+| — | ~~`BOOTSTRAP_ADMIN_PASSWORD` not wired into `docker-compose.prod.yml`~~ | devops | ✅ Done (#137) — secret declared and mounted, plus `tools/verify-prod-secrets.sh` in CI |
 | — | `/api/v1/users/me` returns the password hash (#106) | security | 🔴 **Open, P0** |
 
 > **Done (commit `ae92e5c`):** JWT_SECRET required + validated, demo accounts
@@ -161,9 +161,9 @@ Implemented on `main`, superseding the old "the PII key cannot be rotated" posit
 
 ## Suggested working order
 
-1. **Fix the two P0 blockers first** — wire `BOOTSTRAP_ADMIN_PASSWORD` into
-   `docker-compose.prod.yml`, and stop `/api/v1/users/me` leaking the password hash
-   (#106). Neither is large; both block a real deploy.
+1. **One P0 blocker left** — stop `/api/v1/users/me` leaking the password hash
+   (#106). The other blocker, the unwired bootstrap secret, is fixed in #137.
+   The P1 security batch from the readiness review (#134) is #138–#143.
 2. **Then #9 (observability)** — it is the single largest remaining gap and the
    only Phase 3 item genuinely at zero. Metrics, JSON logs and a correlation ID
    are what make the rest operable.

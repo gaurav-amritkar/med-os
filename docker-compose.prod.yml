@@ -143,7 +143,7 @@ services:
       # with no password. There are also no inline defaults: an unset
       # JWT_SECRET or PII_ENCRYPTION_KEY stops startup.
       CORS_ORIGINS: https://${MEDOS_DOMAIN:?MEDOS_DOMAIN must be set}
-    secrets: [db-password, redis-password, jwt-secret, pii-encryption-key, cors-origins]
+    secrets: [db-password, redis-password, jwt-secret, pii-encryption-key, cors-origins, bootstrap-admin-password]
     networks: [medos-private]
     logging: *default-logging
     <<: *default-restart
@@ -212,3 +212,10 @@ secrets:
     file: ${SECRETS_DIR:-./secrets}/pii-encryption-key.txt
   cors-origins:
     file: ${SECRETS_DIR:-./secrets}/cors-origins.txt
+  # Read by backend/entrypoint.sh into BOOTSTRAP_ADMIN_PASSWORD, which
+  # application-prod.yml requires with no default. It was read but never
+  # declared or mounted (#137), so the backend could not start in production.
+  # The bootstrap runner is a no-op once an active admin exists, so this can be
+  # removed after the first successful login.
+  bootstrap-admin-password:
+    file: ${SECRETS_DIR:-./secrets}/bootstrap-admin-password.txt

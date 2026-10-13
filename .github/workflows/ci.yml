@@ -123,6 +123,14 @@ jobs:
       - name: Migration gate self-test
         run: ./tools/test-verify-migrations.sh
 
+      # `docker compose config` validates wiring that exists and says nothing
+      # about wiring that does not. BOOTSTRAP_ADMIN_PASSWORD was read by
+      # backend/entrypoint.sh but never declared or mounted, so the fallback
+      # branch was skipped, the variable stayed unset, and the backend could not
+      # start in production — with a green CI (#137). This closes that class.
+      - name: Verify production secrets are mounted
+        run: ./tools/verify-prod-secrets.sh
+
       # The production descriptor is what an operator deploys, and it is not
       # exercised by any other job. A typo in it would only surface on the
       # production host, so it is validated here on every run.
@@ -137,7 +145,7 @@ jobs:
           mkdir -p "$SECRETS_DIR"
           # Placeholders only. The real files come from the cloud secret manager
           # per ADR-0004; compose validates the wiring, not the values.
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           docker compose -f docker-compose.prod.yml config --quiet
@@ -151,7 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$SECRETS_DIR"
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           model=$(docker compose -f docker-compose.prod.yml config --format json)
@@ -227,7 +235,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$SECRETS_DIR"
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins; do
+          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           docker compose build backend frontend
