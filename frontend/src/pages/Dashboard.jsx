@@ -44,13 +44,15 @@ export default function Dashboard() {
         <p>Welcome back, {user?.fullName || user?.username}. Here is your hospital overview.</p>
       </div>
 
-      <div className="grid-3" style={{ marginBottom: 32 }}>
+      <div className="grid-3 dashboard-stats">
         {loading ? (
-          <div className="stat-card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40, color: 'var(--ink-faint)' }}>
-            Loading analytics...
-          </div>
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="stat-card skeleton skeleton-stat-card" />
+            ))}
+          </>
         ) : statCards.map((s) => (
-          <div key={s.label} className="stat-card">
+          <div key={s.label} className="stat-card" style={{ borderTopColor: s.color }}>
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
             <div className="stat-desc">{s.desc}</div>

@@ -75,14 +75,12 @@ export default function Login() {
         pointerEvents: 'none',
       }} />
 
-      <div className="card" style={{ width: '100%', maxWidth: 420, padding: 40 }}>
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--action)', letterSpacing: '-1px' }}>
-            MED<span style={{ color: 'var(--info)' }}>OS</span>
+      <div className="card login-card">
+        <div className="login-header">
+          <div className="login-wordmark">
+            MED<span>OS</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--ink-faint)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>
-            Hospital Management System v3.0
-          </div>
+          <div className="login-subtitle">Hospital Management System v3.0</div>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -111,14 +109,7 @@ export default function Login() {
           </div>
           <button
             type="submit"
-            className="btn-primary"
-            style={{
-              width: '100%',
-              justifyContent: 'center',
-              padding: 14,
-              fontSize: '1rem',
-              marginTop: 8,
-            }}
+            className="btn-primary login-submit"
             disabled={loading}
           >
             {loading ? 'Authenticating...' : 'Sign In →'}
