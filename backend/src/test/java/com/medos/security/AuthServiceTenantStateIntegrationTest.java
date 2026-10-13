@@ -130,11 +130,26 @@ class AuthServiceTenantStateIntegrationTest {
 
     @Test
     void aUserWithNoTenantSignsInAsABootstrapSession() {
-        staffWithMemberships("bootstrap.user");
+        // Only when the user row says so. Having no membership was once enough to
+        // get a null-tenant admin token, which reads across every hospital — the
+        // same shape a mis-provisioned account has, so it cannot be the signal.
+        User bootstrap = staffWithMemberships("bootstrap.user");
+        bootstrap.setIsSuperAdmin(true);
+        userRepository.saveAndFlush(bootstrap);
 
         LoginResponse response = authService.login(credentials("bootstrap.user"));
 
         assertThat(response.getToken()).isNotBlank();
         assertThat(response.getTenantId()).isNull();
+    }
+
+    @Test
+    void aPlainUserWithNoTenantIsRefused() {
+        staffWithMemberships("orphan.user");
+
+        assertThatThrownBy(() -> authService.login(credentials("orphan.user")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(thrown -> assertThat(((BusinessException) thrown).getStatus().value())
+                        .isEqualTo(403));
     }
 }
