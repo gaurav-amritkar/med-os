@@ -1,0 +1,110 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import Billing from './Billing';
+import { billingApi, patientApi } from '../api';
+import useToastStore from '../store/toastStore';
+
+vi.mock('../api', () => ({
+  patientApi: { list: vi.fn() },
+  billingApi: {
+    getUnbilled: vi.fn(),
+    getInvoices: vi.fn(),
+    createInvoice: vi.fn(),
+    recordPayment: vi.fn(),
+  },
+  userApi: {},
+}));
+
+/**
+ * A charge selection belongs to the patient it was made for.
+ *
+ * <p>`selectedCharges` survived a patient switch, so selecting charges for one
+ * patient and then choosing another posted the *new* patient id with the *old*
+ * charge ids — invoicing the wrong patient. Reachable by ordinary mis-clicking,
+ * and the happy path is fine, so it survives manual testing.
+ */
+const PATIENT_A = { id: 'patient-a', name: 'Asha Rao', uhid: 'UH-0001' };
+const PATIENT_B = { id: 'patient-b', name: 'Bilal Khan', uhid: 'UH-0002' };
+
+const CHARGES_A = [
+  { id: 'charge-a1', chargeType: 'PHARMACY', description: 'Amoxicillin', quantity: 1, amount: 120, gstPercent: 12, totalAmount: 134.4 },
+];
+const CHARGES_B = [
+  { id: 'charge-b1', chargeType: 'ROOM', description: 'Ward bed', quantity: 2, amount: 2000, gstPercent: 12, totalAmount: 4480 },
+];
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <Billing />
+    </MemoryRouter>
+  );
+}
+
+async function pickPatient(user, name) {
+  await user.click(await screen.findByText(name));
+  await waitFor(() => expect(billingApi.getUnbilled).toHaveBeenCalled());
+}
+
+describe('Billing charge selection across a patient switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useToastStore.setState({ toasts: [] });
+    patientApi.list.mockResolvedValue({ data: [PATIENT_A, PATIENT_B] });
+    billingApi.getInvoices.mockResolvedValue({ data: [] });
+    billingApi.getUnbilled.mockImplementation((patientId) =>
+      Promise.resolve({ data: patientId === PATIENT_A.id ? CHARGES_A : CHARGES_B })
+    );
+    billingApi.createInvoice.mockResolvedValue({ data: { invoiceNumber: 'INV-1', totalAmount: 134.4 } });
+  });
+
+  it('drops the selection when the patient changes', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('button', { name: /select all/i }));
+    expect(screen.getByText(/1 charges selected/i)).toBeInTheDocument();
+
+    // Choose the other patient while the selection is still open.
+    await pickPatient(user, PATIENT_B.name);
+
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await waitFor(() => expect(screen.getByText(/charges selected/i)).toBeInTheDocument());
+    expect(screen.getByText(/0 charges selected/i)).toBeInTheDocument();
+  });
+
+  it('never posts one patient id with another patient charge ids', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('button', { name: /select all/i }));
+
+    // Switch patient with the selection still populated, then bill straight
+    // away without re-selecting — the ordinary mis-click.
+    await pickPatient(user, PATIENT_B.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('button', { name: /^generate invoice$/i }));
+
+    // The invariant is about what reaches the ledger, not about whether the
+    // request is made: a correct fix may refuse outright, or may submit only
+    // charges belonging to the patient. Never the other patient's ids.
+    await waitFor(() => {
+      if (billingApi.createInvoice.mock.calls.length > 0) {
+        expect(billingApi.createInvoice.mock.calls[0][0].chargeIds).toBeDefined();
+      }
+    }).catch(() => {});
+
+    const validIds = CHARGES_B.map((c) => c.id);
+    billingApi.createInvoice.mock.calls.forEach(([payload]) => {
+      (payload.chargeIds || []).forEach((id) => {
+        expect(validIds, `posted charge ${id} does not belong to ${payload.patientId}`).toContain(id);
+      });
+    });
+  });
+});
