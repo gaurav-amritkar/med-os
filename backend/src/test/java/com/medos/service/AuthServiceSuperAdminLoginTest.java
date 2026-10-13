@@ -2,7 +2,10 @@ package com.medos.service;
 
 import com.medos.dto.LoginRequest;
 import com.medos.dto.LoginResponse;
+import com.medos.entity.Tenant;
+import com.medos.entity.TenantUser;
 import com.medos.entity.User;
+import com.medos.exception.BusinessException;
 import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import com.medos.security.JwtTokenProvider;
@@ -79,6 +82,12 @@ class AuthServiceSuperAdminLoginTest {
 
     @Test
     void tenantAdminSignInStillUsesTheTenantRole() {
+        UUID tenantId = UUID.randomUUID();
+        Tenant tenant = new Tenant();
+        tenant.setId(tenantId);
+        tenant.setName("Clinic A");
+        tenant.setActive(true);
+
         User hospitalAdmin = User.builder()
                 .id(UUID.randomUUID())
                 .username("hospital-admin")
@@ -87,17 +96,46 @@ class AuthServiceSuperAdminLoginTest {
                 .active(true)
                 .isSuperAdmin(false)
                 .build();
+        TenantUser membership = new TenantUser();
+        membership.setUser(hospitalAdmin);
+        membership.setTenant(tenant);
+        membership.setRole(TenantUser.UserRole.admin);
+        membership.setActive(true);
+
         when(userRepository.findByUsername("hospital-admin")).thenReturn(Optional.of(hospitalAdmin));
         when(passwordEncoder.matches("pw", "$2a$10$hashed")).thenReturn(true);
-        when(tenantUserRepository.findByUserIdWithTenant(hospitalAdmin.getId())).thenReturn(List.of());
-        when(tokenProvider.generateToken(hospitalAdmin.getId(), "hospital-admin", "admin", null))
+        when(tenantUserRepository.findByUserIdWithTenant(hospitalAdmin.getId()))
+                .thenReturn(List.of(membership));
+        when(tokenProvider.generateToken(hospitalAdmin.getId(), "hospital-admin", "admin", tenantId))
                 .thenReturn("jwt-admin");
 
         LoginResponse response = authService.login(request("hospital-admin", "pw"));
 
         assertEquals("admin", response.getRole(),
-                "a regular tenant-admin-less account still falls back to admin, so the new "
-                        + "branch must not swallow its neighbours");
+                "a hospital admin signs in as their tenant role, not as super_admin");
+        assertEquals(tenantId, response.getTenantId(),
+                "and is scoped to that hospital rather than left unscoped");
+    }
+
+    @Test
+    void membershipLessNonSuperAdminIsRefused() {
+        User stray = User.builder()
+                .id(UUID.randomUUID())
+                .username("stray")
+                .passwordHash("$2a$10$hashed")
+                .fullName("Unaffiliated")
+                .active(true)
+                .isSuperAdmin(false)
+                .build();
+        when(userRepository.findByUsername("stray")).thenReturn(Optional.of(stray));
+        when(passwordEncoder.matches("pw", "$2a$10$hashed")).thenReturn(true);
+        when(tenantUserRepository.findByUserIdWithTenant(stray.getId())).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> authService.login(request("stray", "pw")));
+
+        assertEquals(403, ex.getStatus().value());
+        verify(tokenProvider, never()).generateToken(any(), any(), any(), any());
     }
 
     private static LoginRequest request(String username, String password) {

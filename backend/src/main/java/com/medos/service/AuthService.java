@@ -68,15 +68,23 @@ public class AuthService {
             throw new BusinessException(HttpStatus.FORBIDDEN,
                     "Your access is not active. Contact your administrator.");
         }
-        // No membership at all used to be a synthetic admin-with-no-tenant, which made it
-        // impossible to tell a bootstrap supersession apart from a tenant-less account.
-        // The platform super-admin is now an explicit flag on the user row; everything else
-        // with no membership keeps the bootstrap fallback.
-        String roleString = Boolean.TRUE.equals(user.getIsSuperAdmin())
+        boolean superAdmin = Boolean.TRUE.equals(user.getIsSuperAdmin());
+        if (activeMembership == null && !superAdmin) {
+            // No membership and no platform flag. This used to fall through to a
+            // synthetic admin-with-no-tenant, and that token crossed every hospital:
+            // JwtAuthenticationFilter only binds TenantContext when the tenantId claim is
+            // present, and TenantStatementInspector leaves SQL untouched when no tenant is
+            // bound. Each half is defensible; together they handed a stray account the
+            // ability to read every tenant's patients.
+            //
+            // is_super_admin is the explicit way to be a tenant-less admin, so closing
+            // the implicit path does not strand a fresh install or the platform operator.
+            throw new BusinessException(HttpStatus.FORBIDDEN,
+                    "Your account is not linked to any hospital. Contact your administrator.");
+        }
+        String roleString = superAdmin
                 ? "super_admin"
-                : activeMembership == null
-                        ? TenantUser.UserRole.admin.name()
-                        : activeMembership.getRole().name();
+                : activeMembership.getRole().name();
         UUID tenantId = activeMembership == null ? null : activeMembership.getTenant().getId();
         TenantUser.UserRole role = TenantUser.UserRole.valueOf(roleString);
 

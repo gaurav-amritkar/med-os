@@ -2,6 +2,7 @@ package com.medos.service;
 
 import com.medos.dto.LoginRequest;
 import com.medos.dto.LoginResponse;
+import com.medos.entity.Tenant;
 import com.medos.entity.TenantUser;
 import com.medos.entity.User;
 import com.medos.exception.BusinessException;
@@ -37,6 +38,7 @@ class AuthServiceTest {
     @InjectMocks private AuthService authService;
 
     private static final long EXPIRATION_MS = 3600000L;
+    private UUID membershipTenantId;
 
     @BeforeEach
     void setUp() {
@@ -44,6 +46,14 @@ class AuthServiceTest {
         when(rateLimiter.isBlocked(anyString())).thenReturn(false);
     }
 
+    /**
+     * An active user who is a member of an active hospital.
+     *
+     * <p>This used to hand back an empty membership list, which only worked while
+     * login fell back to a synthetic admin-with-no-tenant. That fallback is gone:
+     * a membership-less account is refused unless it is the platform super-admin,
+     * because a null-tenant token reads across every hospital.
+     */
     private User activeUser(String username) {
         User user = User.builder()
                 .id(UUID.randomUUID())
@@ -53,7 +63,18 @@ class AuthServiceTest {
                 .active(true)
                 .specialization("General")
                 .build();
-        lenient().when(tenantUserRepository.findByUserId(user.getId())).thenReturn(List.of());
+        membershipTenantId = UUID.randomUUID();
+        Tenant tenant = new Tenant();
+        tenant.setId(membershipTenantId);
+        tenant.setName("Clinic A");
+        tenant.setActive(true);
+        TenantUser membership = new TenantUser();
+        membership.setUser(user);
+        membership.setTenant(tenant);
+        membership.setRole(TenantUser.UserRole.admin);
+        membership.setActive(true);
+        lenient().when(tenantUserRepository.findByUserIdWithTenant(user.getId()))
+                .thenReturn(List.of(membership));
         return user;
     }
 
@@ -62,7 +83,7 @@ class AuthServiceTest {
         User user = activeUser("admin");
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "$2a$10$hashed")).thenReturn(true);
-        when(tokenProvider.generateToken(user.getId(), "admin", "admin", null))
+        when(tokenProvider.generateToken(eq(user.getId()), eq("admin"), eq("admin"), any()))
                 .thenReturn("jwt-token");
 
         LoginResponse response = authService.login(new LoginRequest() {{

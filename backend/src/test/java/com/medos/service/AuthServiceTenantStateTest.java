@@ -68,12 +68,17 @@ class AuthServiceTenantStateTest {
     }
 
     private User userWithMembership(TenantUser... memberships) {
+        return userWithMembership(false, memberships);
+    }
+
+    private User userWithMembership(boolean superAdmin, TenantUser... memberships) {
         User user = User.builder()
                 .id(UUID.randomUUID())
                 .username("staff")
                 .passwordHash("$2a$10$hashed")
                 .fullName("Staff Member")
                 .active(true)
+                .isSuperAdmin(superAdmin)
                 .build();
         lenient().when(userRepository.findByUsername("staff")).thenReturn(Optional.of(user));
         lenient().when(userRepository.findByEmail("staff")).thenReturn(Optional.empty());
@@ -146,13 +151,30 @@ class AuthServiceTenantStateTest {
 
     @Test
     void aUserWithNoTenantMembershipIsUnaffected() {
-        // Bootstrap/superadmin sessions carry no tenant. Enforcing tenant state
-        // must not lock them out, or a fresh install cannot be administered.
-        userWithMembership();
+        // Bootstrap/platform sessions carry no tenant. Enforcing tenant state must
+        // not lock them out, or a fresh install cannot be administered.
+        //
+        // is_super_admin is what now expresses that. It used to be implied by simply
+        // having no membership, but an account with no membership is also what a
+        // mis-provisioned user looks like, and that account was handed a null-tenant
+        // token that read across every hospital.
+        userWithMembership(true);
 
         LoginResponse response = authService.login(credentials());
 
         assertEquals(null, response.getTenantId());
+        assertEquals(TenantUser.UserRole.super_admin.name(), response.getRole());
+    }
+
+    @Test
+    void aPlainAccountWithNoTenantMembershipIsRefused() {
+        // Same empty membership, but nothing marks it as a platform account.
+        userWithMembership(false);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> authService.login(credentials()));
+
+        assertEquals(403, ex.getStatus().value());
     }
 
     @Test
