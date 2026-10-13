@@ -133,7 +133,7 @@ requirepass ${REDIS_PASSWORD}  # Set in .env.production
 |-------------|-----|---------|-----------------|
 | `medos:login:fail:{username}:{peer}` | 15 min | Login brute-force, per source (5 failures → lockout) | Low - resets on restart |
 | `medos:login:fail:any:{username}` | 15 min | Login brute-force, username-wide (20 failures → lockout) | Low - resets on restart |
-| idempotency keys | varies | Replay protection for `/billing/payments`, `/billing/invoices`, `/pharmacy/dispense` | **Medium - a lost key permits a replayed request** |
+| `idempotency:{tenant}:{user}:{endpoint}:{key}` | 24h completed, 2m in-flight | Replay protection for `/billing/payments`, `/billing/invoices`, `/pharmacy/dispense` | **Medium - a lost key permits a replayed request** |
 
 Two login counters per username. `{peer}` is the **socket** address, never a
 `X-Forwarded-For` value — behind Caddy that is always the proxy, so the per-source
@@ -426,10 +426,21 @@ curl -X POST http://localhost:8080/api/billing/payments \
 ```
 
 ### Operations Notes
-- Keys are automatically expired after 24 hours
-- Monitor Redis memory for idempotency key accumulation
+- Keys are scoped to tenant **and** user. The full key is
+  `idempotency:{tenantId}:{userId}:{endpoint}:{key}` (a platform session with no
+  tenant reads as `platform`). Two hospitals choosing the same client key are
+  independent, which is what stops one receiving another's cached payment.
+- Completed keys expire after **24 hours**. An **in-flight** claim expires after
+  **2 minutes**, so a crashed or killed holder does not strand a client's key.
+- A concurrent request that arrives while another holds the claim gets **409**
+  with a retry message. It must not fall through and execute.
+- A replay returns the **original status code**, not always 200. `Idempotency-Key-Replayed: true`
+  distinguishes it from a fresh call.
+- A failed (non-2xx) request **releases** its claim, so the client can retry.
+- Monitor Redis memory for key accumulation.
 - If Redis is unavailable, requests without idempotency keys will be rejected for configured endpoints
-- To manually clear a key: `redis-cli DEL "idempotency:billing/payments:test-key-123"`
+- To manually clear a key, use its full scoped form, e.g.
+  `redis-cli DEL "idempotency:<tenantId>:<userId>:billing/payments:test-key-123"`
 
 ---
 

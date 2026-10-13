@@ -1,6 +1,7 @@
 package com.medos.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medos.security.TenantContext;
 import com.medos.service.IdempotencyService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,12 +10,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Filter to handle idempotency keys for mutating endpoints.
@@ -60,52 +62,93 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         }
 
         String idempotencyKey = request.getHeader(IDEMPOTENCY_HEADER);
-        
+
         // If no idempotency key provided, reject for configured endpoints
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             log.warn("Missing Idempotency-Key header for {}", path);
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            objectMapper.writeValue(response.getWriter(), 
+            objectMapper.writeValue(response.getWriter(),
                 new IdempotencyErrorResponse("Missing required header: Idempotency-Key"));
             return;
         }
 
-        // Check for existing cached response
-        Optional<Object> cached = idempotencyService.getResponse(getEndpointId(path), idempotencyKey);
-        if (cached.isPresent()) {
-            log.info("Returning cached response for idempotency key on {}", path);
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setHeader(REPLAYED_HEADER, "true");
-            // Void endpoints (e.g. dispense) are cached as an empty-string marker and
-            // replayed as a bare 200; anything else is the stored JSON body.
-            if (!(cached.get() instanceof String cachedBody) || !cachedBody.isEmpty()) {
-                objectMapper.writeValue(response.getWriter(), cached.get());
+        // Scoped to the acting tenant and user, so one hospital's key cannot
+        // collide with another's — the endpoints below return financial records.
+        UUID tenantId = TenantContext.getTenantId().orElse(null);
+        UUID principal = principalName();
+        String endpointId = getEndpointId(path);
+
+        IdempotencyService.Claim claim = idempotencyService.claim(endpointId, idempotencyKey, tenantId, principal);
+
+        if (claim instanceof IdempotencyService.Claim.Replay replay) {
+            log.info("Replaying cached response for idempotency key on {}", path);
+            // The original status, not a blanket 200: a 201 replayed as 200 tells
+            // the client the resource already existed rather than being created.
+            response.setStatus(replay.response().status());
+            if (!replay.response().body().isEmpty()) {
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.setHeader(REPLAYED_HEADER, "true");
+                objectMapper.writeValue(response.getWriter(), replay.response().body());
+            } else {
+                response.setHeader(REPLAYED_HEADER, "true");
             }
+            return;
+        }
+
+        if (claim instanceof IdempotencyService.Claim.InFlight) {
+            // Another request with this key is running. Executing as well is the
+            // double-charge this feature exists to prevent, so refuse and let the
+            // client retry rather than doing it twice.
+            log.info("Concurrent idempotent request in flight on {}", path);
+            response.setStatus(HttpServletResponse.SC_CONFLICT);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            objectMapper.writeValue(response.getWriter(),
+                new IdempotencyErrorResponse(
+                    "A request with this Idempotency-Key is still in progress. Retry shortly."));
             return;
         }
 
         // Wrap response to capture it for caching
         IdempotencyResponseWrapper wrappedResponse = new IdempotencyResponseWrapper(response);
-        
+
         try {
             filterChain.doFilter(request, wrappedResponse);
-            
+
             // Cache successful responses (2xx), including empty bodies so that retrying
             // a void operation (e.g. dispense) replays the success instead of re-executing it
-            if (wrappedResponse.getStatus() >= 200 && wrappedResponse.getStatus() < 300) {
+            int status = wrappedResponse.getStatus();
+            if (status >= 200 && status < 300) {
                 String body = wrappedResponse.getBodyAsString();
-                if (body == null || body.isBlank()) {
-                    idempotencyService.storeResponse(getEndpointId(path), idempotencyKey, EMPTY_BODY);
-                } else {
-                    Object responseObj = objectMapper.readValue(body, Object.class);
-                    idempotencyService.storeResponse(getEndpointId(path), idempotencyKey, responseObj);
-                }
+                idempotencyService.complete(endpointId, idempotencyKey, tenantId, principal,
+                        new IdempotencyService.CachedResponse(
+                                status, body == null || body.isBlank() ? EMPTY_BODY : body));
+            } else {
+                // A failure must not hold the key: the client is entitled to retry
+                // the payment it was legitimately attempting.
+                idempotencyService.release(endpointId, idempotencyKey, tenantId, principal);
             }
         } finally {
             // Copy wrapped response to actual response
             wrappedResponse.copyTo(response);
+        }
+    }
+
+    /**
+     * The acting user, as the JWT principal.
+     *
+     * <p>Used as the second scoping component so two users in one hospital cannot
+     * read each other's cached payment responses either.
+     */
+    private UUID principalName() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(auth.getName());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
