@@ -15,6 +15,7 @@ import com.medos.service.TenantService;
 import com.medos.service.UserService;
 import com.medos.security.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -76,12 +77,28 @@ public class DashboardController {
 
     @PutMapping("/notifications/{id}/read")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> markRead(@PathVariable UUID id) {
-        notificationRepository.findById(id).ifPresent(n -> {
-            n.setRead(true);
-            notificationRepository.save(n);
-        });
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> markRead(@PathVariable UUID id, Authentication auth) {
+        User user = resolveUser(auth);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        // Scoped by recipient. `notifications` is not in the statement inspector's
+        // tenant table set, so nothing else narrows this row: findById(id) let any
+        // signed-in account mutate any notification by iterating ids. The old
+        // ifPresent also answered 200 for a miss, which made the endpoint an
+        // existence oracle, so a non-owned id now reads as 404.
+        //
+        // Deliberately not written as an Optional.map chain through save(): that
+        // collapses to empty when save() yields null, which turns a completed
+        // write into a 404 and hides it.
+        var owned = notificationRepository.findByIdAndRecipientId(id, user.getId());
+        if (owned.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Notification notification = owned.get();
+        notification.setRead(true);
+        notificationRepository.save(notification);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/users/me")
