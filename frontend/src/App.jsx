@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
 import Encounters from './pages/Encounters';
@@ -31,6 +32,7 @@ export default function App() {
 
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -40,17 +42,12 @@ export default function App() {
           <Route path="/patients" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST','BILLING']}><Patients /></ProtectedRoute>} />
           <Route path="/patients/:id" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><Patients /></ProtectedRoute>} />
           <Route path="/encounters" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Encounters /></ProtectedRoute>} />
-          <Route path="/pharmacy" element={<ProtectedRoute roles={['ADMIN','PHARMACIST','DOCTOR']}><Pharmacy /></ProtectedRoute>} />
-          <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Admissions /></ProtectedRoute>} />
-          <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
-          <Route path="/staff" element={<ProtectedRoute roles={['ADMIN']}><Users /></ProtectedRoute>} />
+          <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST']}><Admissions /></ProtectedRoute>} />
+          <Route path="/pharmacy" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST','PHARMACIST']}><Pharmacy /></ProtectedRoute>} />
+          <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST','BILLING']}><Billing /></ProtectedRoute>} />
+          <Route path="/staff" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST']}><Users /></ProtectedRoute>} />
         </Route>
-
-        {/* Dev-only: inspection page for the hand-authored icon set. Stripped
-            from production builds by the import.meta.env.DEV guard. */}
-        {import.meta.env.DEV && <Route path="/icons" element={<IconGallery />} />}
-
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/icons" element={<IconGallery />} />
       </Routes>
     </BrowserRouter>
   );

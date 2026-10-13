@@ -50,6 +50,7 @@
   --urgent-tint: #FEF6EA;
   --normal-tint: #F1F8F4;
   --info-tint: #F0F5FB;
+  --action-tint: #E8F4F6;
 
   --critical-line: #EACBCC;
   --urgent-line: #EBD9BE;
@@ -382,6 +383,93 @@ img, svg { display: block; max-width: 100%; }
   flex-wrap: wrap;
   font-size: var(--t-dense);
   color: var(--ink-muted);
+}
+
+/* Landing page */
+.landing-card {
+  width: 100%;
+  max-width: 480px;
+  padding: var(--s10) !important;
+  box-shadow: var(--shadow-2), 0 0 80px var(--accent-glow) !important;
+  animation: modalIn var(--dur-base) var(--ease);
+}
+
+.landing-header {
+  text-align: center;
+  margin-bottom: var(--s8);
+}
+
+.landing-wordmark {
+  font-size: 2.4rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--action), var(--info));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -1px;
+}
+
+.landing-subtitle {
+  font-size: var(--t-kicker);
+  color: var(--ink-faint);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: var(--s1);
+}
+
+.landing-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--rule);
+}
+
+.landing-footer a {
+  color: var(--ink-faint);
+  font-size: var(--t-dense);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.landing-footer a:hover {
+  color: var(--action);
+}
+
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas);
+  position: relative;
+  overflow: hidden;
+  padding: var(--s6);
+}
+
+.landing-page::before {
+  content: '';
+  position: fixed;
+  top: -20%;
+  left: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--info-tint), transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.landing-page::after {
+  content: '';
+  position: fixed;
+  bottom: -20%;
+  right: -10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, var(--action-tint), transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 /* Separators are generated, not typed, so screen readers do not announce
