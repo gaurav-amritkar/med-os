@@ -1,0 +1,537 @@
+{
+  "capturedFrom": "http://localhost:8080",
+  "viewport": "1440x900",
+  "clockFrozenAt": "2026-10-18T04:00:00.000Z",
+  "areas": [
+    {
+      "dir": "01-authentication",
+      "title": "Authentication & onboarding"
+    },
+    {
+      "dir": "02-dashboard",
+      "title": "Dashboard"
+    },
+    {
+      "dir": "03-patients",
+      "title": "Patients"
+    },
+    {
+      "dir": "04-opd-encounters",
+      "title": "OPD / Encounters"
+    },
+    {
+      "dir": "05-pharmacy",
+      "title": "Pharmacy"
+    },
+    {
+      "dir": "06-ipd-wards",
+      "title": "IPD / Wards"
+    },
+    {
+      "dir": "07-billing",
+      "title": "Billing & invoicing"
+    },
+    {
+      "dir": "08-staff",
+      "title": "Staff"
+    },
+    {
+      "dir": "09-role-access",
+      "title": "Role-based navigation & access"
+    },
+    {
+      "dir": "10-states",
+      "title": "Empty, error and boundary states"
+    }
+  ],
+  "shots": [
+    {
+      "area": "01-authentication",
+      "file": "01-login.png",
+      "title": "Sign in",
+      "caption": "Empty sign-in form. The card also carries the local-setup hint a developer needs on a fresh database.",
+      "route": "/login",
+      "role": "—"
+    },
+    {
+      "area": "01-authentication",
+      "file": "02-login-filled.png",
+      "title": "Sign in — filled",
+      "caption": "A correct username and password, before submission.",
+      "route": "/login",
+      "role": "—"
+    },
+    {
+      "area": "01-authentication",
+      "file": "03-login-rejected.png",
+      "title": "Sign in — rejected",
+      "caption": "A failed sign-in raises a critical toast rather than an inline error. Five failures for the same user and socket peer trigger a 15-minute lockout.",
+      "route": "/login",
+      "role": "—"
+    },
+    {
+      "area": "01-authentication",
+      "file": "04-login-already-signed-in.png",
+      "title": "Already signed in",
+      "caption": "An authenticated visitor who navigates to /login is told so and offered a way forward, instead of being silently redirected.",
+      "route": "/login",
+      "role": "admin"
+    },
+    {
+      "area": "01-authentication",
+      "file": "05-onboarding.png",
+      "title": "Register a facility",
+      "caption": "Tenant self-service. The endpoint is gated behind a platform secret or super_admin, so the form ships with the \"disabled by default\" notice.",
+      "route": "/onboarding",
+      "role": "admin"
+    },
+    {
+      "area": "01-authentication",
+      "file": "06-onboarding-filled.png",
+      "title": "Register a facility — filled",
+      "caption": "A facility and its first admin account, with the modules that organisation would have.",
+      "route": "/onboarding",
+      "role": "admin"
+    },
+    {
+      "area": "01-authentication",
+      "file": "07-onboarding-rejected.png",
+      "title": "Register a facility — rejected",
+      "caption": "Self-serve registration is off by default, so the form explains what to do instead of showing a raw \"authentication required\".",
+      "route": "/onboarding",
+      "role": "admin"
+    },
+    {
+      "area": "02-dashboard",
+      "file": "01-dashboard-admin.png",
+      "title": "Dashboard — admin",
+      "caption": "Six stat cards over quick actions and recent notifications. The numbers come from /api/v1/dashboard, which is filtered by role.",
+      "route": "/dashboard",
+      "role": "admin"
+    },
+    {
+      "area": "08-staff",
+      "file": "01-roster.png",
+      "title": "Staff roster",
+      "caption": "Everyone who can sign in to this hospital, each with a per-hospital role, access toggle and password state.",
+      "route": "/staff",
+      "role": "admin"
+    },
+    {
+      "area": "08-staff",
+      "file": "02-add-staff.png",
+      "title": "Add staff",
+      "caption": "The temporary password is a shared secret until its owner changes it, so the form says so directly.",
+      "route": "/staff",
+      "role": "admin"
+    },
+    {
+      "area": "08-staff",
+      "file": "03-add-staff-validation.png",
+      "title": "Add staff — validation",
+      "caption": "Errors land on the control they describe and are wired with aria-invalid, not only coloured.",
+      "route": "/staff",
+      "role": "admin"
+    },
+    {
+      "area": "08-staff",
+      "file": "04-roster-with-new-staff.png",
+      "title": "Staff roster — new joiner",
+      "caption": "The new account is flagged \"must change password\" until its owner signs in and sets their own.",
+      "route": "/staff",
+      "role": "admin"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "01-catalogue-empty.png",
+      "title": "Pharmacy — empty catalogue",
+      "caption": "A new tenant has no formulary. Note that both call-to-action buttons here are dead: the Add Medicine modal only renders once a medicine is already selected, so nothing on this screen works.",
+      "route": "/pharmacy",
+      "role": "admin"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "02-medicine-selected.png",
+      "title": "Pharmacy — medicine selected",
+      "caption": "Selecting a medicine opens its batches. Nothing is received against it yet. This is also the state that makes the Add Medicine modal reachable at all.",
+      "route": "/pharmacy",
+      "role": "admin"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "03-add-stock.png",
+      "title": "Receive stock",
+      "caption": "A stock-in is a batch with an expiry, so FEFO has something to order on.",
+      "route": "/pharmacy",
+      "role": "admin"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "04-batches.png",
+      "title": "Pharmacy — batches",
+      "caption": "Expiry inside 30 days is flagged in red. Dispensing always takes the earliest expiry first, so this ordering is the FEFO order.",
+      "route": "/pharmacy",
+      "role": "admin"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "05-add-medicine.png",
+      "title": "Add a medicine",
+      "caption": "Catalogue master data. Keywords are what the AI advisor later matches a diagnosis against. Note this form only renders once a medicine is already selected.",
+      "route": "/pharmacy",
+      "role": "admin"
+    },
+    {
+      "area": "02-dashboard",
+      "file": "02-dashboard-reception.png",
+      "title": "Dashboard — receptionist",
+      "caption": "The same dashboard component. What changes by role is the navigation rail and the greeting, not the layout.",
+      "route": "/dashboard",
+      "role": "receptionist"
+    },
+    {
+      "area": "03-patients",
+      "file": "01-list.png",
+      "title": "Patient list",
+      "caption": "Every registered patient with UHID, DPDP consent state and outstanding balance. Rows open the profile; the list is paginated.",
+      "route": "/patients",
+      "role": "receptionist"
+    },
+    {
+      "area": "03-patients",
+      "file": "02-register-empty.png",
+      "title": "Register a patient",
+      "caption": "Name, age, phone and DPDP consent are the required minimum.",
+      "route": "/patients",
+      "role": "receptionist"
+    },
+    {
+      "area": "03-patients",
+      "file": "03-register-filled.png",
+      "title": "Register a patient — filled",
+      "caption": "DPDP consent reveals the purpose field, so the patient can see what they agreed to.",
+      "route": "/patients",
+      "role": "receptionist"
+    },
+    {
+      "area": "03-patients",
+      "file": "04-register-success.png",
+      "title": "Patient registered",
+      "caption": "The toast returns the UHID, which is what the patient is called at the counter from then on.",
+      "route": "/patients",
+      "role": "receptionist"
+    },
+    {
+      "area": "02-dashboard",
+      "file": "03-dashboard-doctor.png",
+      "title": "Dashboard — doctor",
+      "caption": "A clinician sees the same six counters. The rail is shorter: no staff page, no billing.",
+      "route": "/dashboard",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "01-worklist.png",
+      "title": "OPD — patient picker",
+      "caption": "Consultation starts by picking the patient. The list is searchable and paginated so a patient registered a moment ago is reachable.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "02-new-encounter.png",
+      "title": "OPD — new encounter",
+      "caption": "Vitals and the two free-text fields that everything downstream keys off.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "03-active-encounter.png",
+      "title": "OPD — active encounter",
+      "caption": "The encounter is open. Prescribing and the AI advisor both work against this record.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "04-ai-suggestions.png",
+      "title": "OPD — AI medicine advisor",
+      "caption": "Keyword matching against the hospital formulary. Every suggestion is one click from becoming a prescription, and shows why it matched.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "05-prescriptions.png",
+      "title": "OPD — prescriptions",
+      "caption": "Prescriptions name the medicine and its generic, not an id. A pharmacist dispenses from this list and cannot read a UUID.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "06-signoff-worklist.png",
+      "title": "OPD — awaiting sign-off",
+      "caption": "Encounters left open are held here so nothing is lost when a clinician moves on.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "04-opd-encounters",
+      "file": "07-signed.png",
+      "title": "OPD — signed and closed",
+      "caption": "Signing closes the encounter. It stops appearing in the sign-off worklist and shows as signed in the patient profile.",
+      "route": "/encounters",
+      "role": "doctor"
+    },
+    {
+      "area": "06-ipd-wards",
+      "file": "01-ward-board.png",
+      "title": "IPD — ward board",
+      "caption": "Every bed with its occupancy, type and daily rate. Occupancy counters sit above the map.",
+      "route": "/admissions",
+      "role": "doctor"
+    },
+    {
+      "area": "06-ipd-wards",
+      "file": "02-admit.png",
+      "title": "IPD — admit a patient",
+      "caption": "An available bed opens the admit dialog. Patients already admitted are not offered.",
+      "route": "/admissions",
+      "role": "doctor"
+    },
+    {
+      "area": "06-ipd-wards",
+      "file": "03-admitted.png",
+      "title": "IPD — bed occupied",
+      "caption": "The bed now carries the patient and the date they came in, with discharge in place.",
+      "route": "/admissions",
+      "role": "doctor"
+    },
+    {
+      "area": "06-ipd-wards",
+      "file": "04-discharge.png",
+      "title": "IPD — discharge",
+      "caption": "Room charges are calculated and posted to the billing ledger on discharge.",
+      "route": "/admissions",
+      "role": "doctor"
+    },
+    {
+      "area": "06-ipd-wards",
+      "file": "05-discharged.png",
+      "title": "IPD — bed released",
+      "caption": "Discharge frees the bed and posts the stay to billing.",
+      "route": "/admissions",
+      "role": "doctor"
+    },
+    {
+      "area": "02-dashboard",
+      "file": "04-dashboard-pharmacist.png",
+      "title": "Dashboard — pharmacist",
+      "caption": "A pharmacist reaches pharmacy and the ledger, and nothing clinical.",
+      "route": "/dashboard",
+      "role": "pharmacist"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "06-pending-rx.png",
+      "title": "Pharmacy — pending prescriptions",
+      "caption": "Prescriptions waiting to be handed over, named by medicine rather than id.",
+      "route": "/pharmacy",
+      "role": "pharmacist"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "07-dispense.png",
+      "title": "Pharmacy — dispense",
+      "caption": "Dispensing states the two side effects up front: FEFO deduction from the earliest batch, and a charge posted to the patient ledger.",
+      "route": "/pharmacy",
+      "role": "pharmacist"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "08-dispensed.png",
+      "title": "Pharmacy — dispensed",
+      "caption": "The prescription leaves the pending list and the stock movement is written to the ledger.",
+      "route": "/pharmacy",
+      "role": "pharmacist"
+    },
+    {
+      "area": "05-pharmacy",
+      "file": "09-ledger.png",
+      "title": "Pharmacy — stock ledger",
+      "caption": "Every movement in and out, with the reference it belongs to. Outflows are the ones a discrepancy investigation starts from.",
+      "route": "/pharmacy",
+      "role": "pharmacist"
+    },
+    {
+      "area": "02-dashboard",
+      "file": "05-dashboard-billing.png",
+      "title": "Dashboard — billing",
+      "caption": "Billing reaches the ledger and the patient list, and nothing clinical.",
+      "route": "/dashboard",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "01-no-patient-selected.png",
+      "title": "Billing — no patient selected",
+      "caption": "The ledger is per patient, so nothing is shown until one is chosen.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "02-unbilled-charges.png",
+      "title": "Billing — unbilled charges",
+      "caption": "Pharmacy dispenses and room charges post here automatically. Nothing is typed twice.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "03-generate-invoice.png",
+      "title": "Billing — generate invoice",
+      "caption": "Selection happens through \"Select All\" only — the charge rows are behind the modal overlay, so a patient with mixed charge types can only be invoiced in full.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "04-invoice-created.png",
+      "title": "Billing — invoice issued",
+      "caption": "A GST invoice is raised and the selected charges leave the unbilled list.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "05-record-payment.png",
+      "title": "Billing — record payment",
+      "caption": "The dialog opens pre-filled with the outstanding balance; partial payments are the normal case.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "07-billing",
+      "file": "06-invoice-paid.png",
+      "title": "Billing — settled",
+      "caption": "Settled invoices show a zero balance and no payment action.",
+      "route": "/billing",
+      "role": "billing"
+    },
+    {
+      "area": "03-patients",
+      "file": "05-list-populated.png",
+      "title": "Patient list — after the journeys",
+      "caption": "Outstanding balances are populated by the pharmacy dispense and the IPD stay above.",
+      "route": "/patients",
+      "role": "admin"
+    },
+    {
+      "area": "03-patients",
+      "file": "06-profile-encounters.png",
+      "title": "Patient profile — encounters",
+      "caption": "One view of the patient: consent state, outstanding balance, and their visit history.",
+      "route": "/patients/:id",
+      "role": "admin"
+    },
+    {
+      "area": "03-patients",
+      "file": "07-profile-invoices.png",
+      "title": "Patient profile — invoices",
+      "caption": "The same invoice ledger billing works from, read-only here.",
+      "route": "/patients/:id",
+      "role": "admin"
+    },
+    {
+      "area": "03-patients",
+      "file": "08-profile-history.png",
+      "title": "Patient profile — history",
+      "caption": "A tab that says it is not built yet, rather than rendering an empty table that reads as \"no history\".",
+      "route": "/patients/:id",
+      "role": "admin"
+    },
+    {
+      "area": "10-states",
+      "file": "01-search-no-results.png",
+      "title": "Patients — no search results",
+      "caption": "A search that matched nothing says so plainly.",
+      "route": "/patients",
+      "role": "admin"
+    },
+    {
+      "area": "10-states",
+      "file": "02-patients-load-error.png",
+      "title": "Patients — server failure",
+      "caption": "A server fault is reported as a server fault. Reporting it as \"no patients found\" would tell a clinician the record does not exist.",
+      "route": "/patients",
+      "role": "admin"
+    },
+    {
+      "area": "09-role-access",
+      "file": "01-doctor-blocked-from-staff.png",
+      "title": "Access control — doctor opening /staff",
+      "caption": "A doctor who types the staff URL is sent to their dashboard. The page never renders, so nothing leaks before the redirect.",
+      "route": "/staff",
+      "role": "doctor"
+    },
+    {
+      "area": "10-states",
+      "file": "03-unknown-route.png",
+      "title": "Unknown route",
+      "caption": "An unrecognised path is caught by the router and sent home rather than rendering a blank page.",
+      "route": "/*",
+      "role": "doctor"
+    },
+    {
+      "area": "09-role-access",
+      "file": "02-nav-admin.png",
+      "title": "Navigation rail — admin",
+      "caption": "Admin — every module, including staff.",
+      "route": "/dashboard",
+      "role": "admin"
+    },
+    {
+      "area": "09-role-access",
+      "file": "03-nav-doctor.png",
+      "title": "Navigation rail — doctor",
+      "caption": "Doctor — clinical modules only. No staff, no billing.",
+      "route": "/dashboard",
+      "role": "doctor"
+    },
+    {
+      "area": "09-role-access",
+      "file": "04-nav-nurse.png",
+      "title": "Navigation rail — nurse",
+      "caption": "Nurse — patients, encounters and admissions.",
+      "route": "/dashboard",
+      "role": "nurse"
+    },
+    {
+      "area": "09-role-access",
+      "file": "05-nav-receptionist.png",
+      "title": "Navigation rail — receptionist",
+      "caption": "Receptionist — patients and appointments.",
+      "route": "/dashboard",
+      "role": "reception"
+    },
+    {
+      "area": "09-role-access",
+      "file": "06-nav-pharmacist.png",
+      "title": "Navigation rail — pharmacist",
+      "caption": "Pharmacist — pharmacy and the ledger.",
+      "route": "/dashboard",
+      "role": "pharmacy"
+    },
+    {
+      "area": "09-role-access",
+      "file": "07-nav-billing.png",
+      "title": "Navigation rail — billing",
+      "caption": "Billing — billing and patients.",
+      "route": "/dashboard",
+      "role": "billing"
+    }
+  ]
+}
