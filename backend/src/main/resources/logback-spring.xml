@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Wave-0 observability: every log line carries the request correlation id
+  (RequestCorrelationFilter binds it to the MDC under the key `requestId`).
+
+  Default: human-readable text for dev consoles. Containers that want
+  machine-parseable output run with SPRING_PROFILES_ACTIVE including
+  `json-logs`: one JSON object per line (LogstashEncoder), MDC included
+  (requestId), app pinned via customFields for cross-service searches.
+-->
+<configuration>
+  <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="medos-backend"/>
+
+  <springProfile name="!json-logs">
+    <appender name="TEXT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{ISO8601} %-5level [req:%X{requestId:-none}] %logger{36} - %msg%n</pattern>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="TEXT"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="json-logs">
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <customFields>{"app":"${appName}"}</customFields>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="JSON"/>
+    </root>
+  </springProfile>
+</configuration>

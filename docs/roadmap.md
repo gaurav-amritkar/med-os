@@ -183,7 +183,7 @@ cannot start without. Its five items, verified against the working tree:
 | Consent decoupled from registration | ✅ **Closed** (2026-10-22) | `PatientService` no longer throws when `dpdpConsent` is absent; the DTO field is optional and the stored flag mirrors it (no fabricated consent event). Pinned by `PatientServiceTest.registerPatient_withoutConsent_registersAndLeavesNoConsentEvent` and `PatientRegistrationConsentOptionalTest` (400 → 201) |
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
 | Per-tenant DEK rotation | 🔴 **Open** | `TenantKeyHolder.currentGeneration()` hardcodes `1` |
-| Observability (metrics, structured logs, correlation IDs) | 🔴 **Open** | #9 — the only Phase 3 item at zero |
+| Observability (metrics, structured logs, correlation IDs) | 🟡 **First slice landed** (2026-10-22) | Correlation ID filter (`X-Request-Id` → MDC → logback pattern `%X{requestId}`, proxy ids honored only when safe) + Prometheus scrape (`micrometer-registry-prometheus`, `/manage/` + `prometheus` exposed, ADMIN-gate relaxed for it inside the private network) + `json-logs` profile via logstash-logback-encoder. Pinned by `RequestCorrelationFilterTest` (5 specs) and `ObservabilityHttpContractTest` (3 specs). Remaining to close #9 fully: wire `json-logs` into prod containers, define the dashboard/alert thresholds |
 | Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | ✅ **Closed** (2026-10-22) | Built in `frontend/src/components/` with 19 tests (19 vitest specs): `<DataTable>` owns the §3.2 #6–#8 grammar (dense table, `role="alert"` failure ≠ empty state, "Showing X–Y of Z · page i of N" footer with ‹ Prev/Next ›). Adoption follows each page's restyle wave — the design-system ratchet (`src/test/design-system.test.js`) keeps the eight existing page components on their documented inline-style baseline until then |
 
 Wave 0 is followed by Wave 1 (front desk; enquiry/appointments), then clinical
@@ -229,9 +229,15 @@ gate is now the organizing priority._
    `TenantOwned` from `MedicineCatalog` fails it with the named cause. When
    Wave 1 lands, extend `TenantStatementInspector` itself to writes (issue
    #134), not just the guard.
-5. **Observability (#9)** — still the single largest remaining infra gap, and
-   the wave-0 gate expects correlation IDs before 27 modules multiply log
-   surfaces.
+5. **Observability (#9)** ✅ First slice landed (2026-10-22, PR #179): correlation
+   IDs (`X-Request-Id`, MDC-bound, echoed in every log line as `req:<id>`, proxy
+   ids honored when safe), Prometheus scrape at `/manage/prometheus`
+   (network-private, no PII, pinned by `ObservabilityHttpContractTest` — note
+   Boot 3.4+ test autoconfigure flips metrics export off unless
+   `@AutoConfigureObservability` is used), and structured-log JSON via the
+   `json-logs` profile (`logback-spring.xml` + LogstashEncoder). Remaining for
+   full #9 closure: wire `json-logs` into the prod containers + hand HTTP-level
+   request/latency dashboards to an alerting spec.
 6. **Per-tenant DEK rotation** — pair with the `TenantKeyResolver` extraction
    (§C): same file, one design pass covers both.
 7. **Then Wave 1 (front desk)** under the parity spec's wave gates; **then** the
