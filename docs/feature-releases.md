@@ -1,7 +1,7 @@
 # MedOS HMS — Feature Releases: Roadmap & Improvements
 
 Backlog of requested product features, as distinct from the infrastructure and
-release-readiness work tracked in [`NEXT_STEPS.md`](../NEXT_STEPS.md).
+release-readiness work tracked in [`roadmap.md`](roadmap.md).
 
 - **Source:** feature requests from the product owner.
 - **Originally verified against:** `main` @ `417cf0b` (28 Sep 2026).

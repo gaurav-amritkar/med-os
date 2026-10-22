@@ -59,7 +59,7 @@ Constraints and known state (recorded as facts, not to be papered over):
 - Tenant row scoping covers `SELECT` only; writes rely on services setting `tenant_id` explicitly.
 - No observability (no metrics, structured logs, or correlation IDs); CI scans images but not dependencies; no SAST/CodeQL/secret scanning.
 - FHIR R4 and ABDM/ABHA are not implemented. ABDM sandbox credentials and HIE-CM gateway registration are external dependencies that gate that phase regardless of engineering capacity.
-- Out of scope per [ADR-0010](docs/adr/0010-product-module-scope.md): native mobile apps, multi-country tax engines, laboratory analyser instrument drivers, and automated insurance claim adjudication. Payroll, laboratory *information* systems, and insurance claim *lifecycle tracking* are now in scope, having previously been listed as excluded under a citation to ADR-0006 that does not cover product modules.
+- Out of scope per [ADR-0010](adr/0010-product-module-scope.md): native mobile apps, multi-country tax engines, laboratory analyser instrument drivers, and automated insurance claim adjudication. Payroll, laboratory *information* systems, and insurance claim *lifecycle tracking* are now in scope, having previously been listed as excluded under a citation to ADR-0006 that does not cover product modules.
 - Undecided / not yet specified: the mechanics of the software-subscription billing model, and per-hospital DEK rotation.
 
 ## Brand Commitments

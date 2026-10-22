@@ -12,14 +12,16 @@ Build enough repo understanding for accurate edits **without expensive full-repo
 
 ## Read order (minimal)
 1. `README.md` (high-level architecture and domain model).
-2. `NEXT_STEPS.md` (current production-readiness roadmap and priorities).
-3. `PRODUCTION_READINESS_PLAN_gpt5.3codex.md` and `GITHUB_ISSUES_PRODUCTION_READINESS_gpt5.3codex.md` (existing planning artifacts).
-4. `PROJECT_SNAPSHOT.md` (this skill’s compact structure and command map).
+2. `docs/roadmap.md` (current production-readiness roadmap and priorities; all
+   docs now live under `docs/` — see its `docs/README.md` index).
+3. `docs/superpowers/specs/2026-10-19-medworks-parity-design.md` and
+   `docs/adr/0010-product-module-scope.md` (the active design programme).
+4. `PROJECT_SNAPSHOT.md` (this skill's compact structure and command map).
 
 If task is backend-specific, then read only:
 - `backend/pom.xml`
 - targeted files under `backend/src/main/java/com/medos/<area>/...`
-- related migrations under `backend/src/main/resources/db/migration/`
+- related migrations — they live in **`database/migrations/`** (see below)
 
 If task is frontend-specific, then read only:
 - `frontend/package.json`
@@ -38,7 +40,7 @@ Run **smallest relevant checks first**:
 
 ## Repo-specific cautions
 - This repo has active production-hardening work; do not assume old status from memory.
-- Prefer the roadmap in `NEXT_STEPS.md` for prioritization and scope boundaries.
+- Prefer the roadmap in `docs/roadmap.md` for prioritization and scope boundaries.
 - Keep changes surgical; avoid unrelated refactors.
 
 ## Expected output style for MedOS tasks

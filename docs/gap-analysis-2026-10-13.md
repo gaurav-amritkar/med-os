@@ -1,7 +1,7 @@
 # MedOS HMS — Comprehensive Gap Analysis
 **Date:** 2026-10-13  
 **Scope:** `main` branch, all layers — backend security, business logic, data integrity, frontend, infrastructure, observability, and feature completeness  
-**Method:** Cross-referenced `PRODUCTION_READINESS.md`, `docs/production-readiness-review-2026-10-12.md`, `docs/requirements-traceability.md`, `docs/feature-releases.md`, `NEXT_STEPS.md`, nine ADRs, four Architecture Review deep-dives, and direct source inspection  
+**Method:** Cross-referenced `docs/production-readiness.md`, `docs/production-readiness-review-2026-10-12.md`, `docs/requirements-traceability.md`, `docs/feature-releases.md`, `docs/roadmap.md`, nine ADRs, four `docs/architecture-review/` deep-dives, and direct source inspection  
 **Status of fixed items:** Items marked ✅ in earlier docs are excluded unless re-opened by code evidence
 
 > **Reading order:** §1 is the executive summary table; §2–§8 give evidence, impact, and recommended fix for every open gap. Items are tagged P0/P1/P2/P3 and assigned to functional areas (Security, Reliability, Observability, Feature, Architecture, Infra, Frontend).
@@ -156,7 +156,7 @@
 ## §5 Observability gap
 
 ### G15 — Zero observability
-**Evidence:** #9 (`NEXT_STEPS.md:102`) marked "Not Started — genuinely the largest remaining gap". No Micrometer/Prometheus endpoint, no JSON-structured logging appender, no `X-Correlation-Id` middleware.  
+**Evidence:** #9 (`docs/roadmap.md:102`) marked "Not Started — genuinely the largest remaining gap". No Micrometer/Prometheus endpoint, no JSON-structured logging appender, no `X-Correlation-Id` middleware.  
 **Impact:** For a hospital system handling PHI and financial transactions, production incidents cannot be diagnosed. There is no way to know when a multi-tenant isolation query is slow, when a crypto operation fails silently, or whether specific roles are triggering unexpected 500s.  
 **Fix (in priority order):**  
 1. Add `spring-boot-starter-actuator` + Micrometer Prometheus registry; expose `/actuator/prometheus` (internal network only).  
@@ -225,7 +225,7 @@ No `discharge_summaries` table; no corresponding DTO or controller action.
 **Impact:** Audit trail for controlled substances is incomplete; pharmacy compliance fails.
 
 ### G29 — No API versioning plan
-**Evidence:** `NEXT_STEPS.md:104` — "Partial: springdoc wired and ADMIN-gated; no versioning plan". All endpoints are under `/api/v1/` with no strategy for introducing breaking changes.
+**Evidence:** `docs/roadmap.md:104` — "Partial: springdoc wired and ADMIN-gated; no versioning plan". All endpoints are under `/api/v1/` with no strategy for introducing breaking changes.
 
 ---
 
@@ -264,16 +264,16 @@ No `discharge_summaries` table; no corresponding DTO or controller action.
 ## §9 Testing gaps
 
 ### G44 — Zero penetration testing
-**Evidence:** `NEXT_STEPS.md:T3` — "Not Started". OWASP Top 10 not exercised. Given G01–G05 (all independently discovered auth/authz bypasses), a structured pentest is likely to yield more.
+**Evidence:** `docs/roadmap.md:T3` — "Not Started". OWASP Top 10 not exercised. Given G01–G05 (all independently discovered auth/authz bypasses), a structured pentest is likely to yield more.
 
 ### G45 — Redis persistence/failover never tested
-**Evidence:** `NEXT_STEPS.md:T7` — "Not Started". RDB/AOF configuration unverified against restart. Rate limiter and idempotency state would be lost on Redis crash.
+**Evidence:** `docs/roadmap.md:T7` — "Not Started". RDB/AOF configuration unverified against restart. Rate limiter and idempotency state would be lost on Redis crash.
 
 ### G46 — RBAC matrix test missing coverage for users/tenants/onboarding
 **Evidence:** `feature-releases.md §3` — "The endpoint is still absent from the RBAC matrix test, which has no row for users, tenants, or onboarding." `RbacMatrixTest` (which exists) covers only patient/encounter/pharmacy flows.
 
 ### G47 — No end-to-end PII rotation test
-**Evidence:** `NEXT_STEPS.md:T6` — "Partial: key isolation, blind-index independence, versioned ciphertext tests exist; no full encrypt→rotate→decrypt journey." Without this test, G18 (DEK rotation) can be implemented incorrectly without detection.
+**Evidence:** `docs/roadmap.md:T6` — "Partial: key isolation, blind-index independence, versioned ciphertext tests exist; no full encrypt→rotate→decrypt journey." Without this test, G18 (DEK rotation) can be implemented incorrectly without detection.
 
 ### G48 — Unbounded list endpoints
 **Evidence:** `production-readiness-review-2026-10-12.md` — `listPatients(search)` with `Integer.MAX_VALUE`; raw `List` returns on admissions, rooms, unbilled charges, invoices.  
