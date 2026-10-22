@@ -472,11 +472,12 @@ for all four DML shapes.
 **Wave-1 progress tracker.** In-flight, module by module, each with its own
 front-end/compose-verified evidence before the gate can close:
 
-- **Enquiry Desk** — backend landed (PR #183): V7 tables (`enquiries`,
-  `enquiry_status_history`), per-tenant numbering, audited transitions with the
-  trail as record, `/api/v1/enquiries` (RBAC: writes = receptionist/admin;
-  board readable by clinical roles), migration test on real Postgres, seed.
-  Front-end page next (uses the shared `DataTable`/`FilterBar` set).
+- **Enquiry Desk** — ✅ Closed (2026-10-22, PRs #183 + #184): V7 tables
+  (`enquiries`, `enquiry_status_history`), per-tenant numbering, audited
+  transitions with the trail as record, `/api/v1/enquiries` (RBAC: writes =
+  receptionist/admin; board readable by clinical roles), the page on the shared
+  `DataTable`/`CounterRow`/`FilterBar` set (8 vitest specs; design-system ratchet
+  holds — no inline styles), route + nav for ADMIN/RECEPTIONIST, seed.
 | **2 — Clinical core** | EMR 360 (Timeline, SOAP notes, Allergies & Alerts), OPD Desk tabs (Consultation Desk, E-Prescriptions, Diagnostics Orders, Clinical History) | A consultation runs end to end and the record is readable from the EMR |
 | **3 — Inpatient** | IPD & Beds (Bed Matrix, Admit, Ward Rounds, Nursing Station, Reservations), Nursing & MAR | A patient can be admitted, nursed, and discharged with a charting trail |
 | **4 — Diagnostics** | Laboratory, Radiology PACS, Blood Bank | An order placed in OPD is resulted, and a unit can be crossmatched and transfused |

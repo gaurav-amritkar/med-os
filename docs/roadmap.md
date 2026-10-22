@@ -249,13 +249,15 @@ gate is now the organizing priority._
    evidence row), not needed for correctness.
 7. **Then Wave 1 (front desk)** 🟡 In progress (started 2026-10-22, under the
    parity spec's wave gates): the substrate went first — inspector write-scoping
-   (PR #182, G16) — then module by module. **Enquiry Desk** backend landed
-   (PR #183): V7 (`enquiries` + `enquiry_status_history`), per-tenant ENQ
-   numbering, audited status trail as record, `/api/v1/enquiries` with
-   front-desk RBAC (writes receptionist/admin; board readable by clinical
-   roles), migration test on real Postgres, seed. Next: Enquiry Desk page
-   (shared components), then Appointments deepening (calendar, doctor shifts,
-   token queue) and Patients Hub deepening. **Then** the container hardening
+   (PR #182, G16) — then module by module. **Enquiry Desk** ✅ closed (2026-10-22,
+   PRs #183 + #184): backend — V7 (`enquiries` + `enquiry_status_history`),
+   per-tenant ENQ numbering, audited status trail as record, `/api/v1/enquiries`
+   with front-desk RBAC, migration test on real Postgres, seed; frontend — the
+   page on the shared component set with 8 vitest specs (counter rail labels,
+   legal-actions-only lifecycle, modal create/failure retention, note-carrying
+   transitions, empty/alert discipline), route + sidebar for ADMIN/RECEPTIONIST.
+   Next: Appointments deepening (calendar, doctor shifts, token queue) and
+   Patients Hub deepening. **Then** the container hardening
    sweep, API versioning plan (#11), and P3 (needs legal/ops input for
    retention & consent policies).
 
