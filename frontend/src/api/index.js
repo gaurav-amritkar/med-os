@@ -123,3 +123,17 @@ export const dashboardApi = {
   unreadCount: () => client.get('/notifications/unread-count'),
   markRead: (id) => client.put(`/notifications/${id}/read`),
 };
+
+/**
+ * The Appointments board (Wave 1): per-tenant appointments with per-day tokens.
+ */
+export const appointmentApi = {
+  list: (status, doctorId, type, page) =>
+    client.get('/appointments', { params: { status, doctorId, type, page } }).then(unwrapPage),
+  summary: () => client.get('/appointments/summary'),
+  book: (data) => client.post('/appointments', data),
+  checkIn: (id) => client.post(`/appointments/${id}/check-in`),
+  updateStatus: (id, data) => client.post(`/appointments/${id}/status`, data),
+  writeNote: (id, note) => client.post(`/appointments/${id}/note`, note),
+  delete: (id) => client.delete(`/appointments/${id}`),
+};

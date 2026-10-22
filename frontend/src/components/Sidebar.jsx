@@ -35,7 +35,7 @@ const navItems = {
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
-    { to: '/encounters', feature: 'encounters', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
   ],
   pharmacist: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
