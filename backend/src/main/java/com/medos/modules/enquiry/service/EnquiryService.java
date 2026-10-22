@@ -13,6 +13,7 @@ import com.medos.repository.EnquiryStatusHistoryRepository;
 import com.medos.security.CurrentUserProvider;
 import com.medos.security.TenantContext;
 import com.medos.util.AuditLogger;
+import com.medos.util.PerTenantSerial;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -62,17 +63,16 @@ public class EnquiryService {
      * never show an enquiry without its origin row in history), and each
      * numbering attempt is its own transaction so the unique-index conflict
      * from a concurrent sibling rolls back only that attempt, not the caller's
-     * work.
+     * work — the shared {@link PerTenantSerial} policy.
      */
     public EnquiryDTO create(CreateEnquiryRequest request) {
         UUID tenantId = tenant();
         UUID actingUser = currentUserProvider.getCurrentUserId();
         Enquiry.EnquiryType type = parseTypeOrThrow(request.type());
 
-        RuntimeException conflict = null;
-        for (int attempt = 0; attempt < 3; attempt++) {
-            try {
-                return txTemplate.execute(status -> {
+        return PerTenantSerial.assign(txTemplate,
+                enquiryRepository::findMaxEnquiryNo,
+                number -> {
                     Enquiry enquiry = Enquiry.builder()
                             .tenantId(tenantId)
                             .contactName(request.contactName().trim())
@@ -84,9 +84,8 @@ public class EnquiryService {
                             .notes(trimmed(request.notes()))
                             .status(Enquiry.EnquiryStatus.new_enquiry)
                             .createdBy(actingUser)
+                            .enquiryNo(number)
                             .build();
-                    Integer max = enquiryRepository.findMaxEnquiryNo();
-                    enquiry.setEnquiryNo((max == null ? 0 : max) + 1);
                     Enquiry saved = enquiryRepository.saveAndFlush(enquiry);
 
                     historyRepository.save(EnquiryStatusHistory.builder()
@@ -97,14 +96,11 @@ public class EnquiryService {
                             .note(trimmed(request.notes()))
                             .changedBy(actingUser)
                             .build());
+                    auditLogger.log("ENQUIRY_CREATED", "Enquiry", saved.getId().toString(),
+                            null, "type=" + saved.getEnquiryType()
+                                    + ", contact=" + saved.getContactName());
                     return EnquiryDTO.from(saved);
                 });
-            } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                conflict = e;
-            }
-        }
-        throw conflict != null ? conflict
-                : new IllegalStateException("could not assign an enquiry number");
     }
 
     public PageResponse<EnquiryDTO> list(String status, String type, int page, int size) {
