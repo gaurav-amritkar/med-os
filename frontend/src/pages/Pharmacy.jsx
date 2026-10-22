@@ -16,6 +16,32 @@ export default function Pharmacy() {
   const [dispenseRx, setDispenseRx] = useState(null);
   const [dispenseQty, setDispenseQty] = useState(1);
 
+  const [showAddMed, setShowAddMed] = useState(false);
+  const [medForm, setMedForm] = useState({ name: '', genericName: '', keywords: '', unitPrice: '', reorderLevel: 10 });
+
+  const handleAddMedicine = async (e) => {
+    e.preventDefault();
+    try {
+      const { data } = await pharmacyApi.addMedicine({
+        name: medForm.name,
+        genericName: medForm.genericName || undefined,
+        keywords: medForm.keywords || undefined,
+        unitPrice: parseFloat(medForm.unitPrice) || 0,
+        reorderLevel: parseInt(medForm.reorderLevel) || 10,
+        active: true,
+      });
+      setMedicines((prev) => [...prev, data]);
+      addToast(`${data.name} added to the catalogue`, 'success');
+      setShowAddMed(false);
+      setMedForm({ name: '', genericName: '', keywords: '', unitPrice: '', reorderLevel: 10 });
+      // Select it, so the obvious next action — stock it — is already on screen.
+      selectMedicine(data);
+    } catch (err) {
+      const message = err.response?.data?.message || 'Could not add the medicine';
+      addToast(message, 'critical');
+    }
+  };
+
   useEffect(() => {
     pharmacyApi.listMedicines().then(({ data }) => setMedicines(data)).catch(() => {});
     encounterApi.pendingPrescriptions().then(({ data }) => setPendingRx(data || [])).catch(() => {});
@@ -88,6 +114,58 @@ export default function Pharmacy() {
         </div>
       </div>
 
+      {showAddMed && (
+        <div className="modal-overlay" onClick={() => setShowAddMed(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Add Medicine</h2>
+              <button className="btn-ghost btn-sm" onClick={() => setShowAddMed(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddMedicine}>
+              <div className="form-group">
+                <label htmlFor="med-name">Name *</label>
+                <input id="med-name" name="name" value={medForm.name} required
+                  onChange={(e) => setMedForm({ ...medForm, name: e.target.value })}
+                  placeholder="Amoxicillin 500mg" />
+              </div>
+              <div className="form-group">
+                <label htmlFor="med-generic">Generic name</label>
+                <input id="med-generic" value={medForm.genericName}
+                  onChange={(e) => setMedForm({ ...medForm, genericName: e.target.value })}
+                  placeholder="Amoxicillin" />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="med-price">Unit price *</label>
+                  <input id="med-price" name="unitPrice" type="number" step="0.01" min={0} required
+                    value={medForm.unitPrice}
+                    onChange={(e) => setMedForm({ ...medForm, unitPrice: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="med-reorder">Reorder level</label>
+                  <input id="med-reorder" type="number" min={0}
+                    value={medForm.reorderLevel}
+                    onChange={(e) => setMedForm({ ...medForm, reorderLevel: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="med-keywords">Keywords</label>
+                <input id="med-keywords" value={medForm.keywords}
+                  onChange={(e) => setMedForm({ ...medForm, keywords: e.target.value })}
+                  placeholder="amoxy antibiotic" />
+                <small style={{ display: 'block', color: 'var(--ink-faint)', marginTop: 4 }}>
+                  Used to suggest this medicine when prescribing.
+                </small>
+              </div>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
+                <button type="button" className="btn-ghost" onClick={() => setShowAddMed(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Add Medicine</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {dispenseRx && (
         <div className="modal-overlay" onClick={() => setDispenseRx(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -158,6 +236,9 @@ export default function Pharmacy() {
           <div className="card">
             <div className="card-header">
               <h3>Medicine Catalog</h3>
+              <button className="btn-primary btn-sm" onClick={() => setShowAddMed(true)}>
+                + Add Medicine
+              </button>
             </div>
             <input placeholder="Search medicines..." style={{ marginBottom: 12 }}
               onChange={async (e) => {
@@ -170,6 +251,18 @@ export default function Pharmacy() {
                 );
               }} />
             <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {medicines.length === 0 && (
+                <div className="empty-state" style={{ padding: '24px 12px' }}>
+                  <p>No medicines yet</p>
+                  <p style={{ fontSize: '0.78rem', marginTop: 4 }}>
+                    Add one, then you can receive stock against it.
+                  </p>
+                  <button className="btn-primary btn-sm" style={{ marginTop: 12 }}
+                    onClick={() => setShowAddMed(true)}>
+                    Add your first medicine
+                  </button>
+                </div>
+              )}
               {medicines.map((m) => (
                 <button key={m.id} className="btn-ghost"
                   style={{
@@ -192,7 +285,16 @@ export default function Pharmacy() {
           {!selectedMed ? (
             <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
               <div className="empty-state">
-                <p>Select a medicine to view inventory details</p>
+                {medicines.length === 0 ? (
+                  <>
+                    <p>Nothing stocked yet</p>
+                    <p style={{ fontSize: '0.8rem', marginTop: 4 }}>
+                      Add a medicine to the catalogue, then receive stock against it.
+                    </p>
+                  </>
+                ) : (
+                  <p>Select a medicine to view inventory details</p>
+                )}
               </div>
             </div>
           ) : (
@@ -250,6 +352,58 @@ export default function Pharmacy() {
                     {transactions.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--ink-faint)' }}>No transactions</td></tr>}
                   </tbody>
                 </table>
+              )}
+
+              {showAddMed && (
+                <div className="modal-overlay" onClick={() => setShowAddMed(false)}>
+                  <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <h2>Add Medicine</h2>
+                      <button className="btn-ghost btn-sm" onClick={() => setShowAddMed(false)}>✕</button>
+                    </div>
+                    <form onSubmit={handleAddMedicine}>
+                      <div className="form-group">
+                        <label htmlFor="med-name">Name *</label>
+                        <input id="med-name" name="name" value={medForm.name} required
+                          onChange={(e) => setMedForm({ ...medForm, name: e.target.value })}
+                          placeholder="Amoxicillin 500mg" />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="med-generic">Generic name</label>
+                        <input id="med-generic" value={medForm.genericName}
+                          onChange={(e) => setMedForm({ ...medForm, genericName: e.target.value })}
+                          placeholder="Amoxicillin" />
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label htmlFor="med-price">Unit price *</label>
+                          <input id="med-price" type="number" step="0.01" min={0} required
+                            value={medForm.unitPrice}
+                            onChange={(e) => setMedForm({ ...medForm, unitPrice: e.target.value })} />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="med-reorder">Reorder level</label>
+                          <input id="med-reorder" type="number" min={0}
+                            value={medForm.reorderLevel}
+                            onChange={(e) => setMedForm({ ...medForm, reorderLevel: e.target.value })} />
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="med-keywords">Keywords</label>
+                        <input id="med-keywords" value={medForm.keywords}
+                          onChange={(e) => setMedForm({ ...medForm, keywords: e.target.value })}
+                          placeholder="amoxy antibiotic" />
+                        <small style={{ display: 'block', color: 'var(--ink-faint)', marginTop: 4 }}>
+                          Used to suggest this medicine when prescribing.
+                        </small>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
+                        <button type="button" className="btn-ghost" onClick={() => setShowAddMed(false)}>Cancel</button>
+                        <button type="submit" className="btn-primary">Add Medicine</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               )}
 
               {showStockIn && (
