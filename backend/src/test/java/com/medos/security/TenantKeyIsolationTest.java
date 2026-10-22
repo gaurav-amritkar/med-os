@@ -1,6 +1,8 @@
 package com.medos.security;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -35,10 +37,33 @@ class TenantKeyIsolationTest {
     private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-0000-4000-8000-000000000001");
     private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-0000-4000-8000-000000000002");
 
+    /** Whatever resolver was in the factory before this class ran; restored in {@link #restoreStaticsForOtherClasses}. */
+    private static volatile com.medos.security.TenantKeyResolver savedResolver;
+
+    @BeforeAll
+    static void rememberStaticsForOtherClasses() {
+        savedResolver = TenantKeyResolverFactory.isInitialised()
+                ? TenantKeyResolverFactory.get()
+                : null;
+    }
+
     @AfterEach
     void tearDown() {
         TenantKeyResolverFactory.reset();
         TenantContext.clear();
+    }
+
+    /**
+     * The class-level versions of these statics belong to whatever ran before this
+     * class (often a cached Spring context holding the production holder). Leaving
+     * them reset here made later classes order-sensitive, see the fix note in
+     * {@code TenantIsolationTest#seed}. Restore what was running when we started.
+     */
+    @AfterAll
+    static void restoreStaticsForOtherClasses() {
+        if (savedResolver != null) {
+            TenantKeyResolverFactory.setInstance(savedResolver);
+        }
     }
 
     /** Independent implementation, so the test does not assert the code's own arithmetic. */

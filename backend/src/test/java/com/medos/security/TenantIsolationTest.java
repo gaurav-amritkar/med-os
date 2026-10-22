@@ -69,6 +69,17 @@ class TenantIsolationTest {
         // The previous test method may have left a tenant bound to this thread.
         TenantContext.clear();
 
+        // Re-register the holder in the factory. Plain unit tests elsewhere install a
+        // fake resolver or reset the factory; this class boots inside a cached Spring
+        // context, so EncryptionConfig (which wires both) does not re-run, and the
+        // very first encrypt could fail with "TenantKeyResolver is not initialised"
+        // depending on surefire's filesystem-dependent class order. When the holder
+        // is uninitialized a fresh context is being built and EncryptionConfig will
+        // register the real pair itself.
+        if (TenantKeyHolder.isInitialised()) {
+            TenantKeyResolverFactory.setInstance(TenantKeyHolder.get());
+        }
+
         new TransactionTemplate(txManager).executeWithoutResult(
                 status -> entityManager.createNativeQuery("DELETE FROM patients").executeUpdate());
         entityManager.clear();

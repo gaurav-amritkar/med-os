@@ -1,7 +1,9 @@
 package com.medos.security;
 
 import com.medos.util.BlindIndexUtil;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,18 @@ class BlindIndexKeyIndependenceTest {
     private FakeTenantKeyStore store;
     private TenantKeyResolver holder;
 
+    /** Whatever statics ran before this class; restored in {@link #restoreStaticsForOtherClasses}. */
+    private static volatile TenantKeyHolder savedHolder;
+    private static volatile TenantKeyResolver savedResolver;
+
+    @BeforeAll
+    static void rememberStaticsForOtherClasses() {
+        savedHolder = TenantKeyHolder.isInitialised() ? TenantKeyHolder.get() : null;
+        savedResolver = TenantKeyResolverFactory.isInitialised()
+                ? TenantKeyResolverFactory.get()
+                : null;
+    }
+
     @BeforeEach
     void setUp() {
         TenantKeyHolder.reset();
@@ -56,6 +70,24 @@ class BlindIndexKeyIndependenceTest {
     void tearDown() {
         TenantKeyResolverFactory.reset();
         TenantContext.clear();
+    }
+
+    /**
+     * The class-level statics belong to whatever ran before this class (often a
+     * cached Spring context with the production holder). Leaving a fake holder
+     * parked here after the class ended made the next class order-sensitive (see
+     * the fix note in {@code TenantIsolationTest#seed}). Restore what we found.
+     */
+    @AfterAll
+    static void restoreStaticsForOtherClasses() {
+        TenantKeyHolder.reset();
+        if (savedHolder != null) {
+            TenantKeyHolder.setInstance(savedHolder);
+        }
+        TenantKeyResolverFactory.reset();
+        if (savedResolver != null) {
+            TenantKeyResolverFactory.setInstance(savedResolver);
+        }
     }
 
     private String indexWithCurrentSetup() {
