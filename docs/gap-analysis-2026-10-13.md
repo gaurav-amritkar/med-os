@@ -34,9 +34,9 @@
 | G13 | Redis healthcheck leaks password to process list (`-a` flag) | Infra | **P1** | #134/O4 |
 | G14 | Backup/restore runbook never drilled against production target | Infra | **P1** | #134/O5 |
 | G15 | Zero observability: no Prometheus metrics, no structured logs, no correlation IDs | Observability | **P1** | #9 |
-| G16 | `TenantStatementInspector` covers `SELECT` root-FROM only; writes rely on services setting `tenantId` | Architecture | **P1** | #134 |
+| G16 | ~~`TenantStatementInspector` covers `SELECT` root-FROM only; writes rely on services setting `tenantId`~~ | Architecture | ✅ **Fixed** | #182 — inspector scopes UPDATE/DELETE and refuses tenant-table INSERTs that omit `tenant_id` |
 | G17 | Name search decrypts up to 5,000 rows per query in Java; dies past a few thousand patients | Architecture | **P1** | #134 |
-| G18 | Per-tenant DEK rotation not implemented; `currentGeneration()` hardcodes `1` | Architecture | **P1** | ADR-0009 |
+| G18 | ~~Per-tenant DEK rotation not implemented; `currentGeneration()` hardcodes `1`~~ | Architecture | ✅ **Fixed** | #180 — generation-aware resolution, V6 archive, audited `dek_rotation` op |
 | G19 | Blind-index key rotation has no operator surface | Architecture | **P1** | ADR-0009 |
 | G20 | No discharge summary; `dischargePatient` writes only `dischargeDiagnosis` string | Feature | **P2** | #69 |
 | G21 | `lab_orders` table is dead — entity/repo exist, no service/controller, no charges generated | Feature | **P2** | #63 |
@@ -168,10 +168,9 @@
 
 ## §6 Architecture / data-layer gaps
 
-### G16 — `TenantStatementInspector` covers SELECT only
-**Evidence:** `TenantStatementInspector` returns early for anything that is not a `select`, so `INSERT`/`UPDATE`/`DELETE` are unscoped; writes depend on services setting `tenantId` explicitly. (This row originally cited `PRODUCTION_READINESS.md:31-32`; that file has since been rewritten, so the claim is restated here rather than left as a dangling line reference.) `TenantStatementInspector` operates only on `SELECT` root-FROM clauses; there are 14 tables in the allowlist.  
-**Impact:** Any new tenant-owned entity added without updating `TENANT_TABLES` silently escapes row-level scoping. Service layer bugs (forgotten `tenantId` on writes) are invisible at the SQL boundary.  
-**Fix:** Add a startup assertion that every `@Entity` implementing `TenantOwned` has its table name present in `TENANT_TABLES`. Consider a Hibernate event listener that validates `tenantId` on `PreInsertEvent`/`PreUpdateEvent`.
+### G16 — `TenantStatementInspector` covers SELECT only — FIXED (#182, closed 2026-10-22)
+**Evidence:** `TenantStatementInspector` returned early for anything that was not a `select`, so `INSERT`/`UPDATE`/`DELETE` were unscoped; writes depended on services setting `tenantId` explicitly, and service-layer bugs were invisible at the SQL boundary.  
+**Resolution:** The inspector now scopes writes at the same SQL boundary. UPDATE and DELETE on a tenant table get the tenant predicate folded into their top-level WHERE (or become it for a bulk statement — a wide bulk write degrades to tenant-scope, never escapes it), and an INSERT into a tenant table whose column list omits `tenant_id` throws instead of writing an orphan row no read can reach. Hibernate names every mapped column on its own INSERTs, so the guard only fires for foreign SQL. Guarded by `TenantStatementInspectorWriteScopingTest` (10 specs), mutant-verified on both the UPDATE/DELETE path and the INSERT refusal. The entity↔table alignment guard (`TenantWriteScopingGuardTest`, #178) already forces every Wave-1+ entity into `TENANT_TABLES` — with write-scoping live, inclusion in that set is what grants scoping at all boundaries, not just reads.
 
 ### G17 — Name search scalability cliff
 **Evidence:** `PatientService.java:128-140` — blind index matches full names only; fragment search decrypts up to 5,000 rows in Java. With a few thousand patients the query times out.  
