@@ -432,6 +432,31 @@ parity work.**
 | Wave | Content | Gate to exit |
 |---|---|---|
 | **0 — Substrate** | The four known P0s: consent decoupled from registration; `/users/me` stops returning the password hash; per-tenant DEK rotation; observability (metrics, structured logs, correlation IDs). Plus a shared `<DataTable>`, `<CounterRow>`, `<FilterBar>` component set so 27 modules cannot each invent their own grammar. | All four closed with tests. Tenant-scoping test covers every table added from Wave 1 on. |
+
+**Wave-0 design note — DEK rotation (closed 2026-10-22, PR #180).** See §5.4 #4
+below for the mechanism: per-generation archive (V6 `tenant_dek_history`), the
+(current DEK, current generation) pair read as one fact, rotation deliberate,
+named and audited (`key_rotations.op='dek_rotation'`, runbook §7e).
+
+**Wave-0 design note — observability closure (closed 2026-10-22).** The wave
+had two halves: the in-process slice (correlation IDs, scrape endpoint,
+`json-logs` logback profiles) and the *deployment* half — which is what made it
+a wave-0 item rather than a config tidy-up:
+
+- **Wiring is a contract test, not a convention.** `SPRING_PROFILES_ACTIVE:
+  prod,json-logs` in `docker-compose.prod.yml`, pinned by
+  `ObservabilityProdComposeGuardTest`; the JSON format itself is pinned by
+  booting with the profile and parsing a real log line
+  (`ObservabilityJsonLogsProfileTest`). #9's failure mode was never "no
+  dependency" — it was "wired in one file, dropped in another" (see next).
+- **Profile overrides replace, not extend.** `application-prod.yml`'s exposure
+  list silently omitted `prometheus`, so no prod-profile container scraped.
+  Found only by booting a real container; the fix is pinned prose + guard test.
+- **Thresholds are defined, not implied.** Seven alerts (5xx ratio, p95 latency,
+  DB pool pressure, heap, GC pause, login-failure spike, scrape liveness) over
+  the exact metric families this backend exports, promtool-validated, drop-in
+  `tools/observability/prometheus-rules-medos.yml`; definitions and severity
+  contract in `docs/operations.md` "Alert thresholds".
 | **1 — Front desk** | Enquiry Desk, Appointments (+ calendar, doctor shifts, token queue), Patients Hub deepened | Receptionist can run a full day: enquiry → appointment → token → check-in → register |
 | **2 — Clinical core** | EMR 360 (Timeline, SOAP notes, Allergies & Alerts), OPD Desk tabs (Consultation Desk, E-Prescriptions, Diagnostics Orders, Clinical History) | A consultation runs end to end and the record is readable from the EMR |
 | **3 — Inpatient** | IPD & Beds (Bed Matrix, Admit, Ward Rounds, Nursing Station, Reservations), Nursing & MAR | A patient can be admitted, nursed, and discharged with a charting trail |

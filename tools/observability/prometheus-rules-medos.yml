@@ -1,0 +1,108 @@
+# medos-backend alert rules (Wave-0 observability closure).
+#
+# Drop-in for any Prometheus the operator points at the backend container:
+#   prometheus.yml: rule_files: [/etc/prometheus/rules/medos.yml]
+#   docker: mount this file read-only into that path.
+#
+# Thresholds are defined in docs/operations.md "### Alert thresholds"; each rule
+# carries the same annotation text there fights drift. Names are the exact
+# families this backend's /manage/prometheus exports (verified 2026-10-22,
+# Boot 3.5 / Micrometer 1.15): http_server_requests_seconds*,
+# hikaricp_connections*, jvm_*.
+
+groups:
+  - name: medos-backend.traffic
+    rules:
+      # The application answering 5xx in waves is never an application detail:
+      # it means patient-facing requests failed. 2% of request rate for 5m.
+      - alert: MedosBackendErrorRate
+        expr: >
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 1e-9) > 0.02
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "HTTP 5xx rate is over 2% for 5 minutes ({{ $value | humanizePercentage }})"
+          runbook: "docs/operations.md — Alert thresholds, #1"
+
+      # Front-desk responsiveness contract (§3.2): p95 latency. A slow backend
+      # turns the enquiry desk into a queue of waiting patients. 1.5s p95 for
+      # 10m warns before staff complain; above it the desk is degrading.
+      - alert: MedosBackendSlowRequests
+        expr: >
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket[5m]))) > 1.5
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "p95 HTTP latency over 1.5s for 10 minutes ({{ $value }}s)"
+          runbook: "docs/operations.md — Alert thresholds, #2"
+
+  - name: medos-backend.resources
+    rules:
+      # The runbook's DB-exhaustion incident starts exactly here: connections
+      # waiting on the pool. Warn early — it precedes the page handlers by
+      # minutes, and §8 gives the fix (raise max_pool_size, restart).
+      - alert: MedosDbPoolPressure
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels:
+          severity: warn
+        annotations:
+          summary: "DB pool has waiting requests for 2 minutes ({{ $value }} pending)"
+          runbook: "docs/operations.md — Alert thresholds, #3"
+
+      # Heap pressure before the OOM: past 85% the GC runs constantly and
+      # latency degrades before the process dies.
+      - alert: MedosHeapPressure
+        expr: >
+          max by (id) (jvm_memory_used_bytes{area="heap"})
+            / max by (id) (jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "heap usage over 85% of max for 10 minutes"
+          runbook: "docs/operations.md — Alert thresholds, #4"
+
+      # Long GC pauses under load; pairs with MedosHeapPressure.
+      - alert: MedosLongGcPause
+        expr: max_over_time(jvm_gc_pause_seconds_max[5m]) > 1
+        labels:
+          severity: warn
+        annotations:
+          summary: "a GC pause exceeded 1s within 5 minutes"
+          runbook: "docs/operations.md — Alert thresholds, #5"
+
+  - name: medos-backend.security
+    rules:
+      # Authentication brute force / credential stuffing: a wall of 4xx from the
+      # login endpoint. Rate is over the fleet's normal hum (see the doc for why
+      # 20/min): sustained elevated failures here are a security event, and are
+      # also the DPDP §8(5) trail's input.
+      - alert: MedosLoginFailuresSpike
+        expr: >
+          sum(rate(http_server_requests_seconds_count{uri=~".*/login", status=~"4.."}[5m]))
+            * 60 > 20
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "login failures over 20/min for 10 minutes"
+          runbook: "docs/operations.md — Alert thresholds, #6"
+
+  - name: medos-backend.scrape
+    rules:
+      # Least-fancy, most-missed: the backend stopped answering Prometheus.
+      # If nothing scrapes, every other alert in this file cannot fire either —
+      # silence must be treated as an outage, not health.
+      - alert: MedosBackendDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "backend stopped answering the Prometheus scrape for 2 minutes"
+          runbook: "docs/operations.md — Alert thresholds, #7"

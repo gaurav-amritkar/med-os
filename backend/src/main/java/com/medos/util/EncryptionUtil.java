@@ -62,6 +62,17 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
         }
     }
 
+    /** Test-only accessors: format is a process-wide static; tests that swap it must save/restore
+     *  (see EncryptionUtilVersioningTest, whose @BeforeAll/@AfterAll pair is the discipline that
+     *  keeps this poisoning from reappearing under surefire's random order). */
+    static PiiCiphertextFormat currentFormatForTesting() {
+        return format;
+    }
+
+    static void setFormatForTesting(PiiCiphertextFormat replacement) {
+        format = replacement;
+    }
+
     private static synchronized PiiCiphertextFormat format() {
         if (format == null) {
             // Test hook: allows a test to set the key through a system property

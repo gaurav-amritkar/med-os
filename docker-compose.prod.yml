@@ -121,7 +121,12 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      # Wave-0 observability: prod logs ship as one JSON object per line
+      # (logback-spring.xml's json-logs profile, LogstashEncoder, requestId from
+      # MDC included). Dev keeps human-readable text — the profile is a compose
+      # decision, not a code change; guard test: ObservabilityProdComposeGuardTest.
+      # To revert to text logs in an incident: remove json-logs and redeploy.
+      SPRING_PROFILES_ACTIVE: prod,json-logs
       # Platform secret for POST /api/v1/onboarding/register. Deliberately NOT
       # required (`:?`): blank disables tenant provisioning, which is the safe
       # default. Must be passed through explicitly, or the property can never be
