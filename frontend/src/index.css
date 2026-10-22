@@ -1500,3 +1500,104 @@ select[aria-invalid='true'] {
     width: 100%;
   }
 }
+
+/* ============================================================================
+   Shared list-page grammar (Wave 0): CounterRow / FilterBar / DataTable footers
+   ============================================================================ */
+
+/* §3.2 #3 — counter chip row. Labels read as a sentence; values are the datum. */
+.counter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: 0 0 var(--s5);
+  padding: 0;
+  list-style: none;
+}
+
+.counter-chip {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.counter-chip .counter-label {
+  font-size: var(--t-label);
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.counter-chip .counter-value {
+  font-size: var(--t-dense);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.counter-chip .counter-hint {
+  font-size: var(--t-label);
+  color: var(--ink-faint);
+}
+
+/* Semantic value colours — same tokens the badge/tag family uses. */
+.counter-chip[data-tone='success'] .counter-value { color: var(--normal); }
+.counter-chip[data-tone='danger'] .counter-value { color: var(--critical); }
+.counter-chip[data-tone='warning'] .counter-value { color: var(--urgent); }
+.counter-chip[data-tone='info'] .counter-value { color: var(--info); }
+.counter-chip[data-tone='neutral'] .counter-value { color: var(--ink); }
+
+/* §3.2 #5 — filter row: search, module filters, then actions. Inheriting
+ * .search-row's shape so a FilterBar and a hand-rolled search box look alike. */
+.filter-row {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-row > input[type='search'] { max-width: 320px; }
+
+.filter-row .filter-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-left: auto;
+}
+
+/* DataTable-owned table treatment (§3.2 #6–#8). */
+.data-loading {
+  padding: var(--s6);
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+.row-clickable { cursor: pointer; }
+
+.cell-center, th.cell-center { text-align: center; }
+.cell-right, th.cell-right { text-align: right; }
+
+.cell-mono {
+  font-family: var(--font-mono);
+  color: var(--action);
+}
+
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--s4);
+  gap: var(--s3);
+}
+
+.table-footer .table-footer-meta {
+  font-size: var(--t-label);
+  color: var(--ink-faint);
+}
+
+.table-footer .table-footer-buttons {
+  display: flex;
+  gap: var(--s2);
+}
