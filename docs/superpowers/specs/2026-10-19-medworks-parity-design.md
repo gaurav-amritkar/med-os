@@ -468,6 +468,15 @@ is what makes adjacency to `TENANT_TABLES` the only step to register a new table
 for all four DML shapes.
 
 | **1 — Front desk** | Enquiry Desk, Appointments (+ calendar, doctor shifts, token queue), Patients Hub deepened | Receptionist can run a full day: enquiry → appointment → token → check-in → register |
+
+**Wave-1 progress tracker.** In-flight, module by module, each with its own
+front-end/compose-verified evidence before the gate can close:
+
+- **Enquiry Desk** — backend landed (PR #183): V7 tables (`enquiries`,
+  `enquiry_status_history`), per-tenant numbering, audited transitions with the
+  trail as record, `/api/v1/enquiries` (RBAC: writes = receptionist/admin;
+  board readable by clinical roles), migration test on real Postgres, seed.
+  Front-end page next (uses the shared `DataTable`/`FilterBar` set).
 | **2 — Clinical core** | EMR 360 (Timeline, SOAP notes, Allergies & Alerts), OPD Desk tabs (Consultation Desk, E-Prescriptions, Diagnostics Orders, Clinical History) | A consultation runs end to end and the record is readable from the EMR |
 | **3 — Inpatient** | IPD & Beds (Bed Matrix, Admit, Ward Rounds, Nursing Station, Reservations), Nursing & MAR | A patient can be admitted, nursed, and discharged with a charting trail |
 | **4 — Diagnostics** | Laboratory, Radiology PACS, Blood Bank | An order placed in OPD is resulted, and a unit can be crossmatched and transfused |

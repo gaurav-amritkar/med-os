@@ -241,3 +241,31 @@ INSERT INTO notifications (id, recipient_id, role_target, type, title, message, 
 ('00000000-0000-4000-8000-000000000905', NULL, 'doctor', 'info', 'OPD Queue Update', '3 patients are waiting in the OPD queue.', '/encounters', FALSE, NOW() - INTERVAL '15 minutes'),
 ('00000000-0000-4000-8000-000000000906', '00000000-0000-4000-8000-000000000101', 'admin', 'warning', 'Expiring Stock', '5 medicine batches expiring within 30 days.', '/pharmacy', TRUE, NOW() - INTERVAL '1 day')
 ON CONFLICT (id) DO NOTHING;
+
+-- ---------------------------------------------------------------- enquiries (Wave 1: Enquiry Desk)
+-- Front-desk pre-patient contacts. Plaintext business-card fields; the status
+-- trail mirrors what the service writes on real transitions.
+INSERT INTO enquiries (id, tenant_id, enquiry_no, contact_name, contact_phone, contact_email,
+                       enquiry_type, department, reason, status, notes, created_at) VALUES
+('00000000-0000-4000-8000-000000000911', '00000000-0000-4000-8000-000000000001', 1, 'Anita Sharma',
+ '+91 98765 11111', 'anita.sharma@example.com', 'appointment', 'Cardiology',
+ 'Wants a cardiology consultation, referred by a GP', 'new_enquiry', NULL, NOW() - INTERVAL '20 minutes'),
+('00000000-0000-4000-8000-000000000912', '00000000-0000-4000-8000-000000000001', 2, 'Ravi Menon',
+ '+91 98765 22222', NULL, 'general', NULL, 'Asked for a full health check-up price list',
+ 'follow_up', '12-Oct: spoke to him, call back Friday', NOW() - INTERVAL '1 day'),
+('00000000-0000-4000-8000-000000000913', '00000000-0000-4000-8000-000000000001', 3, 'Prema Iyer',
+ '+91 98765 33333', NULL, 'admission', 'General Medicine', 'Father needs elective admission next week',
+ 'new_enquiry', NULL, NOW() - INTERVAL '2 hours'),
+('00000000-0000-4000-8000-000000000914', '00000000-0000-4000-8000-000000000001', 4, 'Joseph Verghese',
+ '+91 98765 44444', NULL, 'pharmacy', 'Pharmacy', 'Medicine availability enquiry for a prescription',
+ 'converted', 'Walked in and registered', NOW() - INTERVAL '3 days')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO enquiry_status_history (id, tenant_id, enquiry_id, from_status, to_status, note, changed_by, changed_at) VALUES
+('00000000-0000-4000-8000-000000000951', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000911', NULL, 'new_enquiry', NULL, '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '20 minutes'),
+('00000000-0000-4000-8000-000000000952', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000912', NULL, 'new_enquiry', NULL, '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '1 day'),
+('00000000-0000-4000-8000-000000000953', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000912', 'new_enquiry', 'follow_up', 'spoke to him, call back Friday', '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '4 hours'),
+('00000000-0000-4000-8000-000000000954', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000913', NULL, 'new_enquiry', NULL, '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '2 hours'),
+('00000000-0000-4000-8000-000000000955', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000914', NULL, 'new_enquiry', NULL, '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '3 days'),
+('00000000-0000-4000-8000-000000000956', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000914', 'new_enquiry', 'converted', 'Walked in and registered', '00000000-0000-4000-8000-000000000105', NOW() - INTERVAL '2 days')
+ON CONFLICT (id) DO NOTHING;
