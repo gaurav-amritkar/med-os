@@ -28,6 +28,11 @@ public class TenantStatementInspector implements StatementInspector {
             "admissions"
     );
 
+    /** For {@code TenantWriteScopingGuardTest} to verify the entity↔table alignment. */
+    static Set<String> tenantTables() {
+        return TENANT_TABLES;
+    }
+
     @Override
     public String inspect(String sql) {
         if (sql == null || !sql.regionMatches(true, 0, "select", 0, 6)) {
