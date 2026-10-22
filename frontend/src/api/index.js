@@ -104,6 +104,19 @@ export const billingApi = {
   getPayments: (invoiceId) => client.get(`/billing/invoices/${invoiceId}/payments`),
 };
 
+/**
+ * The Enquiry Desk (Wave 1): front-desk pre-patient contacts. Writes are
+ * front-desk authority (receptionist/admin) and the board is readable by the
+ * clinical roles, so the route gate mirrors that.
+ */
+export const enquiryApi = {
+  list: (status, type, page) =>
+    client.get('/enquiries', { params: { status, type, page } }).then(unwrapPage),
+  summary: () => client.get('/enquiries/summary'),
+  create: (data) => client.post('/enquiries', data),
+  updateStatus: (id, data) => client.post(`/enquiries/${id}/status`, data),
+};
+
 export const dashboardApi = {
   dashboard: () => client.get('/dashboard'),
   notifications: (unreadOnly) => client.get('/notifications', { params: { unreadOnly } }),

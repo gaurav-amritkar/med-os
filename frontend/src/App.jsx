@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
+import EnquiryDesk from './pages/EnquiryDesk';
 import Encounters from './pages/Encounters';
 import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/encounters" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Encounters /></ProtectedRoute>} />
           <Route path="/pharmacy" element={<ProtectedRoute roles={['ADMIN','PHARMACIST','DOCTOR']}><Pharmacy /></ProtectedRoute>} />
           <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Admissions /></ProtectedRoute>} />
+          <Route path="/enquiries" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST']}><EnquiryDesk /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
           <Route path="/staff" element={<ProtectedRoute roles={['ADMIN']}><Users /></ProtectedRoute>} />
         </Route>

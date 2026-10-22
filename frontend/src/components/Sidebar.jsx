@@ -11,6 +11,7 @@ const navItems = {
   admin: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
+    { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
@@ -33,6 +34,7 @@ const navItems = {
   receptionist: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
+    { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
     { to: '/encounters', feature: 'encounters', label: 'Appointments', icon: 'encounters' },
   ],
   pharmacist: [
