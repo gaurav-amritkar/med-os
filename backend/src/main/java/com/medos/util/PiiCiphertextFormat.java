@@ -80,15 +80,27 @@ public class PiiCiphertextFormat {
     /**
      * A resolver that delegates to the tenant-aware {@code TenantKeyHolder}.
      *
-     * <p>The generation argument is honoured only when the tenant is actually at that
-     * generation; otherwise the holder's current key is used. This is what lets a
-     * partially-rotated tenant read, while a value from an unknown generation still
-     * fails loudly in {@link #decrypt} rather than silently opening with the wrong key.
+     * <p>The generation argument is honoured, not ignored: the tenant's current
+     * generation resolves through the normal path (the same key new writes use),
+     * and a superseded generation resolves through the rotation archive, so
+     * ciphertext labelled {@code kv1.d<N>:} keeps decrypting after the tenant moved
+     * to N+1. A generation that was never issued resolves to null, which decrypt
+     * turns into a loud {@code UnknownGenerationException} — never into a
+     * plausible-but-wrong read.
      */
     public static DekResolver tenantResolver() {
         return generation -> {
             var holder = com.medos.security.TenantKeyResolverFactory.get();
-            byte[] dek = holder.resolveDek(null);
+            Integer current = null;
+            try {
+                current = holder.currentGeneration();
+            } catch (RuntimeException ignored) {
+                // A yet-keyless tenant has no generation; fall through to the null
+                // resolution, which encrypt refuses loudly below.
+            }
+            byte[] dek = (current != null && current == generation)
+                    ? holder.resolveDek(null)
+                    : holder.dekForGenerationOrNull(null, generation);
             return dek == null ? null : new javax.crypto.spec.SecretKeySpec(dek, "AES");
         };
     }
@@ -257,11 +269,17 @@ public class PiiCiphertextFormat {
     /**
      * The generation new writes should use.
      *
-     * <p>Derived from the resolver by asking for generation 1 and stepping up, which
-     * is deliberately conservative: until #86 supplies per-tenant DEKs there is one
-     * generation, and guessing a higher one would write data no key can read.
+     * <p>An explicit {@code writeGenerationSupplier} wins — that is the tenant-aware
+     * path, because the current generation is per tenant and must answer for the
+     * acting tenant at write time, not once at startup. Without a supplier the
+     * explicit {@code writeGeneration} applies, then this conservative probe: until
+     * rotation-aware resolution is wired there is one generation, and guessing a
+     * higher one would write data no key can read.
      */
     private int currentGenerationForWrite() {
+        if (writeGenerationSupplier != null) {
+            return writeGenerationSupplier.getAsInt();
+        }
         Integer parsed = currentGeneration();
         if (parsed != null) {
             return parsed;
@@ -280,10 +298,23 @@ public class PiiCiphertextFormat {
 
     private static final int MAX_PROBE_GENERATION = 64;
     private Integer writeGeneration;
+    private java.util.function.IntSupplier writeGenerationSupplier;
 
     /** Set the generation used for new writes. Default 1. */
     public PiiCiphertextFormat withWriteGeneration(int generation) {
         this.writeGeneration = generation;
+        return this;
+    }
+
+    /**
+     * Supply the write generation per call. For the tenant-aware path this is the
+     * acting tenant's current DEK generation, so a write is always labelled with the
+     * generation whose key encrypts it — including across a concurrent rotation,
+     * where a label and a key are then read as one pair from the store, never as
+     * two independent facts read at different moments.
+     */
+    public PiiCiphertextFormat withWriteGenerationSupplier(java.util.function.IntSupplier supplier) {
+        this.writeGenerationSupplier = supplier;
         return this;
     }
 }

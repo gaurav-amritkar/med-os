@@ -269,6 +269,84 @@ class PiiKeyRotationRunnerTest {
                 .hasMessageContaining("--rotate-everything");
     }
 
+    @Test
+    @DisplayName("dek-rotate must name its tenant and its operator")
+    void dekRotateRequiresTenantAndOperator() throws Exception {
+        assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments("--dek-rotate")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("--tenant-id");
+
+        verifyNoInteractions(rotations);
+        assertThat(shutdowns).isZero();
+
+        UUID tenant = store.addTenant();
+        assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments(
+                "--dek-rotate", "--tenant-id=" + tenant)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("--initiated-by");
+
+        verifyNoInteractions(rotations);
+        assertThat(shutdowns).isZero();
+    }
+
+    @Test
+    @DisplayName("dek-rotate refuses a tenant the store has no material for")
+    void dekRotateRefusesUnknownTenant() throws Exception {
+        // Deliberately no addTenant(): the id is plausible but the store has nothing,
+        // and a rotation that rotates nothing is not what an operator asked for.
+        assertThatThrownBy(() -> runner.run(new DefaultApplicationArguments(
+                "--dek-rotate", "--tenant-id=" + UUID.randomUUID(), "--initiated-by=ops")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No stored key material");
+
+        verifyNoInteractions(rotations);
+    }
+
+    @Test
+    @DisplayName("dek-rotate rotates the named tenant and writes the DPDP audit row")
+    void dekRotateRotatesAndWritesAuditRow() throws Exception {
+        UUID tenant = store.addTenant();
+        TenantKeyResolver savedResolver = TenantKeyResolverFactory.isInitialised()
+                ? TenantKeyResolverFactory.get() : null;
+        // The holder does the actual key work (it owns the KEK); the store here proves
+        // the runner checks the tenant exists before touching anything.
+        TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(b64(store.currentKek()));
+        TenantKeyResolverFactory.setInstance(holder);
+        TenantKeyHolder.setInstance(holder);
+        try {
+            // Establish generation 1 first (rotating a keyless tenant creates it).
+            holder.resolveDek(tenant);
+
+            org.mockito.ArgumentCaptor<KeyRotation> audit =
+                    org.mockito.ArgumentCaptor.forClass(KeyRotation.class);
+            new PiiKeyRotationRunner(store, new KeyRewrapService(store, rotations),
+                    store.currentKek(), () -> shutdowns++, Map.of(), rotations)
+                    .run(new DefaultApplicationArguments(
+                            "--dek-rotate", "--tenant-id=" + tenant, "--initiated-by=ops-admin"));
+
+            // Two saves, one rotation: the in_progress row and the completed row are
+            // both part of the §8(5) evidence (a run that vanished mid-flight must not
+            // look like it never started).
+            verify(rotations, org.mockito.Mockito.times(2)).save(audit.capture());
+            KeyRotation finalRow = audit.getAllValues().get(1);
+            assertThat(finalRow.getOperation()).isEqualTo("dek_rotation");
+            assertThat(finalRow.getTenantId()).isEqualTo(tenant);
+            assertThat(finalRow.getDekGeneration()).isEqualTo(2);
+            assertThat(finalRow.getStatus()).isEqualTo("completed");
+            assertThat(finalRow.getInitiatedBy()).isEqualTo("ops-admin");
+            assertThat(shutdowns).isEqualTo(1);
+        } finally {
+            TenantKeyHolder.reset();
+            TenantKeyResolverFactory.reset();
+            if (savedResolver != null) {
+                TenantKeyResolverFactory.setInstance(savedResolver);
+                if (savedResolver instanceof TenantKeyHolder savedHolder) {
+                    TenantKeyHolder.setInstance(savedHolder);
+                }
+            }
+        }
+    }
+
     /** Minimal stand-in for the key store, plus the KEK the app is "running" with. */
     private static final class FakeStore implements TenantKeyStore {
 
@@ -368,6 +446,28 @@ class PiiKeyRotationRunnerTest {
         @Override
         public int advanceDekGeneration(UUID tenantId, int generation) {
             return 1;
+        }
+
+        @Override
+        public Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation) {
+            if (dekGenerationOf(tenantId).orElse(0) == generation) {
+                return Optional.ofNullable(wrappedDeks.get(tenantId));
+            }
+            return Optional.ofNullable(archivedDeks.getOrDefault(tenantId, Map.of()).get(generation));
+        }
+
+        private final Map<UUID, Map<Integer, byte[]>> archivedDeks = new LinkedHashMap<>();
+
+        @Override
+        public int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion) {
+            archivedDeks.computeIfAbsent(tenantId, t -> new java.util.concurrent.ConcurrentHashMap<>())
+                    .putIfAbsent(generation, wrappedDek.clone());
+            return 1;
+        }
+
+        @Override
+        public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
+            return Optional.ofNullable(versions.get(tenantId));
         }
 
         @Override

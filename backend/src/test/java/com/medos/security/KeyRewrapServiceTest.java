@@ -297,6 +297,32 @@ class KeyRewrapServiceTest {
             return 1;
         }
 
+        // --- history archive (unused by the re-wrap service itself) ---
+
+        private final Map<UUID, Map<Integer, byte[]>> archived =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
+        @Override
+        public Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation) {
+            if (dekGenerationOf(tenantId).orElse(0) == generation) {
+                return wrappedDekOf(tenantId);
+            }
+            return Optional.ofNullable(archived.getOrDefault(tenantId, Map.of()).get(generation));
+        }
+
+        @Override
+        public int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion) {
+            archived.computeIfAbsent(tenantId, t -> new java.util.concurrent.ConcurrentHashMap<>())
+                    .putIfAbsent(generation, wrappedDek.clone());
+            return 1;
+        }
+
+        @Override
+        public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
+            Row row = rows.get(tenantId);
+            return row == null ? Optional.empty() : Optional.of(row.kekVersion());
+        }
+
         @Override
         public int advanceBiKeyGeneration(UUID tenantId, int generation) {
             return 1;

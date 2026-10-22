@@ -17,6 +17,24 @@ public interface TenantKeyStore {
 
     Optional<byte[]> wrappedDekOf(UUID tenantId);
 
+    /**
+     * The wrapped DEK for one specific generation: the current generation reads from
+     * {@code tenant_keys}, superseded generations from the {@code tenant_dek_history}
+     * archive. A generation that was never issued reads as empty — the caller
+     * converts that into a loud {@code UnknownGenerationException}, never a wrong key.
+     */
+    Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation);
+
+    /**
+     * Archive a superseded DEK generation. Idempotent: archiving a generation that is
+     * already archived is a no-op (a rerun after an interrupted rotation must not fail
+     * on the second attempt's duplicate row).
+     */
+    int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion);
+
+    /** The KEK version currently wrapping this tenant's key columns. */
+    Optional<Integer> wrappedKekVersionOf(UUID tenantId);
+
     Optional<byte[]> wrappedBiKeyOf(UUID tenantId);
 
     Optional<Integer> biKeyGenerationOf(UUID tenantId);

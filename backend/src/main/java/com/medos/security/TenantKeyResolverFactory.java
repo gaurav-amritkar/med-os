@@ -36,6 +36,15 @@ public final class TenantKeyResolverFactory {
         TenantKeyResolverFactory.resolver = resolver;
     }
 
+    /**
+     * The acting tenant's current DEK generation, via the installed resolver. The
+     * write-generation supplier in {@code EncryptionUtil.init()} closes over this so
+     * a write is always labelled with the generation whose key encrypts it.
+     */
+    public static int currentGeneration() {
+        return get().currentGeneration();
+    }
+
     public static void reset() {
         resolver = null;
     }

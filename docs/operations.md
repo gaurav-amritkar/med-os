@@ -232,9 +232,11 @@ file and `docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md`.
 > is separately wrapped, so patient-name search keeps working. Follow
 > **§7d PII key rotation** below — dry-run first, then apply, then verify. Issue
 > #73 was the committed-credentials purge, not key rotation.
->
-> Not yet available: rotating an *individual tenant's* DEK (`dek_rotation`),
-> which would require re-encrypting that tenant's rows.
+> Also available: rotating an *individual tenant's* DEK (`dek_rotation`) —
+> **§7e DEK rotation** below. The tenant's superseded DEK generation is archived,
+> so ciphertext already written stays readable; no re-encryption job is required
+> to rotate (a backfill that rewrites rows to the current generation is a separate,
+> optional follow-up).
 
 ### Deploying
 
@@ -350,9 +352,10 @@ there is no re-encryption job, and none is needed.
 > Those functions do not exist in any migration, the procedure could not have
 > run, and it contradicted §7d of this same document. Do not reconstruct it.
 
-The real procedure is **§7d PII key rotation** (dry-run → apply → verify).
-Rotating an individual tenant's DEK (`dek_rotation`) is **not** implemented; that
-would require re-encrypting that tenant's rows.
+The real procedure is **§7d PII key rotation** (dry-run → apply → verify). For
+the *data key itself*, see **§7e DEK rotation** — the tenant's archived DEK
+generations keep superseded ciphertext readable, so a rotation is online there
+too, and there is still no encrypt()/decrypt() SQL anywhere in this schema.
 
 ### Certificate Management
 - TLS termination at Caddy (the sole terminator in `docker-compose.prod.yml`; no
@@ -474,6 +477,7 @@ host's process list.
 | `MEDOS_KEY_ROTATION_MODE=dry-run` | **Dry run**, then exits. Reports tenant count, tenants to re-wrap, and any tenant that cannot unwrap. |
 | `MEDOS_KEY_ROTATION_MODE=apply` plus `MEDOS_KEY_ROTATION_NEW_KEK`, `MEDOS_KEY_ROTATION_TARGET_VERSION` | Re-wraps, reads it back, then exits. |
 | `MEDOS_KEY_ROTATION_MODE=verify` | Reads every tenant with the KEK this process booted with, fails loudly if any cannot unwrap, then exits. |
+| `MEDOS_KEY_ROTATION_MODE=dek-rotate` plus `MEDOS_KEY_ROTATION_TENANT_ID`, `MEDOS_KEY_ROTATION_INITIATED_BY` | Rotates **one named tenant's** DEK (`dek_rotation`, §7e), then exits. |
 
 `MEDOS_KEY_ROTATION_INITIATED_BY` is recorded on the `key_rotations` row — always set it,
 it is the DPDP §8(5) evidence trail. An unrecognised mode fails the boot rather than
@@ -561,11 +565,97 @@ re-run `--apply` to complete it.
 
 ### What a KEK rotation is **not**
 
-**This procedure is not reversible for DEK rotation.** Rotating a *tenant's DEK*
-re-encrypts that tenant's patient rows; restoring a key file does not undo it, because
-the old DEK is gone. DEK rotation is only for when the DEK itself is suspected
-compromised, it is scoped to one hospital, it requires a verified backup first, and it
-must be handled as a separate procedure. Do not assume the rollback above applies.
+**This procedure is not a DEK rotation.** §7d changes only the wrapper; the
+per-tenant DEK underneath is untouched. A DEK rotation changes the data key
+itself (**§7e**) and every row written before it is protected by a generation the
+tenant no longer uses for new writes — restoring a KEK file does not undo a DEK
+rotation, because the audit row in `key_rotations` records that the data key
+changed. The difference: after a KEK re-wrap nothing about ciphertext changed but
+its wrapper; after a DEK rotation *new writes* use different bytes. Both keep
+superseded material readable, so neither is destructive; but the rollback stories
+differ, and only §7d has restore-and-restart.
+
+---
+
+## §7e Per-tenant DEK rotation (`dek_rotation`)
+
+A KEK re-wrap protects against a compromised *wrapper* and never touches the data
+key. Only a **DEK rotation** responds to the data key itself being suspected — and
+that response is per tenant by design: rotate one hospital, not the whole fleet.
+
+### What it actually does (nothing is destroyed)
+
+1. The tenant's current generation-N wrapped DEK is **archived** into
+   `tenant_dek_history` (V6) — it is the evidence that generation-N ciphertext
+   stays readable, and it never leaves the database unwrapped.
+2. New DEK bytes are generated at generation N+1, wrapped under the **current
+   KEK**, and written to the tenant's `tenant_keys` row.
+3. `<gen>` in the ciphertext format `kv1.d<gen>:…` names the DEK generation, so
+   rows written before the rotation keep decrypting via the archive — the
+   rotation is online, with no re-encryption window and no downtime.
+   (A backfill that rewrites old rows to the current generation is an optional
+   follow-up, not a prerequisite.)
+4. Every step is recorded on the `key_rotations` row (`operation='dek_rotation'`):
+   who instructed it (`initiated_by`), when, and the target generation — the
+   DPDP §8(5) trail for "the data key changed, on whose authority".
+
+Known limitations, stated plainly:
+
+- **No distributed lock.** Run one rotation at a time; concurrent rotations of
+  the same tenant would each produce a new generation (harmless but confusing).
+- **No bulk mode.** There is deliberately no "rotate every tenant" wildcard; pass
+  production through per tenant.
+- **Writes within the TTL window stay labelled correctly** because a generation
+  label and its key pair are read together from the store — this is a designed
+  invariant, not luck (`TenantDekRotationTest` pins it).
+
+### Procedure
+
+```bash
+PROD="-f docker-compose.prod.yml"
+
+# 1. Confirm the tenant exists and note its current generation.
+TENANT_ID="<uuid>"
+docker compose $PROD exec db psql -U "$DB_USER" -d "$DB_NAME" -c \
+  "SELECT tenant_id, dek_generation, wrapped_kek_version FROM tenant_keys WHERE tenant_id = '$TENANT_ID';"
+
+# 2. Rotate. The mode names the tenant AND the operator; both are mandatory.
+docker compose $PROD run --rm \
+  -e MEDOS_KEY_ROTATION_MODE=dek-rotate \
+  -e MEDOS_KEY_ROTATION_TENANT_ID="$TENANT_ID" \
+  -e MEDOS_KEY_ROTATION_INITIATED_BY="ops@example.test" backend
+
+# 3. Prove the old generation still decrypts: read a patient written before the
+#    rotation (name search exercises both the DEK and the blind-index key).
+# 4. New writes now carry the next generation's prefix:
+docker compose $PROD exec db psql -U "$DB_USER" -d "$DB_NAME" -c \
+  "SELECT left(name, 7) FROM patients WHERE tenant_id = '$TENANT_ID' LIMIT 1;"
+-- new rows read kv1.d2:… (or higher); pre-rotation rows still read kv1.d1:… and are correct as-is.
+```
+
+### Evidence
+
+```sql
+SELECT id, tenant_id, dek_generation, status, initiated_by, started_at
+FROM key_rotations
+WHERE operation = 'dek_rotation'
+ORDER BY started_at DESC
+LIMIT 5;
+```
+
+### Hard rules
+
+1. **`MEDOS_KEY_ROTATION_INITIATED_BY` is mandatory** — the runner refuses a DEK
+   rotation without it. An unnamed operator is no evidence for a data-key change.
+2. **One tenant per run, one run at a time.** The runner refuses tenants with no
+   `tenant_keys` row — if it looks "unknown", check the UUID, do not broaden the
+   command.
+3. **The archive is retention, not backup.** `tenant_dek_history` wipes with its
+   tenant (FK `ON DELETE CASCADE`) and holds wrapped material only. The point of
+   a *verified backup* stands on its own.
+4. **Run the KEK re-wrap (§7d) after rotating if the fleet's KEK lags**: archived
+   material stays wrapped under the KEK version current *at archive time*, and a
+   re-wrap migrates it along with everything else — never leave it behind.
 
 ---
 
