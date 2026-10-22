@@ -457,6 +457,16 @@ a wave-0 item rather than a config tidy-up:
   the exact metric families this backend exports, promtool-validated, drop-in
   `tools/observability/prometheus-rules-medos.yml`; definitions and severity
   contract in `docs/operations.md` "Alert thresholds".
+**Wave-1 opening note — the inspector writes now (closed 2026-10-22, PR #182).**
+Before any front-desk table lands, `TenantStatementInspector` (G16) scoping
+moves past SELECT: UPDATE/DELETE root-table writes fold the tenant predicate
+into their WHERE (or acquire one), and tenanted-table INSERTs that omit
+`tenant_id` are refused loudly rather than silently orphaned. Combined with the
+Wave-0 entity↔table guard, every table added in this wave is scoped at the SQL
+boundary the moment it is added — the guard test (`TenantWriteScopingGuardTest`)
+is what makes adjacency to `TENANT_TABLES` the only step to register a new table
+for all four DML shapes.
+
 | **1 — Front desk** | Enquiry Desk, Appointments (+ calendar, doctor shifts, token queue), Patients Hub deepened | Receptionist can run a full day: enquiry → appointment → token → check-in → register |
 | **2 — Clinical core** | EMR 360 (Timeline, SOAP notes, Allergies & Alerts), OPD Desk tabs (Consultation Desk, E-Prescriptions, Diagnostics Orders, Clinical History) | A consultation runs end to end and the record is readable from the EMR |
 | **3 — Inpatient** | IPD & Beds (Bed Matrix, Admit, Ward Rounds, Nursing Station, Reservations), Nursing & MAR | A patient can be admitted, nursed, and discharged with a charting trail |

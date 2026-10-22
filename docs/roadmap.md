@@ -226,9 +226,11 @@ gate is now the organizing priority._
    `TenantWriteScopingGuardTest` guards the entity↔`TENANT_TABLES`↔listener
    alignment in both directions; the first Wave 1 entity that forgets either
    half of write-stamping fails CI. Verified mutant-killing: dropping
-   `TenantOwned` from `MedicineCatalog` fails it with the named cause. When
-   Wave 1 lands, extend `TenantStatementInspector` itself to writes (issue
-   #134), not just the guard.
+   `TenantOwned` from `MedicineCatalog` fails it with the named cause.
+   ~~When Wave 1 lands, extend `TenantStatementInspector` itself to writes
+   (issue #134), not just the guard.~~ ✅ Extended first thing in Wave 1
+   (PR #182): UPDATE/DELETE scoped, tenant-table INSERTs without `tenant_id`
+   refused; 10 specs, mutant-verified both paths.
 5. **Observability (#9)** ✅ Closed (2026-10-22): slice 1 landed (PR #179, correlation
    IDs + scrape + `json-logs` profile). Closure wired the last half into the
    deployment: prod compose runs `prod,json-logs` (guard test), the
