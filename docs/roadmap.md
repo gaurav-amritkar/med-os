@@ -247,9 +247,17 @@ gate is now the organizing priority._
    (`tenant_dek_history`, V6), audited primitive (`dek_rotation`, §7e runbook).
    Remaining follow-up: the optional row-backfill runner (documented in the Wave-0
    evidence row), not needed for correctness.
-7. **Then Wave 1 (front desk)** under the parity spec's wave gates; **then** the
-   container hardening sweep, API versioning plan (#11), and P3 (needs
-   legal/ops input for retention & consent policies).
+7. **Then Wave 1 (front desk)** 🟡 In progress (started 2026-10-22, under the
+   parity spec's wave gates): the substrate went first — inspector write-scoping
+   (PR #182, G16) — then module by module. **Enquiry Desk** backend landed
+   (PR #183): V7 (`enquiries` + `enquiry_status_history`), per-tenant ENQ
+   numbering, audited status trail as record, `/api/v1/enquiries` with
+   front-desk RBAC (writes receptionist/admin; board readable by clinical
+   roles), migration test on real Postgres, seed. Next: Enquiry Desk page
+   (shared components), then Appointments deepening (calendar, doctor shifts,
+   token queue) and Patients Hub deepening. **Then** the container hardening
+   sweep, API versioning plan (#11), and P3 (needs legal/ops input for
+   retention & consent policies).
 
 ## Quick wins (single sitting)
 
