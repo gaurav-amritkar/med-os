@@ -26,6 +26,10 @@ class EncryptionUtilVersioningTest {
 
     /** Whatever resolver was in the factory before this class ran; restored in {@link #restoreResolverForOtherClasses}. */
     private static volatile com.medos.security.TenantKeyResolver savedResolver;
+    /** The format static is process-wide too: without restoring it, a class that runs
+     *  later inherits the single-key format and its tenant-refusal invariants stop
+     *  applying (TenantIsolationTest#withoutTenant_cannotDecryptPii depends on them). */
+    private static volatile PiiCiphertextFormat savedFormat;
 
     /**
      * These tests assert the converter's *single-key* contract (key validation
@@ -36,6 +40,7 @@ class EncryptionUtilVersioningTest {
      */
     @BeforeAll
     static void clearResolverForOtherClasses() {
+        savedFormat = EncryptionUtil.currentFormatForTesting();
         savedResolver = com.medos.security.TenantKeyResolverFactory.isInitialised()
                 ? com.medos.security.TenantKeyResolverFactory.get()
                 : null;
@@ -49,6 +54,7 @@ class EncryptionUtilVersioningTest {
         } else {
             com.medos.security.TenantKeyResolverFactory.reset();
         }
+        EncryptionUtil.setFormatForTesting(savedFormat);
     }
 
     @Test

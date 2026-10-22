@@ -183,7 +183,7 @@ cannot start without. Its five items, verified against the working tree:
 | Consent decoupled from registration | ✅ **Closed** (2026-10-22) | `PatientService` no longer throws when `dpdpConsent` is absent; the DTO field is optional and the stored flag mirrors it (no fabricated consent event). Pinned by `PatientServiceTest.registerPatient_withoutConsent_registersAndLeavesNoConsentEvent` and `PatientRegistrationConsentOptionalTest` (400 → 201) |
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
 | Per-tenant DEK rotation | ✅ **Closed** (2026-10-22) | `DekRotationService` (`archive → advance → replace`, fail-closed, `key_rotations.op='dek_rotation'` audited) over `TenantKeyHolder.rotateDek`; superseded generations staged in `tenant_dek_history` (V6) so `kv1.d<N>:` ciphertext stays readable — rotation is online, no re-encryption window. `currentGeneration()` now resolves the tenant's row (was hardcoded `1`); format's resolver honours the `d<gen>` prefix (was ignored). Pinned by `TenantDekRotationTest` (6) + `TenantDekRotationStoreTest` (3) + 3 runner-mode specs, both mutants of the pinned contract verified killed. Ops surface: `MEDOS_KEY_ROTATION_MODE=dek-rotate` + tenant-id (§7e). Deferred: row-backfill runner to converge rows onto the current generation (optional efficiency, not a correctness gap) |
-| Observability (metrics, structured logs, correlation IDs) | 🟡 **First slice landed** (2026-10-22) | Correlation ID filter (`X-Request-Id` → MDC → logback pattern `%X{requestId}`, proxy ids honored only when safe) + Prometheus scrape (`micrometer-registry-prometheus`, `/manage/` + `prometheus` exposed, ADMIN-gate relaxed for it inside the private network) + `json-logs` profile via logstash-logback-encoder. Pinned by `RequestCorrelationFilterTest` (5 specs) and `ObservabilityHttpContractTest` (3 specs). Remaining to close #9 fully: wire `json-logs` into prod containers, define the dashboard/alert thresholds |
+| Observability (metrics, structured logs, correlation IDs) | ✅ **Closed** (2026-10-22) | Slice 1 (PR #179): correlation IDs + scrape endpoint + `json-logs` profile. Closure (this PR): prod containers wired — `SPRING_PROFILES_ACTIVE: prod,json-logs` (guard `ObservabilityProdComposeGuardTest`); **prod-profile exposure bug fixed** — `application-prod.yml` replaces (not extends) the base exposure list, so the scrape family had silently vanished in every prod-profile boot; proved live: `/manage/prometheus` 200 on a prod-profile container with real families (`http_server_requests_seconds*`, `hikaricp_connections_*`, `jvm_*`). JSON output proven parseable by booting with the profile (`ObservabilityJsonLogsProfileTest` — one object per line, `app` pinned, `@timestamp` present). Alert thresholds defined with exact metric names + drop-in promtool-validated rules file (`tools/observability/prometheus-rules-medos.yml`, 7 rules across traffic/resources/security/scrape) |
 | Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | ✅ **Closed** (2026-10-22) | Built in `frontend/src/components/` with 19 tests (19 vitest specs): `<DataTable>` owns the §3.2 #6–#8 grammar (dense table, `role="alert"` failure ≠ empty state, "Showing X–Y of Z · page i of N" footer with ‹ Prev/Next ›). Adoption follows each page's restyle wave — the design-system ratchet (`src/test/design-system.test.js`) keeps the eight existing page components on their documented inline-style baseline until then |
 
 Wave 0 is followed by Wave 1 (front desk; enquiry/appointments), then clinical
@@ -229,15 +229,16 @@ gate is now the organizing priority._
    `TenantOwned` from `MedicineCatalog` fails it with the named cause. When
    Wave 1 lands, extend `TenantStatementInspector` itself to writes (issue
    #134), not just the guard.
-5. **Observability (#9)** ✅ First slice landed (2026-10-22, PR #179): correlation
-   IDs (`X-Request-Id`, MDC-bound, echoed in every log line as `req:<id>`, proxy
-   ids honored when safe), Prometheus scrape at `/manage/prometheus`
-   (network-private, no PII, pinned by `ObservabilityHttpContractTest` — note
-   Boot 3.4+ test autoconfigure flips metrics export off unless
-   `@AutoConfigureObservability` is used), and structured-log JSON via the
-   `json-logs` profile (`logback-spring.xml` + LogstashEncoder). Remaining for
-   full #9 closure: wire `json-logs` into the prod containers + hand HTTP-level
-   request/latency dashboards to an alerting spec.
+5. **Observability (#9)** ✅ Closed (2026-10-22): slice 1 landed (PR #179, correlation
+   IDs + scrape + `json-logs` profile). Closure wired the last half into the
+   deployment: prod compose runs `prod,json-logs` (guard test), the
+   **prod-profile exposure override** was found and fixed (`application-prod.yml`
+   replaces the base list — the scrape had silently 404'd in every prod-profile
+   boot; rebuilt container now answers 200 with real metric families), and the
+   dashboard/alert thresholds are defined over exact exported families with a
+   promtool-validated drop-in rules file (`tools/observability/
+   prometheus-rules-medos.yml`: 7 rules — 5xx rate, p95 latency, DB pool
+   pressure, heap, GC pause, login-failure spike, scrape liveness).
 6. **Per-tenant DEK rotation** ✅ Closed (2026-10-22): designed and implemented in one
    pass with the `TenantKeyResolver` seam deepening — generation-aware resolution
    (`PiiCiphertextFormat` now honours `d<gen>`), per-generation archive

@@ -53,19 +53,37 @@ class PatientServiceTest {
 
     private static final java.util.UUID TENANT = java.util.UUID.fromString("00000000-0000-4000-8000-000000000001");
 
+    /** The holder/factory pair whatever the previous class left behind; restored every test. */
+    private static volatile com.medos.security.TenantKeyHolder savedHolder;
+    private static volatile com.medos.security.TenantKeyResolver savedResolver;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        // Save/restore discipline (surefire class-order lesson): the holder and factory
+        // are process-wide statics that cached Spring contexts rely on — swap them for
+        // this fixture and put the original pair back afterwards, so a class running
+        // after this one never inherits a cleared holder.
+        savedHolder = com.medos.security.TenantKeyHolder.isInitialised()
+                ? com.medos.security.TenantKeyHolder.get() : null;
+        savedResolver = com.medos.security.TenantKeyResolverFactory.isInitialised()
+                ? com.medos.security.TenantKeyResolverFactory.get() : null;
         // Registering a patient writes encrypted PII, so a tenant must be in scope. The
         // converter refuses to fall back to a shared key, which is the isolation property
         // TenantKeyIsolationTest also covers.
         com.medos.security.TenantContext.setTenantId(TENANT);
         com.medos.security.TenantKeyHolder.reset();
+        com.medos.security.TenantKeyResolverFactory.reset();
     }
 
     @AfterEach
     void tearDown() {
-        com.medos.security.TenantKeyHolder.reset();
+        if (savedHolder != null) {
+            com.medos.security.TenantKeyHolder.setInstance(savedHolder);
+        }
+        if (savedResolver != null) {
+            com.medos.security.TenantKeyResolverFactory.setInstance(savedResolver);
+        }
         com.medos.security.TenantContext.clear();
     }
 

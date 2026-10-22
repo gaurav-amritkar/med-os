@@ -40,6 +40,12 @@ class TenantDekRotationStoreTest {
     @Autowired
     private com.medos.repository.KeyRotationRepository rotations;
 
+    @Autowired
+    private org.springframework.core.env.Environment environment;
+
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager txManager;
+
     private UUID tenantId;
 
     private UUID createTenant() {
@@ -140,10 +146,20 @@ class TenantDekRotationStoreTest {
     private TenantKeyHolder holderWithRealStore() {
         // The Spring context wires the production holder against this H2 store already;
         // re-register to make sure the factory and holder statics agree on the instance.
-        TenantKeyHolder holder = TenantKeyHolder.isInitialised()
-                ? TenantKeyHolder.get()
-                : null;
-        org.assertj.core.api.Assertions.assertThat(holder).isNotNull();
+        TenantKeyHolder holder;
+        if (!TenantKeyHolder.isInitialised()) {
+            // CI-order lesson (same as TenantIsolationTest's guard): a unit test class
+            // that runs earlier in this JVM may have cleared the statics a *cached*
+            // context relies on, and a cached context never re-runs EncryptionConfig.
+            // Rebuild the production pair exactly as EncryptionConfig does rather than
+            // depending on class order.
+            holder = new TenantKeyHolder(
+                    environment.getProperty("medos.security.pii-encryption-key"),
+                    keyStore, txManager);
+            TenantKeyHolder.setInstance(holder);
+        } else {
+            holder = TenantKeyHolder.get();
+        }
         TenantKeyResolverFactory.setInstance(holder);
         return holder;
     }

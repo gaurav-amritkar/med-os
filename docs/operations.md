@@ -722,9 +722,45 @@ docker compose logs backend | grep "req:<id>"
 the scrape body, JVM and request-handler counters only). Point Prometheus at
 the backend container on `medos-private`; do not route it through the edge.
 
+> The prod profile (`application-prod.yml`) **replaces** the base yml's endpoint
+> exposure list, so `prometheus` must be named in *that* file's
+> `management.endpoints.web.exposure.include` — the first deployment after the
+> Wave-0 closure proved this by 404ing. Guard test:
+> `ObservabilityProdComposeGuardTest.prodProfileExposesPrometheus`.
+
 ### Structured logs
 
-Default log format is human-readable text. Run the backend container with
-`json-logs` in `SPRING_PROFILES_ACTIVE` for one-JSON-object-per-line
-(LogstashEncoder; includes the `requestId` from MDC) — useful for Loki/ECS
-shipping. Toggle without redeploying code.
+Prod containers ship **JSON logs by default**: `SPRING_PROFILES_ACTIVE: prod,json-logs`
+in `docker-compose.prod.yml` — one JSON object per line (LogstashEncoder; includes
+the `requestId` from MDC and `app:"medos-backend"`), parseable by Loki/ECS shipping
+without a text-format regex. Dev stays human-readable text; the profile is the
+switch, not code. Guard tests: `ObservabilityProdComposeGuardTest` (compose wiring)
+and `ObservabilityJsonLogsProfileTest` (a log line really parses as JSON).
+
+To revert to text logs in an incident, remove `json-logs` from the compose line and
+redeploy — opt the human-readable format back in when the pipeline recovers.
+
+### Alert thresholds
+
+Alerts are the reason the scrape exists. The drop-in rule file for Prometheus is
+`tools/observability/prometheus-rules-medos.yml` (promtool-validated; 7 rules); its
+expressions use the exact families this backend exports. Definitions, so the file
+and reality never drift:
+
+| # | Signal | Threshold (sustained) | Severity | Why |
+|---|---|---|---|---|
+| 1 | HTTP 5xx ratio | `sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(...[5m]))` > **2%** for **5m** | page | Patient-facing requests actually failing is the one thing this app must never do quietly |
+| 2 | Latency p95 | `histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))` > **1.5s** for **10m** | warn | §3.2 front-desk contract: a slow registration desk is a physical queue |
+| 3 | DB pool pressure | `hikaricp_connections_pending > 0` for **2m** | warn | Precedes §8's connection-exhaustion incident; the fix is known, the alert buys you the minutes |
+| 4 | Heap usage | used/max over `jvm_memory_*` > **85%** for **10m** | warn | GC thrash degrades latency before an OOM dies |
+| 5 | GC pause | `max_over_time(jvm_gc_pause_seconds_max[5m]) > 1s` | warn | Frequent with #4; a page-quality signal on its own only if #4 is absent |
+| 6 | Login failures | rate of `status=~"4.."` on `~*/login` beyond **20/min** for **10m** | warn | Brute force / stuffing; the threshold is over the fleet's normal hum of typos, under real attack volume |
+| 7 | Scrape liveness | `up == 0` for **2m** | page | Silence is an outage — every other alert needs the scrape working to fire |
+
+Severity contract: **page** means wake a human (5xx failures, backend down);
+**warn** means investigate within the day (resource pressure, rate anomalies —
+trends that become pages). Adjust thresholds after the first real week of traffic
+data; they are starting points calibrated for a pilot-scale deployment, not
+universal constants. DPDP note: alert *rules* are infrastructure, but the
+evidence trail for key events lives in `key_rotations` (§7d/§7e), which no
+Prometheus metric replaces.

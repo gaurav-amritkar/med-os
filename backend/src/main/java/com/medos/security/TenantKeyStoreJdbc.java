@@ -85,9 +85,9 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
             return 0;
         }
         return jdbc.update("INSERT INTO tenant_dek_history "
-                + "(id, tenant_id, dek_generation, wrapped_dek, wrapped_kek_version, created_at) "
-                + "VALUES (?, ?, ?, ?, ?, now())",
-                UUID.randomUUID(), tenantId, generation, wrappedDek, kekVersion);
+                + "(tenant_id, dek_generation, wrapped_dek, wrapped_kek_version, created_at) "
+                + "VALUES (?, ?, ?, ?, now())",
+                tenantId, generation, wrappedDek, kekVersion);
     }
 
     @Override

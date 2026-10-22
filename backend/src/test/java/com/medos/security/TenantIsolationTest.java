@@ -61,6 +61,12 @@ class TenantIsolationTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    @Autowired
+    private org.springframework.core.env.Environment environment;
+
+    @Autowired
+    private com.medos.security.TenantKeyStore keyStore;
+
     private UUID tenantA;
     private UUID tenantB;
 
@@ -71,14 +77,19 @@ class TenantIsolationTest {
 
         // Re-register the holder in the factory. Plain unit tests elsewhere install a
         // fake resolver or reset the factory; this class boots inside a cached Spring
-        // context, so EncryptionConfig (which wires both) does not re-run, and the
-        // very first encrypt could fail with "TenantKeyResolver is not initialised"
-        // depending on surefire's filesystem-dependent class order. When the holder
-        // is uninitialized a fresh context is being built and EncryptionConfig will
-        // register the real pair itself.
-        if (TenantKeyHolder.isInitialised()) {
-            TenantKeyResolverFactory.setInstance(TenantKeyHolder.get());
+        // context, so EncryptionConfig (which wires both) does not re-run. The old
+        // guard assumed "uninitialised holder ⇒ a fresh context is being built", which
+        // surefire's random class order disproves: unit-test classes that clear the
+        // statics after this context was created leave the holder empty forever. So
+        // rebuild the production pair exactly as EncryptionConfig does rather than
+        // depending on class order at all.
+        if (!TenantKeyHolder.isInitialised()) {
+            TenantKeyHolder rebuilt = new TenantKeyHolder(
+                    environment.getProperty("medos.security.pii-encryption-key"),
+                    keyStore, txManager);
+            TenantKeyHolder.setInstance(rebuilt);
         }
+        TenantKeyResolverFactory.setInstance(TenantKeyHolder.get());
 
         new TransactionTemplate(txManager).executeWithoutResult(
                 status -> entityManager.createNativeQuery("DELETE FROM patients").executeUpdate());

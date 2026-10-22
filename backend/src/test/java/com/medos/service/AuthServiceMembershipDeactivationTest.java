@@ -43,6 +43,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceMembershipDeactivationTest {
 
+    private static volatile TenantKeyHolder savedHolder;
+
     private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-0000-4000-8000-000000000001");
     private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-0000-4000-8000-000000000002");
 
@@ -66,6 +68,9 @@ class AuthServiceMembershipDeactivationTest {
 
     @BeforeEach
     void setUp() {
+        // Save/restore discipline (surefire class-order lesson): cached Spring contexts
+        // depend on the holder static; put back whatever was there when we're done.
+        savedHolder = TenantKeyHolder.isInitialised() ? TenantKeyHolder.get() : null;
         TenantKeyHolder.reset();
         // expirationMs arrives through @Value, not the constructor.
         org.springframework.test.util.ReflectionTestUtils.setField(authService, "expirationMs", 3_600_000L);
@@ -73,7 +78,9 @@ class AuthServiceMembershipDeactivationTest {
 
     @AfterEach
     void tearDown() {
-        TenantKeyHolder.reset();
+        if (savedHolder != null) {
+            TenantKeyHolder.setInstance(savedHolder);
+        }
     }
 
     private User user() {
