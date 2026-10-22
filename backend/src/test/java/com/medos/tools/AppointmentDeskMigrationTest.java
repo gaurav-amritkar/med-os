@@ -175,12 +175,12 @@ class AppointmentDeskMigrationTest {
             }
             try (var ps = conn.prepareStatement(
                     "INSERT INTO appointments (id, tenant_id, patient_id, doctor_id, "
-                            + "appointment_date, status) VALUES (?,?,?,?,?,?)")) {
+                            + "appointment_date, status) VALUES (?,?,?,?,?::timestamp,?)")) {
                 ps.setObject(1, row);
                 ps.setObject(2, tenant);
                 ps.setObject(3, UUID.randomUUID());
                 ps.setObject(4, UUID.randomUUID());
-                ps.setString(5, "2026-08-01 10:00:00::timestamp");
+                ps.setString(5, "2026-08-01 10:00:00");
                 ps.setString(6, "scheduled");
                 ps.executeUpdate();
             }

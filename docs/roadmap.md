@@ -268,3 +268,9 @@ gate is now the organizing priority._
 - ~~#10 backup runbook (docs + a cron sidecar yml)~~ ✅ Done (docs/operations.md)
 - ~~#15 Trivy + Flyway gate~~ ✅ Done
 - ~~#16 TLS + HSTS + docker secrets~~ ✅ Done
+
+- PR #185 (Appointments deepening V8) — 2026-10-22 — d0582b7 — 
+  tests: AppointmentDeskMigrationTest(2), AppointmentServiceContractTest, AppointmentControllerAccessTest; 
+  checks: build + 2x random mvn test + Trivy; 
+  linear merge --rebase --delete-branch; 
+  V8 hash registered; seed updated; service uses PerTenantSerial (appointment_no + token per-day); controller RBAC; doc-note + status lifecycle + terminal delete enforced; audit log trail.
