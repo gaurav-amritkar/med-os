@@ -613,3 +613,28 @@ docker compose exec db psql -U "$DB_USER" -d "$DB_NAME" -c "
 docker compose exec redis redis-cli INFO memory
 docker compose exec redis redis-cli INFO persistence
 ```
+## Observability (Wave 0)
+
+### Correlation IDs
+
+Every HTTP response carries `X-Request-Id`; the edge may supply its own and it
+is echoed if it matches `[A-Za-z0-9._-]{1,64}` (unsafe ids are replaced, so a
+client cannot forge log lines). The same id prefixes every log line as
+`[req:<id>]` for the duration of the request; grep a request's full trace with:
+
+```bash
+docker compose logs backend | grep "req:<id>"
+```
+
+### Metrics
+
+`/manage/prometheus` (unauthenticated, private compose network only — no PII in
+the scrape body, JVM and request-handler counters only). Point Prometheus at
+the backend container on `medos-private`; do not route it through the edge.
+
+### Structured logs
+
+Default log format is human-readable text. Run the backend container with
+`json-logs` in `SPRING_PROFILES_ACTIVE` for one-JSON-object-per-line
+(LogstashEncoder; includes the `requestId` from MDC) — useful for Loki/ECS
+shipping. Toggle without redeploying code.

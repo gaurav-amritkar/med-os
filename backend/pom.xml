@@ -45,9 +45,25 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- Structured logs (Wave 0 observability): JSON encoder for the
+             `json-logs` profile; default remains human-readable text via
+             logback-spring.xml. LogstashEncoder emits one JSON object per
+             line, including the MDC request id. -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.1</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Prometheus scrape endpoint (Wave 0 observability): Micrometer's
+             OpenMetrics registry. Scraped inside the private compose network;
+             the response holds JVM/handler metrics only, no patient data. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

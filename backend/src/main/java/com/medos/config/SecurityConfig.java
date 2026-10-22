@@ -77,8 +77,11 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/auth/**").permitAll();
                 }
                 auth
-                // Actuator: only health/info public; everything else under /manage requires ADMIN.
-                .requestMatchers("/manage/health", "/manage/info").permitAll()
+                // Actuator: health/info public; Prometheus scraped unauthenticated —
+                // the compose network is the boundary (medos-private, edge-only),
+                // and the scrape body holds JVM/handler counters, never patient data.
+                // Everything else under /manage requires ADMIN.
+                .requestMatchers("/manage/health", "/manage/info", "/manage/prometheus").permitAll()
                 .requestMatchers("/manage/**").hasRole("ADMIN")
                 // OpenAPI docs: swagger-ui and api-docs require ADMIN role.
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
