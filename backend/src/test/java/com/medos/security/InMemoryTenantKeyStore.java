@@ -19,6 +19,8 @@ public class InMemoryTenantKeyStore implements TenantKeyStore {
 
     private final Map<UUID, byte[]> deks = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> dekGenerations = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<Integer, byte[]>> archivedDeks = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> kekVersions = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
     @Override
@@ -30,6 +32,31 @@ public class InMemoryTenantKeyStore implements TenantKeyStore {
     public Optional<byte[]> wrappedDekOf(UUID tenantId) {
         byte[] dek = deks.get(tenantId);
         return dek == null ? Optional.empty() : Optional.of(dek.clone());
+    }
+
+    @Override
+    public Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation) {
+        Integer current = dekGenerations.get(tenantId);
+        if (current != null && current == generation) {
+            return wrappedDekOf(tenantId);
+        }
+        byte[] archived = archivedDeks.getOrDefault(tenantId, Map.of()).get(generation);
+        return archived == null ? Optional.empty() : Optional.of(archived.clone());
+    }
+
+    @Override
+    public int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion) {
+        Map<Integer, byte[]> generations = archivedDeks.computeIfAbsent(tenantId, t -> new ConcurrentHashMap<>());
+        if (generations.putIfAbsent(generation, wrappedDek.clone()) != null) {
+            return 0;
+        }
+        kekVersions.putIfAbsent(tenantId, kekVersion);
+        return 1;
+    }
+
+    @Override
+    public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
+        return Optional.ofNullable(kekVersions.get(tenantId));
     }
 
     @Override

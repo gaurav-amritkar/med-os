@@ -91,6 +91,29 @@ public class FakeTenantKeyStore implements TenantKeyStore {
         return 1;
     }
 
+    private final Map<UUID, Map<Integer, byte[]>> archivedDeks = new LinkedHashMap<>();
+
+    @Override
+    public Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation) {
+        Integer current = dekGenerations.get(tenantId);
+        if (current != null && current == generation) {
+            return wrappedDekOf(tenantId);
+        }
+        return Optional.ofNullable(archivedDeks.getOrDefault(tenantId, Map.of()).get(generation));
+    }
+
+    @Override
+    public int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion) {
+        archivedDeks.computeIfAbsent(tenantId, t -> new java.util.concurrent.ConcurrentHashMap<>())
+                .putIfAbsent(generation, wrappedDek.clone());
+        return 1;
+    }
+
+    @Override
+    public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
+        return Optional.of(1);
+    }
+
     @Override
     public int advanceBiKeyGeneration(UUID tenantId, int generation) {
         biGenerations.put(tenantId, generation);

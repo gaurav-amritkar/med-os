@@ -52,6 +52,22 @@ public interface TenantKeyResolver {
     /** Current KEK rotation version (generation counter for new writes). */
     int currentGeneration();
 
+    /**
+     * The DEK for one specific generation of tenantId, or null when that generation
+     * cannot be resolved (never issued, or never archived). The current generation
+     * resolves through the normal path; superseded ones come from the archive. This
+     * is what keeps ciphertext labelled {@code kv1.d<N>:} readable after the tenant
+     * rotated to N+1.
+     */
+    byte[] dekForGenerationOrNull(UUID tenantId, int generation);
+
+    /**
+     * Rotate the tenant's data key: new DEK bytes, generation N → N+1, generation N
+     * archived. A tenant without a key creates its first (generation 1, nothing to
+     * archive). Returns the generation new writes will be labelled with.
+     */
+    int rotateDek(UUID tenantId);
+
     /** Re-wrap all tenant key material under the current KEK. Requires previous KEK. */
     int rewrapAll();
 

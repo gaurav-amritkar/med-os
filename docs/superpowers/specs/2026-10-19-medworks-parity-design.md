@@ -337,6 +337,34 @@ verifiable, and each belongs in CI.
 4. **Every PII column in §4.2 is AES-256-GCM under the tenant's DEK**, with the
    versioned `kv1.d<generation>:<base64>` format, and is decryptable only by that
    tenant's key.
+
+   **Wave-0 design note — per-tenant DEK rotation (closed 2026-10-22).** The
+   versioned format above exists precisely to make a DEK rotation readable-through:
+   rotation tells the tenant's current generation N → N+1 with *new key bytes*, and
+   the generation prefix means ciphertext written before the rotation keeps its
+   identity. Three decisions define the mechanism:
+
+   - **Per-generation retention, not re-encryption.** A superseded generation is
+     archived (wrapped) into `tenant_dek_history` (V6) *before* the row's
+     generation advances. Rotation is an online, per-tenant operation with no
+     re-encryption window; converged old rows onto the current generation via a
+     backfill runner is an optional efficiency follow-up, not a correctness need.
+   - **The (current DEK, current generation) pair is one fact, read together.**
+     Every step of a rotation leaves the store in a state where the label a writer
+     chooses and the key it encrypts with stay consistent — including the
+     interrupted states (archive done, advance not; advance done, replace not),
+     which are all decodable by rerunning the rotation. This is why an in-flight
+     request across a rotation either labels with the old generation and the old
+     key, or the new pair — never a mismatch, and why historical reads resolve the
+     exact generation named by a value's prefix rather than whatever key is
+     current. A format whose resolver ignored the generation (the seated bug the
+     tenant-key-holder deepening flagged) fails the pinned test suite:
+     `TenantDekRotationTest`.
+   - **Rotation is deliberate, named, and audited.** No bulk wildcard; the runner
+     refuses to run without `tenant-id` and `initiated-by`, and the
+     `key_rotations.operation='dek_rotation'` row carries both (DPDP §8(5)).
+     Runbook: `docs/operations.md` §7e.
+
 5. **New PII columns are covered by the existing encryption tests**, extended rather
    than bypassed.
 6. **DPDP consent is captured and enforced per module** wherever patient data is

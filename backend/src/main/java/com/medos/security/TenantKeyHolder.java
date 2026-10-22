@@ -44,7 +44,9 @@ public class TenantKeyHolder implements TenantKeyResolver {
     private final byte[] kek;
     private final TenantKeyStore keyStore;
         private final SecureRandom random = new SecureRandom();
-    private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
+    // Package-private so the in-memory test subclass shares the same (dek, generation)
+    // cache-pairing semantics without widening past the security package.
+    final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
     private BlindIndexKeyService blindIndexKeys;
     private boolean blindIndexKeysUsesCurrentKek = true;
     private final long cacheTtlMillis;
@@ -77,7 +79,7 @@ public class TenantKeyHolder implements TenantKeyResolver {
     }
 
 
-    private record CacheEntry(byte[] dek, int generation, long loadedAt) {
+    record CacheEntry(byte[] dek, int generation, long loadedAt) {
         boolean isFresh(long now, long ttl) {
             return now - loadedAt < ttl;
         }
@@ -248,6 +250,40 @@ public class TenantKeyHolder implements TenantKeyResolver {
             return cached.generation();
         }
         return loadOrCreate(acting);
+    }
+
+    /**
+     * The current DEK for one named generation of the acting tenant, or null when that
+     * generation cannot be resolved.
+     *
+     * <p>The current generation resolves through the normal path; superseded ones come
+     * from the archive ({@code tenant_dek_history}, V6). This is what makes a rotation
+     * an online operation: ciphertext labelled {@code kv1.d<N>:} keeps decrypting with
+     * generation N's key after the tenant has moved to N+1. A generation that was never
+     * issued returns null — the caller turns that into a loud
+     * {@code UnknownGenerationException} rather than opening the value with a
+     * plausible-but-wrong key.
+     *
+     * <p>Historical generations are deliberately not cached. Rotation is rare and reads
+     * of superseded ciphertext are transitional (a backfill rewrites rows to the current
+     * generation); a second store seam would be caching for a state that re-encryption
+     * exists to retire.
+     */
+    public byte[] dekForGenerationOrNull(UUID tenantId, int generation) {
+        UUID acting = requireTenant(tenantId);
+        if (generation <= 0) {
+            throw new IllegalArgumentException("DEK generation numbering starts at 1, got " + generation);
+        }
+        // Read the pair from the store, not from the cache: a rotation on another
+        // thread may have moved the generation, and the label-generation consistency
+        // depends on the two being read together.
+        Optional<Integer> current = keyStore.dekGenerationOf(acting);
+        if (current.isPresent() && current.get() == generation) {
+            return dekFor(acting);
+        }
+        return keyStore.wrappedDekOfGeneration(acting, generation)
+                .map(wrapped -> requireDekLength(unwrap(wrapped)))
+                .orElse(null);
     }
 
     /**
@@ -433,9 +469,85 @@ public class TenantKeyHolder implements TenantKeyResolver {
     }
 
     public int currentGeneration() {
-        // The generation for new writes is always 1 until per-tenant DEKs are implemented.
-        // This matches the behavior of PiiCiphertextFormat.withWriteGeneration(1) used in EncryptionUtil.init().
-        return 1;
+        // NOT a constant: the tenant_keys row's dek_generation is authoritative (V2's
+        // schema comment "a DEK rotation increments it"), and this must answer the
+        // acting tenant's current generation so writes are labelled with the generation
+        // whose key will actually encrypt them. The archive-before-advance order in
+        // rotateDek keeps this self-healing across interrupted rotations.
+        return generationFor(requireTenant(null));
+    }
+
+    /**
+     * Rotate the tenant's data key: new DEK bytes at generation N+1, generation N
+     * archived so its ciphertext stays readable.
+     *
+     * <p>Order matters and is crash-safe at every step:
+     * <ol>
+     *   <li><b>archive</b> the current wrapped DEK at generation N (idempotent — a rerun
+     *       must not fail on the duplicate);</li>
+     *   <li><b>advance</b> the row's generation to N+1;</li>
+     *   <li><b>replace</b> the wrapped DEK with the new generation's material;</li>
+     *   <li>re-seed the cache with the new (dek, generation) pair.</li>
+     * </ol>
+     * Between 2 and 3 the store briefly holds generation N+1 with generation N's
+     * material — during which any write labels {@code d(N+1)} with the old DEK, which
+     * is exactly what the label says, so decryption still resolves. That self-healing
+     * is why the archive must precede the advance: a rotation interrupted after
+     * step 2 leaves no generation that is both not-current and unarchived.
+     *
+     * <p>Not for use mid-flush: like {@code ensureDekExists()}, call it before entities
+     * enter the persistence context. A tenant without a key is created at generation 1
+     * (nothing to archive); rotating again is always safe and produces the next
+     * generation.
+     *
+     * @param tenantId explicit tenant, or null for the acting tenant.
+     * @return the generation new writes will be labelled with.
+     */
+    public int rotateDek(UUID tenantId) {
+        UUID acting = requireTenant(tenantId);
+        int current = keyStore.dekGenerationOf(acting).orElseGet(() -> {
+            ensureDekExistsForTenant(acting);
+            return 1;
+        });
+        int next = current + 1;
+
+        // 1. Archive the generation we are about to retire. Fail the rotation here —
+        //    before any state changes — if the current material cannot be read.
+        byte[] wrappedCurrent = keyStore.wrappedDekOf(acting)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No stored key material for tenant " + acting + "; cannot rotate"));
+        int kekVersionForKey = keyStore.wrappedKekVersionOf(acting).orElse(1);
+        // Unwrapping first proves the material is readable; an archived blob we could
+        // never open back would be a retention of nothing.
+        requireDekLength(unwrap(wrappedCurrent));
+        if (keyStore.archiveDek(acting, current, wrappedCurrent, kekVersionForKey) == 0) {
+            log.info("Generation {} for tenant {} already archived by a previous run", current, acting);
+        }
+
+        // 2+3. Move the row to the next generation with fresh material.
+        byte[] dek = new byte[DEK_LENGTH];
+        random.nextBytes(dek);
+        keyStore.advanceDekGeneration(acting, next);
+        keyStore.replaceWrappedDek(acting, wrap(dek));
+
+        // 4. The cache must hold (dek, generation) from the same moment — a pair, not
+        //    two independent facts.
+        cache.put(acting, new CacheEntry(dek, next, System.currentTimeMillis()));
+        log.info("Rotated DEK for tenant {} from generation {} to {}", acting, current, next);
+
+        // Sanity: the new key must round-trip. A rotation that leaves data unreadable
+        // is the failure mode everything else here exists to prevent.
+        if (!java.security.MessageDigest.isEqual(
+                unwrap(keyStore.wrappedDekOf(acting).orElseThrow()), dek)) {
+            throw new IllegalStateException("Rotation verification failed for tenant " + acting
+                    + ": the stored material does not unwrap to the new DEK");
+        }
+        return next;
+    }
+
+    /** ensureDekExists against an explicitly named tenant (the acting-tenant variant refuses null). */
+    private void ensureDekExistsForTenant(UUID tenantId) {
+        dekFor(tenantId);
     }
 
     public void clearCache() {
@@ -462,6 +574,7 @@ public class TenantKeyHolder implements TenantKeyResolver {
     static final class InMemoryTenantKeyHolder extends TenantKeyHolder {
         private final Map<UUID, byte[]> stored = new ConcurrentHashMap<>();
         private final Map<UUID, Integer> generations = new ConcurrentHashMap<>();
+        private final Map<UUID, Map<Integer, byte[]>> archived = new ConcurrentHashMap<>();
 
         InMemoryTenantKeyHolder(String base64Kek) {
             super(base64Kek, null, 60_000L, null);
@@ -480,6 +593,37 @@ public class TenantKeyHolder implements TenantKeyResolver {
         @Override
         protected byte[] readStoredDek(UUID tenantId) {
             return requireDekLength(stored.get(tenantId));
+        }
+
+        @Override
+        public byte[] dekForGenerationOrNull(UUID tenantId, int generation) {
+            UUID acting = requireTenant(tenantId);
+            Integer current = generations.get(acting);
+            if (current != null && current == generation) {
+                return stored.get(acting);
+            }
+            return archived.getOrDefault(acting, Map.of()).get(generation);
+        }
+
+        @Override
+        public int rotateDek(UUID tenantId) {
+            UUID acting = requireTenant(tenantId);
+            Integer currentGen = generations.get(acting);
+            byte[] currentDek = stored.get(acting);
+            if (currentGen == null || currentDek == null) {
+                // No key yet: rotation creates generation 1, nothing to archive.
+                loadOrCreate(acting);
+                return 1;
+            }
+            archived.computeIfAbsent(acting, t -> new ConcurrentHashMap<>())
+                    .putIfAbsent(currentGen, currentDek.clone());
+            int next = currentGen + 1;
+            byte[] dek = new byte[32];
+            new SecureRandom().nextBytes(dek);
+            stored.put(acting, dek);
+            generations.put(acting, next);
+            cache.put(acting, new CacheEntry(dek, next, System.currentTimeMillis()));
+            return next;
         }
 
         @Override

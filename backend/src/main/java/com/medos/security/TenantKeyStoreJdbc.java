@@ -54,6 +54,49 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
     }
 
     /**
+     * The current generation's material lives on the tenant_keys row; superseded
+     * generations live in tenant_dek_history (V6). One lookup method keeps callers
+     * generation-agnostic: they name a generation and the store decides where it is
+     * stored today.
+     */
+    @Override
+    public java.util.Optional<byte[]> wrappedDekOfGeneration(UUID tenantId, int generation) {
+        java.util.Optional<Integer> current = dekGenerationOf(tenantId);
+        if (current.isPresent() && current.get() == generation) {
+            return wrappedDekOf(tenantId);
+        }
+        return firstNonNull(jdbc.query(
+                "SELECT wrapped_dek FROM tenant_dek_history WHERE tenant_id = ? AND dek_generation = ?",
+                (rs, n) -> rs.getBytes(1), tenantId, generation));
+    }
+
+    /**
+     * Archive before advance (the rotation's contract): the superseded material must
+     * be visible to history reads before the generation increments, so an interrupted
+     * rotation never leaves a generation that is both not-current and unarchived.
+     */
+    @Override
+    public int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion) {
+        // Existence check rather than ON CONFLICT, which H2's test profile rejects.
+        Integer existing = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM tenant_dek_history WHERE tenant_id = ? AND dek_generation = ?",
+                Integer.class, tenantId, generation);
+        if (existing != null && existing > 0) {
+            return 0;
+        }
+        return jdbc.update("INSERT INTO tenant_dek_history "
+                + "(id, tenant_id, dek_generation, wrapped_dek, wrapped_kek_version, created_at) "
+                + "VALUES (?, ?, ?, ?, ?, now())",
+                UUID.randomUUID(), tenantId, generation, wrappedDek, kekVersion);
+    }
+
+    @Override
+    public java.util.Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
+        return jdbc.query("SELECT wrapped_kek_version FROM tenant_keys WHERE tenant_id = ?",
+                (rs, n) -> rs.getInt(1), tenantId).stream().findFirst();
+    }
+
+    /**
      * A nullable BYTEA column maps to a null element, and {@code findFirst()} throws on
      * a null first element. Both key columns are nullable in the schema, so an absent
      * key has to read as an empty Optional; otherwise "no index key yet" surfaces as a

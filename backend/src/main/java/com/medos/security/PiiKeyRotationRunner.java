@@ -39,6 +39,7 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
 
     private final TenantKeyStore keyStore;
     private final KeyRewrapService rewrap;
+    private final KeyRotationRepository rotations;
     private final byte[] currentKek;
     private final Runnable shutdown;
     private final Map<String, String> configured;
@@ -59,9 +60,11 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
             @Value("${medos.key-rotation.mode:}") String mode,
             @Value("${medos.key-rotation.new-kek:}") String newKek,
             @Value("${medos.key-rotation.target-version:}") String targetVersion,
-            @Value("${medos.key-rotation.initiated-by:}") String initiatedBy) {
+            @Value("${medos.key-rotation.initiated-by:}") String initiatedBy,
+            @Value("${medos.key-rotation.tenant-id:}") String tenantId) {
         this(keyStore, new KeyRewrapService(keyStore, rotations), decode(currentKekBase64),
-                context::close, optionsFrom(mode, newKek, targetVersion, initiatedBy));
+                context::close, optionsFrom(mode, newKek, targetVersion, initiatedBy, tenantId),
+                rotations);
     }
 
     PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
@@ -71,8 +74,14 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
 
     PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
             Runnable shutdown, Map<String, String> configured) {
+        this(keyStore, rewrap, currentKek, shutdown, configured, null);
+    }
+
+    PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
+            Runnable shutdown, Map<String, String> configured, KeyRotationRepository rotationsRepository) {
         this.keyStore = keyStore;
         this.rewrap = rewrap;
+        this.rotations = rotationsRepository;
         this.currentKek = currentKek;
         this.shutdown = shutdown;
         this.configured = configured;
@@ -80,29 +89,37 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
 
     static Map<String, String> optionsFrom(String mode, String newKek, String targetVersion,
             String initiatedBy) {
+        return optionsFrom(mode, newKek, targetVersion, initiatedBy, "");
+    }
+
+    static Map<String, String> optionsFrom(String mode, String newKek, String targetVersion,
+            String initiatedBy, String tenantId) {
         Map<String, String> options = new LinkedHashMap<>();
         put(options, "dry-run", mode);
         put(options, "apply", mode);
         put(options, "verify", mode);
+        put(options, "dek-rotate", mode);
         put(options, "new-kek", newKek);
         put(options, "target-version", targetVersion);
         put(options, "initiated-by", initiatedBy);
+        put(options, "tenant-id", tenantId);
         return options;
     }
 
     private static void put(Map<String, String> options, String key, String value) {
         if (value != null && !value.isBlank()) {
             String trimmed = value.trim();
-            // A mode is a name, not a key: only the three known ones are accepted.
-            if (!key.equals("dry-run") && !key.equals("apply") && !key.equals("verify")) {
+            // A mode is a name, not a key: only the known ones are accepted.
+            if (!key.equals("dry-run") && !key.equals("apply") && !key.equals("verify")
+                    && !key.equals("dek-rotate")) {
                 options.put(key, trimmed);
                 return;
             }
             String normalised = trimmed.toLowerCase().replace('_', '-');
             if (!normalised.equals("dry-run") && !normalised.equals("apply")
-                    && !normalised.equals("verify")) {
+                    && !normalised.equals("verify") && !normalised.equals("dek-rotate")) {
                 throw new IllegalStateException("medos.key-rotation.mode must be one of "
-                        + "dry-run, apply, verify; got: " + value);
+                        + "dry-run, apply, verify, dek-rotate; got: " + value);
             }
             options.put(normalised, "");
         }
@@ -121,6 +138,11 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
         }
         if (options.containsKey("apply")) {
             apply(options);
+            shutdown.run();
+            return;
+        }
+        if (options.containsKey("dek-rotate")) {
+            dekRotate(options);
             shutdown.run();
             return;
         }
@@ -152,8 +174,54 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
         return out.toString();
     }
 
-    private void apply(Map<String, String> options) {
-        String newKekBase64 = options.get("new-kek");
+    /**
+     * DEK rotation for one tenant ({@code --dek-rotate --tenant-id=<uuid> --initiated-by=<who>}).
+     *
+     * <p>Unlike the KEK re-wrap, this is deliberately single-tenant and deliberate: it
+     * changes the data key itself, so it runs only for a named tenant on an operator's
+     * instruction, and the audit row must say who instructed it. No "rotate everything"
+     * wildcard — a bulk data-key change is exactly the event that deserves per-tenant
+     * friction.
+     */
+    private void dekRotate(Map<String, String> options) {
+        String tenantIdRaw = options.get("tenant-id");
+        if (tenantIdRaw == null || tenantIdRaw.isBlank()) {
+            throw new IllegalStateException(
+                    "--dek-rotate requires --tenant-id=<uuid>. Refusing to rotate: a DEK rotation "
+                            + "must name its tenant explicitly.");
+        }
+        UUID tenantId;
+        try {
+            tenantId = UUID.fromString(tenantIdRaw.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("--tenant-id must be a UUID, got: " + tenantIdRaw, e);
+        }
+        String initiatedBy = options.get("initiated-by");
+        if (initiatedBy == null || initiatedBy.isBlank()) {
+            throw new IllegalStateException(
+                    "--dek-rotate requires --initiated-by=<who>. Refusing to rotate: a changed "
+                            + "data key is a DPDP §8(5) audit event, and an unnamed operator is "
+                            + "no evidence.");
+        }
+        if (keyStore.wrappedDekOf(tenantId).isEmpty()) {
+            throw new IllegalStateException("No stored key material for tenant " + tenantId
+                    + ": nothing to rotate (check the tenant id).");
+        }
+        if (!com.medos.security.TenantKeyResolverFactory.isInitialised()) {
+            throw new IllegalStateException(
+                    "TenantKeyResolver is not initialised; a DEK rotation cannot run without it.");
+        }
+        DekRotationService.Result result = new DekRotationService(
+                com.medos.security.TenantKeyResolverFactory.get(), rotations).rotate(tenantId, initiatedBy);
+        if (result.status() == DekRotationService.Status.FAILED) {
+            throw new IllegalStateException("DEK rotation for tenant " + tenantId
+                    + " failed and was recorded as failed: " + result.detail());
+        }
+        log.info("DEK rotation complete for tenant {}: generation {} -> {}", tenantId,
+                result.fromGeneration(), result.toGeneration());
+    }
+
+    private void apply(Map<String, String> options) {        String newKekBase64 = options.get("new-kek");
         if (newKekBase64 == null || newKekBase64.isBlank()) {
             throw new IllegalStateException(
                     "--apply requires --new-kek=<base64 32-byte KEK>. Refusing to rotate: "
@@ -251,8 +319,8 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
      * something to ignore while a rotation runs around it.
      */
     private Map<String, String> parse(ApplicationArguments args) {
-        List<String> known = List.of("dry-run", "apply", "verify", "new-kek", "target-version",
-                "initiated-by");
+        List<String> known = List.of("dry-run", "apply", "verify", "dek-rotate", "new-kek",
+                "target-version", "tenant-id", "initiated-by");
         Map<String, String> options = new LinkedHashMap<>(configured);
         for (String arg : args.getNonOptionArgs()) {
             throw new IllegalStateException("Unexpected argument: " + arg);
@@ -261,15 +329,15 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
             String key = name.startsWith("--") ? name.substring(2) : name;
             if (!known.contains(key)) {
                 throw new IllegalStateException("Unknown rotation option: --" + key
-                        + ". Known options: --dry-run, --apply, --verify, --new-kek, "
-                        + "--target-version, --initiated-by. Refusing to continue, because a "
+                        + ". Known options: --dry-run, --apply, --verify, --dek-rotate, --new-kek, "
+                        + "--target-version, --tenant-id, --initiated-by. Refusing to continue, because a "
                         + "misspelled flag must not turn into an unintended action.");
             }
             options.put(key, args.getOptionValues(name).isEmpty() ? "" : args.getOptionValues(name).get(0));
         }
 
         List<String> modes = new ArrayList<>();
-        for (String mode : List.of("dry-run", "apply", "verify")) {
+        for (String mode : List.of("dry-run", "apply", "verify", "dek-rotate")) {
             if (options.containsKey(mode)) {
                 modes.add(mode);
             }

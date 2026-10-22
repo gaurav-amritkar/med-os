@@ -163,8 +163,8 @@ Implemented on `main`, superseding the old "the PII key cannot be rotated" posit
 | One tenant's key cannot decrypt another's records | ✅ Done (#86) + `TenantKeyIsolationTest` |
 | KEK re-wrap: dry-run / apply / verify, resumable, fail-closed | ✅ Done (#88, #130) |
 | Operator runbook for rotation | ✅ Done (#89, #131, `docs/operations.md` §7d) |
-| **Per-tenant DEK rotation (`dek_rotation`)** | 🔴 **Not implemented** — schema reserves it, no code path calls `advanceDekGeneration` |
-| **Ciphertext above generation 1** | 🔴 **Not reachable** — `TenantKeyHolder.currentGeneration()` hardcodes `1` |
+| **Per-tenant DEK rotation (`dek_rotation`)** | ✅ **Closed** (2026-10-22) — rotation primitive live: archive → advance → replace, audited; see Wave-0 evidence column |
+| **Ciphertext above generation 1** | ✅ **Closed** (2026-10-22) — `currentGeneration()` resolves the tenant's `dek_generation`; writes follow the current generation |
 | Blind-index key rotation | 🔴 Not implemented — `rotateIndependently` has no operator surface |
 
 ---
@@ -182,7 +182,7 @@ cannot start without. Its five items, verified against the working tree:
 |---|---|---|
 | Consent decoupled from registration | ✅ **Closed** (2026-10-22) | `PatientService` no longer throws when `dpdpConsent` is absent; the DTO field is optional and the stored flag mirrors it (no fabricated consent event). Pinned by `PatientServiceTest.registerPatient_withoutConsent_registersAndLeavesNoConsentEvent` and `PatientRegistrationConsentOptionalTest` (400 → 201) |
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
-| Per-tenant DEK rotation | 🔴 **Open** | `TenantKeyHolder.currentGeneration()` hardcodes `1` |
+| Per-tenant DEK rotation | ✅ **Closed** (2026-10-22) | `DekRotationService` (`archive → advance → replace`, fail-closed, `key_rotations.op='dek_rotation'` audited) over `TenantKeyHolder.rotateDek`; superseded generations staged in `tenant_dek_history` (V6) so `kv1.d<N>:` ciphertext stays readable — rotation is online, no re-encryption window. `currentGeneration()` now resolves the tenant's row (was hardcoded `1`); format's resolver honours the `d<gen>` prefix (was ignored). Pinned by `TenantDekRotationTest` (6) + `TenantDekRotationStoreTest` (3) + 3 runner-mode specs, both mutants of the pinned contract verified killed. Ops surface: `MEDOS_KEY_ROTATION_MODE=dek-rotate` + tenant-id (§7e). Deferred: row-backfill runner to converge rows onto the current generation (optional efficiency, not a correctness gap) |
 | Observability (metrics, structured logs, correlation IDs) | 🟡 **First slice landed** (2026-10-22) | Correlation ID filter (`X-Request-Id` → MDC → logback pattern `%X{requestId}`, proxy ids honored only when safe) + Prometheus scrape (`micrometer-registry-prometheus`, `/manage/` + `prometheus` exposed, ADMIN-gate relaxed for it inside the private network) + `json-logs` profile via logstash-logback-encoder. Pinned by `RequestCorrelationFilterTest` (5 specs) and `ObservabilityHttpContractTest` (3 specs). Remaining to close #9 fully: wire `json-logs` into prod containers, define the dashboard/alert thresholds |
 | Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | ✅ **Closed** (2026-10-22) | Built in `frontend/src/components/` with 19 tests (19 vitest specs): `<DataTable>` owns the §3.2 #6–#8 grammar (dense table, `role="alert"` failure ≠ empty state, "Showing X–Y of Z · page i of N" footer with ‹ Prev/Next ›). Adoption follows each page's restyle wave — the design-system ratchet (`src/test/design-system.test.js`) keeps the eight existing page components on their documented inline-style baseline until then |
 
@@ -238,8 +238,12 @@ gate is now the organizing priority._
    `json-logs` profile (`logback-spring.xml` + LogstashEncoder). Remaining for
    full #9 closure: wire `json-logs` into the prod containers + hand HTTP-level
    request/latency dashboards to an alerting spec.
-6. **Per-tenant DEK rotation** — pair with the `TenantKeyResolver` extraction
-   (§C): same file, one design pass covers both.
+6. **Per-tenant DEK rotation** ✅ Closed (2026-10-22): designed and implemented in one
+   pass with the `TenantKeyResolver` seam deepening — generation-aware resolution
+   (`PiiCiphertextFormat` now honours `d<gen>`), per-generation archive
+   (`tenant_dek_history`, V6), audited primitive (`dek_rotation`, §7e runbook).
+   Remaining follow-up: the optional row-backfill runner (documented in the Wave-0
+   evidence row), not needed for correctness.
 7. **Then Wave 1 (front desk)** under the parity spec's wave gates; **then** the
    container hardening sweep, API versioning plan (#11), and P3 (needs
    legal/ops input for retention & consent policies).

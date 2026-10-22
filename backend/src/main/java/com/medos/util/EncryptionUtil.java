@@ -50,8 +50,12 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
         // the tenant path and then fail at the first encrypt, so the suite became
         // sensitive to surefire's filesystem-dependent class order (CI vs local).
         if (com.medos.security.TenantKeyResolverFactory.isInitialised()) {
+            // The write generation is per tenant and changes with rotation, so it is
+            // supplied per write (the acting tenant's current generation), never pinned
+            // at startup: a pinned 1 would mislabel every post-rotation write while the
+            // key in use was the new generation's.
             format = new PiiCiphertextFormat(PiiCiphertextFormat.tenantResolver())
-                    .withWriteGeneration(1);
+                    .withWriteGenerationSupplier(com.medos.security.TenantKeyResolverFactory::currentGeneration);
         } else {
             format = PiiCiphertextFormat.singleKeyResolver(1, base64Key)
                     .withWriteGeneration(1);
