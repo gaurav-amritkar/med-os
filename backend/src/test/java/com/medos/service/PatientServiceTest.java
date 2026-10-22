@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -127,13 +128,40 @@ class PatientServiceTest {
     }
 
     @Test
-    void registerPatient_missingConsent_throwsException() {
+    void registerPatient_withoutConsent_registersAndLeavesNoConsentEvent() {
+        // Wave 0 (medworks-parity design §consent): consent is decoupled from
+        // registration. Registration itself is not a lawful basis problem — the
+        // consent is a separately captured, auditable event. A patient whose
+        // consent has not been captured must still be registrable, and no
+        // consent event may be fabricated on their behalf.
         PatientRegistrationRequest req = new PatientRegistrationRequest();
-        req.setDpdpConsent(false);
-        req.setName("John");
+        req.setName("John Doe");
         req.setAge(25);
-        BusinessException ex = assertThrows(BusinessException.class, () -> patientService.registerPatient(req));
-        assertEquals("DPDP consent is required for patient registration", ex.getMessage());
+        req.setGender("Male");
+        req.setPhone("1234567890");
+
+        when(patientRepository.getNextUhidSeq()).thenReturn(1L);
+        Patient savedPatient = Patient.builder()
+                .id(UUID.randomUUID())
+                .uhid("UHID000001")
+                .name("John Doe")
+                .age(25)
+                .build();
+        when(patientRepository.save(any(Patient.class))).thenReturn(savedPatient);
+
+        PatientDTO result = patientService.registerPatient(req);
+
+        assertNotNull(result);
+        // The stored flag mirrors reality: consent was not captured...
+        ArgumentCaptor<Patient> captor = ArgumentCaptor.forClass(Patient.class);
+        verify(patientRepository).save(captor.capture());
+        assertFalse(captor.getValue().getDpdpConsent());
+        assertNull(captor.getValue().getDpdpConsentAt());
+        // ...so no consent event may be recorded for them either.
+        verify(consentRepository, never()).save(any());
+        // Registration itself is still audited.
+        verify(auditLogger, times(1)).log(eq("CREATE"), eq("Patient"),
+                eq(savedPatient.getId().toString()), isNull(), anyString());
     }
 
     @Test

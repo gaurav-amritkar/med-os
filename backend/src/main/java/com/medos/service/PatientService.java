@@ -48,9 +48,6 @@ public class PatientService {
 
     @Transactional
     public PatientDTO registerPatient(PatientRegistrationRequest req) {
-        if (!Boolean.TRUE.equals(req.getDpdpConsent())) {
-            throw new BusinessException("DPDP consent is required for patient registration");
-        }
         if (req.getName() == null || req.getName().isBlank() || req.getName().trim().length() < 2) {
             throw new BusinessException("Patient name is required (min 2 chars)");
         }
@@ -75,6 +72,12 @@ public class PatientService {
             if (com.medos.security.TenantKeyHolder.isInitialised()) {
                 com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
             }
+        // Consent is decoupled from registration (Wave 0, medworks-parity design):
+        // registration no longer requires it. The stored flag mirrors what the caller
+        // actually captured — an unconsented patient is registrable, and consent
+        // itself is recorded as an auditable event only when it was granted. A
+        // fabricated "declined" event would assert a conversation that never happened.
+        boolean consentGranted = Boolean.TRUE.equals(req.getDpdpConsent());
         Patient patient = Patient.builder()
                 .uhid(generateUhid())
                 .name(trimmedName)
@@ -86,20 +89,22 @@ public class PatientService {
                 .email(req.getEmail())
                 .address(req.getAddress())
                 .bloodGroup(req.getBloodGroup())
-                .dpdpConsent(true)
-                .dpdpConsentAt(LocalDateTime.now())
+                .dpdpConsent(consentGranted)
+                .dpdpConsentAt(consentGranted ? LocalDateTime.now() : null)
                 .outstanding(java.math.BigDecimal.ZERO)
                 .build();
         Patient saved = patientRepository.save(patient);
 
-        Consent consent = Consent.builder()
-                .patientId(saved.getId())
-                .consentType("DPDP_DATA_PROCESSING")
-                .granted(true)
-                .grantedBy(saved.getName())
-                .purpose(req.getConsentPurpose() != null ? req.getConsentPurpose() : "Treatment and billing")
-                .build();
-        consentRepository.save(consent);
+        if (consentGranted) {
+            Consent consent = Consent.builder()
+                    .patientId(saved.getId())
+                    .consentType("DPDP_DATA_PROCESSING")
+                    .granted(true)
+                    .grantedBy(saved.getName())
+                    .purpose(req.getConsentPurpose() != null ? req.getConsentPurpose() : "Treatment and billing")
+                    .build();
+            consentRepository.save(consent);
+        }
 
         auditLogger.log("CREATE", "Patient", saved.getId().toString(),
                 null, "UHID=" + saved.getUhid());
