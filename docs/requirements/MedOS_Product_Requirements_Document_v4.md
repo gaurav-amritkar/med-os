@@ -3,7 +3,7 @@
 **Version:** 4.0
 **Status:** Current — describes the system as built and the work as planned
 **Date:** 2026-10-02
-**Supersedes:** `requirements/PRD.pdf` and `requirements/MedOS_Product_Requirements_Document.html` (v3.0, dated 2026-04-18)
+**Supersedes:** `docs/requirements/PRD.pdf` and `docs/requirements/MedOS_Product_Requirements_Document.html` (v3.0, dated 2026-04-18)
 
 > **Supersession notice.** The v3.0 PRD is **retained unmodified** for provenance. It specifies a
 > Node.js / Express / SQLite / Knex product and a system-manifest layout (schema mappings, router
@@ -20,15 +20,15 @@ what it must achieve. This document covers **what it is and how it behaves**.
 | Layer | Choice | Decision record |
 |---|---|---|
 | Runtime | Java 17, Spring Boot 3.5.16 | — |
-| Persistence | PostgreSQL 16, Spring Data JPA, Hibernate 6 | [ADR-0001](../docs/adr/0001-single-host-managed-postgres.md) |
-| Tenancy | Row-level `tenant_id`, enforced by SQL rewriting | [ADR-0002](../docs/adr/0002-row-level-tenancy.md) |
+| Persistence | PostgreSQL 16, Spring Data JPA, Hibernate 6 | [ADR-0001](../adr/0001-single-host-managed-postgres.md) |
+| Tenancy | Row-level `tenant_id`, enforced by SQL rewriting | [ADR-0002](../adr/0002-row-level-tenancy.md) |
 | Frontend | React 19, Vite 8, React Router, Zustand | — |
-| Auth | In-house JWT, bcrypt, Redis-backed rate limiting | [ADR-0008](../docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md) |
-| Redis | Non-authoritative cache and rate-limit counter only | [ADR-0007](../docs/adr/0007-redis-non-authoritative.md) |
-| PII | Envelope encryption, AES-256-GCM, one DEK per tenant | [ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md) |
-| Secrets | Files outside the image, mode 600, never in Git | [ADR-0004](../docs/adr/0004-secret-management.md) |
-| Migrations | Dedicated Flyway container; application never migrates | [ADR-0005](../docs/adr/0005-migration-ownership.md) |
-| Onboarding | Gated, closed by default | [ADR-0003](../docs/adr/0003-gated-self-serve-onboarding.md) |
+| Auth | In-house JWT, bcrypt, Redis-backed rate limiting | [ADR-0008](../adr/0008-supabase-managed-postgres-auth-stays-inhouse.md) |
+| Redis | Non-authoritative cache and rate-limit counter only | [ADR-0007](../adr/0007-redis-non-authoritative.md) |
+| PII | Envelope encryption, AES-256-GCM, one DEK per tenant | [ADR-0009](../adr/0009-envelope-encryption-per-tenant-deks.md) |
+| Secrets | Files outside the image, mode 600, never in Git | [ADR-0004](../adr/0004-secret-management.md) |
+| Migrations | Dedicated Flyway container; application never migrates | [ADR-0005](../adr/0005-migration-ownership.md) |
+| Onboarding | Gated, closed by default | [ADR-0003](../adr/0003-gated-self-serve-onboarding.md) |
 
 ### Tenancy enforcement
 
@@ -45,7 +45,7 @@ scope through that membership table explicitly.
 ## 2. Data model
 
 25 tables across three migrations. V1 is frozen — once applied it is never edited, because the
-checksum gate exists to prove it ([ADR-0005](../docs/adr/0005-migration-ownership.md)).
+checksum gate exists to prove it ([ADR-0005](../adr/0005-migration-ownership.md)).
 
 | Migration | Contents |
 |---|---|
@@ -329,9 +329,9 @@ this one replaces.
 | Document | Purpose |
 |---|---|
 | [BRD v4.0](MedOS_Business_Requirements_Document_v4.md) | Why the product exists, scope, metrics, risks |
-| [ARCHITECTURE.md](../docs/ARCHITECTURE.md) | System structure |
-| [requirements-traceability.md](../docs/requirements-traceability.md) | v3.0 requirements vs implementation |
-| [operations.md](../docs/operations.md) | Runbook |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | System structure |
+| [requirements-traceability.md](../requirements-traceability.md) | v3.0 requirements vs implementation |
+| [operations.md](../operations.md) | Runbook |
 | `docs/adr/` | Nine accepted decisions |
-| [Design spec](../docs/superpowers/specs/2026-10-01-pii-key-lifecycle-fhir-abdm-design.md) | PII key lifecycle, FHIR, ABDM |
-| `requirements/PRD.pdf`, `requirements/MedOS_Product_Requirements_Document.html` | **Superseded v3.0, retained for provenance** |
+| [Design spec](../superpowers/specs/2026-10-01-pii-key-lifecycle-fhir-abdm-design.md) | PII key lifecycle, FHIR, ABDM |
+| `docs/requirements/PRD.pdf`, `docs/requirements/MedOS_Product_Requirements_Document.html` | **Superseded v3.0, retained for provenance** |

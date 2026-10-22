@@ -2,7 +2,7 @@
 
 Optimized for quick agent orientation. Treat as a starting point, then verify
 targeted files before edits. **The code is the source of truth — this snapshot
-and `NEXT_STEPS.md` have both been stale in the past.**
+and `docs/roadmap.md` have both been stale in the past.**
 
 ## Top-level layout
 - `backend/` — Spring Boot backend (Java 17, Maven, Spring Boot 3.5.x)
@@ -16,7 +16,7 @@ and `NEXT_STEPS.md` have both been stale in the past.**
 - `caddy/` — TLS terminator (`Caddyfile`, `Dockerfile`); production only
 - `docker-compose.yml` — local/dev stack (includes an in-host `db`)
 - `docker-compose.prod.yml` — production stack (**no** `db`; managed Postgres)
-- `docs/adr/` — architecture decision records (0001–0009, all Accepted)
+- `docs/adr/` — architecture decision records (0001–0010, all Accepted)
 - `docs/operations.md` — runbooks, incl. §7d PII key rotation
 - `tools/` — migration gate, dev seeder, Trivy baseline
 - `.github/workflows/ci.yml` — CI (4 required jobs)
@@ -67,9 +67,10 @@ hardcodes `1`; blind-index key rotation has no operator surface.
   (gitignored — never read values, only presence)
 
 ## Open blockers worth knowing before you start
-- `BOOTSTRAP_ADMIN_PASSWORD` is **not wired** into `docker-compose.prod.yml`;
-  the prod backend cannot start as committed.
-- `/api/v1/users/me` returns the password hash (#106), P0.
+- `/api/v1/users/me` no longer returns the password hash — fixed (#108); the
+  Playwright assertion is green. Formerly P0.
+- Consent is a precondition of patient registration (`PatientService.java:51`),
+  recorded as a P0 DPDP defect; the parity programme's Wave 0 decouples it.
 - Observability (#9) is at zero: no Prometheus, no JSON logs, no correlation IDs.
 
 ## Recommended default commands
@@ -88,7 +89,7 @@ From repo root:
 - `./tools/verify-migrations.sh` — run this after any migration change
 
 ## Token-saving playbook
-1. Read `NEXT_STEPS.md` + one relevant config file first.
+1. Read `docs/roadmap.md` + one relevant config file first.
 2. Locate the exact target with `grep`/`glob` scoped to `backend/**` or
    `frontend/**`.
 3. Read only the needed file sections.

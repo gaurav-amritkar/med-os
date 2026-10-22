@@ -3,7 +3,7 @@
 **Version:** 4.0
 **Status:** Current — describes the system as built and the work as planned
 **Date:** 2026-10-02
-**Supersedes:** `requirements/BRD.pdf` and `requirements/MedOS_Business_Requirements_Document.html` (v3.0, dated 2026-04-18)
+**Supersedes:** `docs/requirements/BRD.pdf` and `docs/requirements/MedOS_Business_Requirements_Document.html` (v3.0, dated 2026-04-18)
 
 > **Supersession notice.** The v3.0 BRD is **retained unmodified** for provenance. It describes a
 > Node.js / Express / SQLite / Knex / bcrypt product deployed as a single-tenant instance and is
@@ -55,7 +55,7 @@ Two facts frame everything below:
 
 ### Explicitly out of scope
 
-Per [ADR-0006](../docs/adr/0006-v1-non-goals.md): native mobile apps, insurance claim adjudication,
+Per [ADR-0006](../adr/0006-v1-non-goals.md): native mobile apps, insurance claim adjudication,
 laboratory analysers, payroll, and multi-country tax engines.
 
 ### V1 non-goals are still non-goals
@@ -128,11 +128,11 @@ tests, 8 Playwright specs and a 31-endpoint flow probe were green at the time of
 | Language / framework | Java 17, Spring Boot 3.5.16 | `backend/pom.xml` |
 | Frontend | React 19, Vite 8 | `frontend/package.json` |
 | Database | PostgreSQL 16 (Supabase-compatible), 25 tables | `database/migrations/` |
-| Tenancy | Row-level, injected at the SQL layer | [ADR-0002](../docs/adr/0002-row-level-tenancy.md) |
-| PII at rest | Envelope encryption, one DEK per tenant | [ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md) |
-| Migrations | Dedicated container, Flyway, checksum-gated | [ADR-0005](../docs/adr/0005-migration-ownership.md) |
-| Secrets | Files outside the image, mode 600 | [ADR-0004](../docs/adr/0004-secret-management.md) |
-| Auth | In-house JWT, six roles | [ADR-0008](../docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md) |
+| Tenancy | Row-level, injected at the SQL layer | [ADR-0002](../adr/0002-row-level-tenancy.md) |
+| PII at rest | Envelope encryption, one DEK per tenant | [ADR-0009](../adr/0009-envelope-encryption-per-tenant-deks.md) |
+| Migrations | Dedicated container, Flyway, checksum-gated | [ADR-0005](../adr/0005-migration-ownership.md) |
+| Secrets | Files outside the image, mode 600 | [ADR-0004](../adr/0004-secret-management.md) |
+| Auth | In-house JWT, six roles | [ADR-0008](../adr/0008-supabase-managed-postgres-auth-stays-inhouse.md) |
 | ADRs | 9 accepted | `docs/adr/` |
 
 ### Modules
@@ -140,7 +140,7 @@ tests, 8 Playwright specs and a 31-endpoint flow probe were green at the time of
 | Module | Endpoints | State |
 |---|---|---|
 | Authentication | 1 | Complete |
-| Onboarding | 1 | Complete, gated per [ADR-0003](../docs/adr/0003-gated-self-serve-onboarding.md) |
+| Onboarding | 1 | Complete, gated per [ADR-0003](../adr/0003-gated-self-serve-onboarding.md) |
 | Patients | 7 | Complete; fragment name search fixed on branch |
 | Encounters / OPD | 9 | Complete |
 | Admissions / IPD | 6 | Complete; no discharge summary |
@@ -155,7 +155,7 @@ tests, 8 Playwright specs and a 31-endpoint flow probe were green at the time of
 
 Delivered as a chain of issues, and the reason a KEK rotation no longer breaks the system:
 
-- [ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md) — envelope encryption,
+- [ADR-0009](../adr/0009-envelope-encryption-per-tenant-deks.md) — envelope encryption,
   one DEK per tenant ([#83](https://github.com/gaurav-amritkar/med-os/issues/83))
 - `tenant_keys` / `key_rotations` schema ([#84](https://github.com/gaurav-amritkar/med-os/issues/84))
 - Versioned ciphertext, `kv1.d<generation>:<payload>` ([#85](https://github.com/gaurav-amritkar/med-os/issues/85))
@@ -332,10 +332,10 @@ untrustworthy.
 | Document | Purpose |
 |---|---|
 | [PRD v4.0](MedOS_Product_Requirements_Document_v4.md) | What the system is: architecture, data, API, UI, verification |
-| [ARCHITECTURE.md](../docs/ARCHITECTURE.md) | How the system is built |
-| [requirements-traceability.md](../docs/requirements-traceability.md) | v3.0 requirements vs implementation |
-| [production-readiness-plan.md](../docs/production-readiness-plan.md) | Path to first live hospital |
-| [operations.md](../docs/operations.md) | Runbook |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | How the system is built |
+| [requirements-traceability.md](../requirements-traceability.md) | v3.0 requirements vs implementation |
+| [production-readiness-plan.md](../production-readiness-plan.md) | Path to first live hospital |
+| [operations.md](../operations.md) | Runbook |
 | `docs/adr/` | Nine accepted architecture decisions |
-| [Design spec](../docs/superpowers/specs/2026-10-01-pii-key-lifecycle-fhir-abdm-design.md) | PII key lifecycle, FHIR and ABDM |
-| `requirements/BRD.pdf`, `requirements/MedOS_Business_Requirements_Document.html` | **Superseded v3.0, retained for provenance** |
+| [Design spec](../superpowers/specs/2026-10-01-pii-key-lifecycle-fhir-abdm-design.md) | PII key lifecycle, FHIR and ABDM |
+| `docs/requirements/BRD.pdf`, `docs/requirements/MedOS_Business_Requirements_Document.html` | **Superseded v3.0, retained for provenance** |

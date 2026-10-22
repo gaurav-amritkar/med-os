@@ -11,7 +11,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > table.
 >
 > **Product feature requests live in a separate document:**
-> [`docs/feature-releases.md`](docs/feature-releases.md) — the requested feature
+> [`docs/feature-releases.md`](feature-releases.md) — the requested feature
 > releases (landing page, tenant name in the header, staff accounts, printable
 > receipts, configurable GST, wards/rooms, super-admin tenant management, payment
 > gateway), each verified against the current code.
@@ -31,11 +31,13 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 > refused at login **and on every request** (not just at login).
 >
 > A gap analysis against the original v3.0 requirements is in
-> [`docs/requirements-traceability.md`](docs/requirements-traceability.md). Note
-> that `requirements/BRD` and `requirements/PRD` describe a **Node/Express/SQLite
-> single-tenant** product and are stale as architecture documents; the largest
-> unmet requirement is the Claude AI integration they specify, which the code does
-> not implement.
+> [`docs/requirements-traceability.md`](requirements-traceability.md). Note
+> that the superseded v3.0 sources (`docs/requirements/BRD.pdf` and
+> `docs/requirements/PRD.pdf`, retained for provenance) describe a
+> **Node/Express/SQLite single-tenant** product; the current, code-verified
+> requirements are `docs/requirements/*_v4.md`. The largest unmet v4
+> requirement remains the Claude AI integration, which the code does not
+> implement.
 
 ---
 
@@ -47,7 +49,10 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 | 2 | ~~Return 401 (not 403) for unauthenticated API requests~~ | security/api | ✅ Done (commit `7c105b6`) |
 | 3 | ~~Branch protection: require CI status checks on main~~ | devops | ✅ Enforced |
 | — | ~~`BOOTSTRAP_ADMIN_PASSWORD` not wired into `docker-compose.prod.yml`~~ | devops | ✅ Done (#137) — secret declared and mounted, plus `tools/verify-prod-secrets.sh` in CI |
-| — | `/api/v1/users/me` returns the password hash (#106) | security | 🔴 **Open, P0** |
+| — | ~~`/api/v1/users/me` returns the password hash (#106)~~ | security | ✅ Done (#108, commit `fd19cce`) — `CurrentUserDTO` replaced the entity; Playwright asserts no hash, persistence-only fields, and a resolved acting tenant. **Verified green 2026-10-22.** |
+
+> **All P0 release blockers are closed as of 2026-10-22.** Phase 1 has no open
+> items.
 
 > **Done (commit `ae92e5c`):** JWT_SECRET required + validated, demo accounts
 > removed from Flyway (V3), admin bootstrap, actuator → `/manage`, WebSocket token
@@ -133,8 +138,8 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 ### Testing Sub-Steps (P2)
 | # | Issue | Area | Status |
 |---|-------|------|--------|
-| T1 | **End-to-End API Testing** — validate all REST endpoints with valid/invalid payloads, cover all 7 roles | api/testing | 🟡 In Progress (Playwright `probe:flows` + `smoke`/`full` specs exist) |
-| T2 | **Negative Scenario Testing** — malformed requests, missing auth, unauthorized access, boundary values, duplicate submissions | api/testing | 🟡 In Progress |
+| T1 | **End-to-End API Testing** — validate all REST endpoints with valid/invalid payloads, cover all 7 roles | api/testing | 🟡 In Progress — `probe:flows` verified **31/31 (2026-10-22)** against a live stack; Playwright UI suites **9/9**. Full-stack covered, but probe is role-matrix-thin: runs as admin/doctor only, not all 7 roles |
+| T2 | **Negative Scenario Testing** — malformed requests, missing auth, unauthorized access, boundary values, duplicate submissions | api/testing | 🟡 In Progress — error contract + RBAC matrix tests and probe negative paths (missing idempotency key → 400) verified 2026-10-22 |
 | T3 | **Security Penetration Testing** — OWASP Top 10; OWASP ZAP or Burp Suite | security/testing | ⬜ Not Started |
 | T4 | **Docker Integration Testing** — `docker compose up --build`; health checks, env propagation, network isolation | devops/testing | 🟡 Partial — CI validates the compose model and asserts invariants, but does not boot the full prod stack |
 | T5 | **Environment Variable Validation** — pre-flight check that required env vars are set and non-empty | devops/testing | 🟡 Partial — fail-closed at startup for JWT_SECRET/PII_ENCRYPTION_KEY; no standalone pre-flight script |
@@ -164,21 +169,73 @@ Implemented on `main`, superseding the old "the PII key cannot be rotated" posit
 
 ---
 
+## Design programmes and their status (2026-10-22 audit)
+
+All design work now lives under `docs/`. Status verified against the code,
+not against the documents.
+
+### A. MedWorks parity programme (`docs/superpowers/specs/2026-10-19-medworks-parity-design.md`, ADR-0010) — **the active programme**
+27 modules, 109 new tables, 8 delivery waves. Wave 0 is a gate the parity work
+cannot start without. Its five items, verified against the working tree:
+
+| Wave-0 item | Status | Evidence |
+|---|---|---|
+| Consent decoupled from registration | 🔴 **Open, P0** | `PatientService.register()` still throws when `dpdpConsent` is absent (`PatientService.java:51`) — a patient today cannot register without consent, which blocks emergency/unknown care and is a P0 DPDP defect (also recorded in `docs/product.md`) |
+| `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
+| Per-tenant DEK rotation | 🔴 **Open** | `TenantKeyHolder.currentGeneration()` hardcodes `1` |
+| Observability (metrics, structured logs, correlation IDs) | 🔴 **Open** | #9 — the only Phase 3 item at zero |
+| Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | 🔴 **Open** | `frontend/src/components/` has none of the three; every list page hand-rolls its table |
+
+Wave 0 is followed by Wave 1 (front desk; enquiry/appointments), then clinical
+core, inpatient, diagnostics, etc. The spec names Wave 7 (double-entry
+accounts) as the largest risk needing its own design pass.
+
+### B. UI/UX redesign (`docs/superpowers/specs/2026-09-27-medos-ui-ux-redesign-design.md`) — ✅ **Foundation shipped**
+Wave 0 (token layer, shell) merged in #170 (`a63f3a1`); design-token plus
+component wave landed and the contrast gate runs in CI. 61 UI snapshots
+captured 18 Oct 2026 (`docs/ui-snapshots/`). Page-level redesign continues
+against the spec's waves as pages are touched.
+
+### C. Key-material deepening (`docs/architecture-review/*.md`, `docs/adr/0001-tenant-encryption-seam-deepening.md`, `docs/superpowers/specs/2026-10-04-tenant-key-resolver-design.md`) — 🟡 **Proposed, not started**
+`TenantKeyHolder` still a 491-line hand-rolled mix of 6 responsibilities; the
+`TenantKeyResolver`/`BlindIndexKeyProvider` extraction is a health-adjacent
+refactor to do before/during DEK-rotation work, since both touch the same file.
+
+### D. In-flight, uncommitted (working tree)
+Backend: `GlobalExceptionHandler` docs/tests + `PharmacyRequestParamContractTest`;
+frontend: Pharmacy **"+ Add Medicine"** modal (`pharmacyApi.addMedicine`) +
+`PharmacyEmptyCatalogue.test.jsx`. Both suites green on 2026-10-22 (backend 311,
+frontend 62, E2E 9/9 flow-probe 31/31). Needs commit/PR to land.
+
+---
+
 ## Suggested working order
 
-1. **One P0 blocker left** — stop `/api/v1/users/me` leaking the password hash
-   (#106). The other blocker, the unwired bootstrap secret, is fixed in #137.
-   The P1 security batch from the readiness review (#134) is #138–#143.
-2. **Then #9 (observability)** — it is the single largest remaining gap and the
-   only Phase 3 item genuinely at zero. Metrics, JSON logs and a correlation ID
-   are what make the rest operable.
-3. **Then the container hardening sweep** — resource limits, `read_only`,
-   `cap_drop`, `no-new-privileges`, and dropping root from the redis/caddy/migrate
-   images. Mechanical, and it removes a whole class of finding.
-4. **Close the tenant-scoping gap** — `TenantStatementInspector` covers `SELECT`
-   root-`FROM` only; writes depend on services remembering to set `tenantId`.
-5. **Finish #11** with an API versioning plan; the springdoc part is done.
-6. **P3** — ongoing; needs legal/ops input for retention & consent policies.
+_Updated 2026-10-22 after the P0 blockers closed. The parity programme's Wave 0
+gate is now the organizing priority._
+
+1. **Commit the in-flight Pharmacy work** (§D above) — it is tested green; do
+   not leave unverified working-tree drift across a programme boundary.
+2. **Wave 0 first, before any parity module.** Smallest item with the largest
+   compliance value: **decouple consent from registration** — a patient must
+   not be unregistrable because a consent checkbox blocks them (DPDP §6(2));
+   consent is then captured as an auditable event when it is actually obtained.
+   Backend + tests only; no schema change; nothing else in Wave 0 depends on it.
+3. **Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>`** — every Wave 1+
+   list page imports these; building one parity page before they exist means
+   re-touching it later.
+4. **Tenant write-scoping guard** (#134/G16) — the parity spec's risk register
+   calls this **Critical**: Wave 1 adds real tables to a `SELECT`-only scoping
+   regime. Even before the inspector itself is extended, a guard test that
+   fails when a write path omits `tenantId` shrinks the exposure.
+5. **Observability (#9)** — still the single largest remaining infra gap, and
+   the wave-0 gate expects correlation IDs before 27 modules multiply log
+   surfaces.
+6. **Per-tenant DEK rotation** — pair with the `TenantKeyResolver` extraction
+   (§C): same file, one design pass covers both.
+7. **Then Wave 1 (front desk)** under the parity spec's wave gates; **then** the
+   container hardening sweep, API versioning plan (#11), and P3 (needs
+   legal/ops input for retention & consent policies).
 
 ## Quick wins (single sitting)
 

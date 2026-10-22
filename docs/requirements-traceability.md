@@ -2,8 +2,8 @@
 
 Comparison of the v3.0 requirements documents against what is actually built.
 
-- **Sources:** `requirements/BRD.pdf` / `requirements/MedOS_Business_Requirements_Document.html`,
-  and `requirements/PRD.pdf` / `requirements/MedOS_Product_Requirements_Document.html`
+- **Sources:** `docs/requirements/BRD.pdf` / `docs/requirements/MedOS_Business_Requirements_Document.html`,
+  and `docs/requirements/PRD.pdf` / `docs/requirements/MedOS_Product_Requirements_Document.html`
   (both stamped `2026-04-18`, `STATUS: VERIFIED_DEPLOYMENT`).
 - **Originally verified against:** `main` @ `dc8a8cc`.
 - ⚠️ **Corrected 12 Oct 2026.** That commit predates staff management,

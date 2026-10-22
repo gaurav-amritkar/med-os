@@ -5,7 +5,7 @@
 
 ## Context
 
-MedOS will be sold as multi-tenant SaaS to multiple hospitals. The current deployment is a single `docker-compose.yml` that publishes database and cache ports, declares no volumes, and supplies development credentials under the `prod` profile. `NEXT_STEPS.md` and `PRODUCTION_READINESS.md` reference Kubernetes, Helm, an API gateway, and read replicas, none of which exist.
+MedOS will be sold as multi-tenant SaaS to multiple hospitals. The current deployment is a single `docker-compose.yml` that publishes database and cache ports, declares no volumes, and supplies development credentials under the `prod` profile. `docs/roadmap.md` and `docs/production-readiness.md` reference Kubernetes, Helm, an API gateway, and read replicas, none of which exist.
 
 ## Decision
 

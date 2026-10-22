@@ -69,7 +69,7 @@ plaintext PII, the absence of consent, and single-hospital identity.
   deductions (PF, ESI, TDS). Those requirements must be specified before the payroll
   wave is implemented — a scope decision does not settle them.
 - The size of the change means the pilot milestone in `PRODUCT.md` and the parity
-  programme now compete for the same capacity. `NEXT_STEPS.md` records P0 release
+  programme now compete for the same capacity. `docs/roadmap.md` records P0 release
   readiness as blocking any production deploy; those gates stay ahead of parity work
   and are not traded against it.
 - Scope is stated per module in the parity spec's §4.1. Adding a module beyond that

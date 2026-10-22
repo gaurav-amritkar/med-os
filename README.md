@@ -451,7 +451,6 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
 
 Tracked in GitHub issues rather than papered over:
 
-- **`/api/v1/users/me` returns the password hash** — [#106](https://github.com/gaurav-amritkar/med-os/issues/106), P0.
 - **Per-tenant DEK rotation is not implemented** — only fleet-wide KEK re-wrap is.
   See the note above and `docs/adr/0009-envelope-encryption-per-tenant-deks.md`.
 - **No observability** — no Prometheus metrics, structured JSON logging, or
@@ -491,10 +490,10 @@ E2E_BASE_URL="http://localhost:8080" E2E_PASSWORD='<admin password>' npx playwri
 `E2E_PASSWORD` is required and the specs skip without it. Use the password you set
 in `.env`, or `password` if you have run `./tools/seed-dev.sh`.
 
-`e2e/full.spec.js` includes a **currently failing** assertion that
-`/api/v1/users/me` must not return a password hash. It fails on purpose until
-[#106](https://github.com/gaurav-amritkar/med-os/issues/106) is fixed — do not
-weaken it to make the suite green.
+`e2e/full.spec.js` includes an assertion that `/api/v1/users/me` must not return
+a password hash. This became a green assertion once [#106](https://github.com/gaurav-amritkar/med-os/issues/106)
+was fixed in #108 (commit `fd19cce`) — the response moved off the JPA entity
+onto `CurrentUserDTO`. Do not weaken it.
 
 CI (`.github/workflows/ci.yml`) runs four required checks on every PR: backend
 build and tests, frontend lint/test/build, container definitions, and an image
