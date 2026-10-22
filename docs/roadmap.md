@@ -184,7 +184,7 @@ cannot start without. Its five items, verified against the working tree:
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
 | Per-tenant DEK rotation | 🔴 **Open** | `TenantKeyHolder.currentGeneration()` hardcodes `1` |
 | Observability (metrics, structured logs, correlation IDs) | 🔴 **Open** | #9 — the only Phase 3 item at zero |
-| Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | 🔴 **Open** | `frontend/src/components/` has none of the three; every list page hand-rolls its table |
+| Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | ✅ **Closed** (2026-10-22) | Built in `frontend/src/components/` with 19 tests (19 vitest specs): `<DataTable>` owns the §3.2 #6–#8 grammar (dense table, `role="alert"` failure ≠ empty state, "Showing X–Y of Z · page i of N" footer with ‹ Prev/Next ›). Adoption follows each page's restyle wave — the design-system ratchet (`src/test/design-system.test.js`) keeps the eight existing page components on their documented inline-style baseline until then |
 
 Wave 0 is followed by Wave 1 (front desk; enquiry/appointments), then clinical
 core, inpatient, diagnostics, etc. The spec names Wave 7 (double-entry
@@ -220,9 +220,8 @@ gate is now the organizing priority._
    a patient registers without a consent checkbox (DPDP §6(2)); consent stays an
    auditable event in `consents` whenever the caller sends one. Backend + tests
    only; no schema change; nothing else in Wave 0 depends on it.
-3. **Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>`** — every Wave 1+
-   list page imports these; building one parity page before they exist means
-   re-touching it later.
+3. **Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>`** ✅ Done (2026-10-22) —
+   built and tested; every Wave 1+ list page imports these instead of hand-rolling.
 4. **Tenant write-scoping guard** (#134/G16) — the parity spec's risk register
    calls this **Critical**: Wave 1 adds real tables to a `SELECT`-only scoping
    regime. Even before the inspector itself is extended, a guard test that
