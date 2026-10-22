@@ -69,6 +69,10 @@ export const encounterApi = {
 
 export const pharmacyApi = {
   listMedicines: () => client.get('/pharmacy/medicines'),
+  // The backend has accepted this since the catalogue endpoint was written;
+  // nothing in the UI called it, so a pharmacist could not create the very
+  // first medicine stock-in depends on.
+  addMedicine: (data) => client.post('/pharmacy/medicines', data),
   getMedicine: (id) => client.get(`/pharmacy/medicines/${id}`),
   getBatches: (id) => client.get(`/pharmacy/medicines/${id}/batches`),
   addStock: (id, data) => client.post(`/pharmacy/medicines/${id}/stock-in`, null, { params: data }),

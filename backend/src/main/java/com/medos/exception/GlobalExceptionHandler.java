@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -116,6 +117,33 @@ public class GlobalExceptionHandler {
             HttpStatus.BAD_REQUEST.getReasonPhrase(),
             "INVALID_PARAMETER",
             "'" + ex.getName() + "' is not a valid " + ex.getRequiredType().getSimpleName(),
+            req.getRequestURI()
+        );
+        return ResponseEntity.badRequest().body(err);
+    }
+
+    /**
+     * A required query or form parameter was left out.
+     *
+     * <p>The endpoints that take {@code @RequestParam} are pharmacy stock-in
+     * and dispense-adjacent calls. A caller who sends those as a JSON body
+     * instead — the obvious mistake, and one this API invites by using
+     * {@code @RequestBody} everywhere else — previously got a 500
+     * "An unexpected error occurred" with the real reason visible only in the
+     * server log.
+     *
+     * <p>Naming the parameter is the whole point. "batchNo is required" tells the
+     * caller what to change; a generic 500 tells them nothing and reads like an
+     * outage.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParam(MissingServletRequestParameterException ex, HttpServletRequest req) {
+        log.warn("Missing required parameter '{}' on {}", ex.getParameterName(), req.getRequestURI());
+        ApiError err = ApiError.of(
+            HttpStatus.BAD_REQUEST.value(),
+            HttpStatus.BAD_REQUEST.getReasonPhrase(),
+            "INVALID_PARAMETER",
+            "'" + ex.getParameterName() + "' is required",
             req.getRequestURI()
         );
         return ResponseEntity.badRequest().body(err);

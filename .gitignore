@@ -71,3 +71,4 @@ env/
 secrets/*.txt
 # Abandoned Supabase integration; credentials were committed. ADR-0001 rejected that path.
 .env.supabase
+.impeccable/
