@@ -42,7 +42,14 @@ public class EncryptionUtil implements AttributeConverter<String, String> {
         // Prefer the tenant-aware resolver: the KEK is validated here, but the key that
         // actually encrypts a field is the acting tenant's DEK. Falling back to the raw
         // secret would silently restore a single global key and undo tenant isolation.
-        if (com.medos.security.TenantKeyHolder.isInitialised()) {
+        //
+        // The decision consults TenantKeyResolverFactory — the same static the runtime
+        // encrypt() path consults — not a second one (TenantKeyHolder.isInitialised()).
+        // Those two statics can disagree in a JVM where unit tests have installed a
+        // fake holder and cleared the factory; preferring the holder made init() pick
+        // the tenant path and then fail at the first encrypt, so the suite became
+        // sensitive to surefire's filesystem-dependent class order (CI vs local).
+        if (com.medos.security.TenantKeyResolverFactory.isInitialised()) {
             format = new PiiCiphertextFormat(PiiCiphertextFormat.tenantResolver())
                     .withWriteGeneration(1);
         } else {

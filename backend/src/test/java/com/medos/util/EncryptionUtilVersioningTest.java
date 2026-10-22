@@ -1,5 +1,7 @@
 package com.medos.util;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +23,33 @@ class EncryptionUtilVersioningTest {
 
     private static final String KEY =
             Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8));
+
+    /** Whatever resolver was in the factory before this class ran; restored in {@link #restoreResolverForOtherClasses}. */
+    private static volatile com.medos.security.TenantKeyResolver savedResolver;
+
+    /**
+     * These tests assert the converter's *single-key* contract (key validation
+     * happens on that path). Another class may have parked a resolver in the
+     * factory, which would silently switch init() onto the tenant path and flip
+     * these assertions depending on surefire's class order. Run on a clean
+     * factory and put back whatever was there for whoever follows.
+     */
+    @BeforeAll
+    static void clearResolverForOtherClasses() {
+        savedResolver = com.medos.security.TenantKeyResolverFactory.isInitialised()
+                ? com.medos.security.TenantKeyResolverFactory.get()
+                : null;
+        com.medos.security.TenantKeyResolverFactory.reset();
+    }
+
+    @AfterAll
+    static void restoreResolverForOtherClasses() {
+        if (savedResolver != null) {
+            com.medos.security.TenantKeyResolverFactory.setInstance(savedResolver);
+        } else {
+            com.medos.security.TenantKeyResolverFactory.reset();
+        }
+    }
 
     @Test
     @DisplayName("the converter writes the versioned prefix")
