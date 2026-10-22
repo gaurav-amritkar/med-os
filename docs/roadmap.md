@@ -222,10 +222,13 @@ gate is now the organizing priority._
    only; no schema change; nothing else in Wave 0 depends on it.
 3. **Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>`** ✅ Done (2026-10-22) —
    built and tested; every Wave 1+ list page imports these instead of hand-rolling.
-4. **Tenant write-scoping guard** (#134/G16) — the parity spec's risk register
-   calls this **Critical**: Wave 1 adds real tables to a `SELECT`-only scoping
-   regime. Even before the inspector itself is extended, a guard test that
-   fails when a write path omits `tenantId` shrinks the exposure.
+4. **Tenant write-scoping guard** (#134/G16) ✅ Done (2026-10-22) —
+   `TenantWriteScopingGuardTest` guards the entity↔`TENANT_TABLES`↔listener
+   alignment in both directions; the first Wave 1 entity that forgets either
+   half of write-stamping fails CI. Verified mutant-killing: dropping
+   `TenantOwned` from `MedicineCatalog` fails it with the named cause. When
+   Wave 1 lands, extend `TenantStatementInspector` itself to writes (issue
+   #134), not just the guard.
 5. **Observability (#9)** — still the single largest remaining infra gap, and
    the wave-0 gate expects correlation IDs before 27 modules multiply log
    surfaces.
