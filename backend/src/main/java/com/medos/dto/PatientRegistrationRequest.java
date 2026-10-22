@@ -27,7 +27,12 @@ public class PatientRegistrationRequest {
     private String address;
     private String bloodGroup;
 
-    @NotNull
+    /**
+     * Consent is decoupled from registration (Wave 0, medworks-parity design):
+     * optional, not a precondition. When true, the consent is written to the
+     * {@code consents} table as an auditable event; when omitted, the patient
+     * registers with no consent captured and no event is fabricated for them.
+     */
     private Boolean dpdpConsent;
     private String consentPurpose;
 }

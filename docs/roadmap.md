@@ -180,7 +180,7 @@ cannot start without. Its five items, verified against the working tree:
 
 | Wave-0 item | Status | Evidence |
 |---|---|---|
-| Consent decoupled from registration | 🔴 **Open, P0** | `PatientService.register()` still throws when `dpdpConsent` is absent (`PatientService.java:51`) — a patient today cannot register without consent, which blocks emergency/unknown care and is a P0 DPDP defect (also recorded in `docs/product.md`) |
+| Consent decoupled from registration | ✅ **Closed** (2026-10-22) | `PatientService` no longer throws when `dpdpConsent` is absent; the DTO field is optional and the stored flag mirrors it (no fabricated consent event). Pinned by `PatientServiceTest.registerPatient_withoutConsent_registersAndLeavesNoConsentEvent` and `PatientRegistrationConsentOptionalTest` (400 → 201) |
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
 | Per-tenant DEK rotation | 🔴 **Open** | `TenantKeyHolder.currentGeneration()` hardcodes `1` |
 | Observability (metrics, structured logs, correlation IDs) | 🔴 **Open** | #9 — the only Phase 3 item at zero |
@@ -214,13 +214,12 @@ frontend 62, E2E 9/9 flow-probe 31/31). Needs commit/PR to land.
 _Updated 2026-10-22 after the P0 blockers closed. The parity programme's Wave 0
 gate is now the organizing priority._
 
-1. **Commit the in-flight Pharmacy work** (§D above) — it is tested green; do
-   not leave unverified working-tree drift across a programme boundary.
-2. **Wave 0 first, before any parity module.** Smallest item with the largest
-   compliance value: **decouple consent from registration** — a patient must
-   not be unregistrable because a consent checkbox blocks them (DPDP §6(2));
-   consent is then captured as an auditable event when it is actually obtained.
-   Backend + tests only; no schema change; nothing else in Wave 0 depends on it.
+1. ~~**Commit the in-flight Pharmacy work** (§D above)~~ ✅ Done (PR #175, 2026-10-22).
+2. **Wave 0 first, before any parity module.** ~~Smallest item with the largest
+   compliance value: **decouple consent from registration**~~ ✅ Done (2026-10-22):
+   a patient registers without a consent checkbox (DPDP §6(2)); consent stays an
+   auditable event in `consents` whenever the caller sends one. Backend + tests
+   only; no schema change; nothing else in Wave 0 depends on it.
 3. **Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>`** — every Wave 1+
    list page imports these; building one parity page before they exist means
    re-touching it later.
