@@ -34,6 +34,7 @@ export const userApi = {
   create: (data) => client.post('/users', data),
   setRole: (userId, role) => client.put(`/users/${userId}/role`, { role }),
   setActive: (userId, active) => client.put(`/users/${userId}/active`, { active }),
+  setPermissions: (userId, permissions) => client.put(`/users/${userId}/permissions`, { permissions }),
 };
 
 export const onboardingApi = {

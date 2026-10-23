@@ -12,6 +12,8 @@ const navItems = {
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
+    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
@@ -63,20 +65,49 @@ export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const role = user?.role?.toLowerCase() || 'admin';
-const [tenantFeatures, setTenantFeatures] = useState(null);
+  const [tenantFeatures, setTenantFeatures] = useState(null);
+  const [userPermissions, setUserPermissions] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     authApi.getMe()
       .then(({ data }) => {
-        if (!cancelled && Array.isArray(data?.features)) setTenantFeatures(data.features);
+        if (!cancelled) {
+          if (Array.isArray(data?.features)) setTenantFeatures(data.features);
+          if (data?.permissions) setUserPermissions(data.permissions);
+        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [role]);
+
   const items = navItems[role] || navItems.admin;
+  const allPossibleItems = [
+    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/patients', label: 'Patients', icon: 'patients' },
+    { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
+    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
+    { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
+    { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
+    { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
+    { to: '/staff', label: 'Staff', icon: 'user' },
+  ];
+
+  let combinedItems = [...items];
+  if (userPermissions && role !== 'admin' && role !== 'super_admin') {
+    const permList = userPermissions.split(',').map((p) => p.trim());
+    allPossibleItems.forEach((ai) => {
+      if (permList.includes(ai.to) && !combinedItems.some((ci) => ci.to === ai.to)) {
+        combinedItems.push(ai);
+      }
+    });
+  }
+
   const visibleItems = tenantFeatures === null
-    ? items
-    : items.filter((item) => !item.feature || tenantFeatures.includes(item.feature));
+    ? combinedItems
+    : combinedItems.filter((item) => !item.feature || tenantFeatures.includes(item.feature));
 
   return (
     <>
@@ -110,12 +141,11 @@ const [tenantFeatures, setTenantFeatures] = useState(null);
               <Link
                 key={item.to}
                 to={item.to}
+                className={`rail__link ${active ? 'active' : ''}`}
                 onClick={onClose}
-                className="rail-item"
-                aria-current={active ? 'page' : undefined}
               >
                 <Icon name={item.icon} size={20} />
-                {item.label}
+                <span>{item.label}</span>
               </Link>
             );
           })}

@@ -6,6 +6,7 @@ import com.medos.entity.TenantUser;
 import com.medos.entity.User;
 import com.medos.repository.NotificationRepository;
 import com.medos.repository.TenantRepository;
+import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
 import com.medos.dto.CurrentUserDTO;
 import com.medos.dto.UserDTO;
@@ -37,6 +38,7 @@ public class DashboardController {
     private final NotificationRepository notificationRepository;
     private final TenantRepository tenantRepository;
     private final TenantService tenantService;
+    private final TenantUserRepository tenantUserRepository;
 
     private User resolveUser(Authentication auth) {
         try {
@@ -127,12 +129,20 @@ public class DashboardController {
                           .map(String::trim).filter(f -> !f.isEmpty()).toList();
               }
           }
+          String permissions = null;
+          if (tenantId != null) {
+              var membership = tenantUserRepository.findByUserIdAndTenantId(user.getId(), tenantId).orElse(null);
+              if (membership != null) {
+                  permissions = membership.getPermissions();
+              }
+          }
           return ResponseEntity.ok(CurrentUserDTO.of(
                   user,
                   tenantId,
                   tenantId == null ? null : tenantName(tenantId),
                   role == null ? null : TenantUser.UserRole.valueOf(role.toLowerCase()),
-                  features));
+                  features,
+                  permissions));
       }
 
     private String tenantName(UUID tenantId) {

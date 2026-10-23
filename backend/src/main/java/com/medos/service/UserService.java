@@ -111,6 +111,7 @@ public class UserService {
                 .active(membership.isActive() && Boolean.TRUE.equals(user.getActive()))
                 .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                 .role(membership.getRole() != null ? membership.getRole().name() : null)
+                .permissions(membership.getPermissions())
                 .build();
     }
 
@@ -127,6 +128,7 @@ public class UserService {
                 .specialization(user.getSpecialization())
                 .active(user.getActive())
                 .role(membership.getRole() != null ? membership.getRole().name() : null)
+                .permissions(membership.getPermissions())
                 .build();
     }
 
@@ -195,6 +197,7 @@ public class UserService {
         membership.setUser(user);
         membership.setTenant(requireTenant(tenantId));
         membership.setRole(request.getRole());
+        membership.setPermissions(request.getPermissions());
         membership.setActive(true);
         TenantUser saved = tenantUserRepository.save(membership);
 
@@ -215,6 +218,17 @@ public class UserService {
         TenantUser saved = tenantUserRepository.save(membership);
         auditLogger.log("UPDATE", "User", userId.toString(), null,
                 "Role changed to " + role);
+        return toDtoIncludingInactive(saved, Map.of());
+    }
+
+    /** Update a member's custom permissions. */
+    @Transactional
+    public UserDTO updatePermissions(UUID tenantId, UUID userId, String permissions) {
+        TenantUser membership = requireMembership(tenantId, userId);
+        membership.setPermissions(permissions);
+        TenantUser saved = tenantUserRepository.save(membership);
+        auditLogger.log("UPDATE", "User", userId.toString(), null,
+                "Permissions updated");
         return toDtoIncludingInactive(saved, Map.of());
     }
 
