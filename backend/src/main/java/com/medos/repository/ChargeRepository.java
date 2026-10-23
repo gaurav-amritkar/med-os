@@ -1,9 +1,11 @@
 package com.medos.repository;
 
 import com.medos.entity.Charge;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,10 @@ public interface ChargeRepository extends JpaRepository<Charge, UUID> {
     List<Charge> findByStatus(Charge.Status status);
     List<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status);
     List<Charge> findByEncounterId(UUID encounterId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Charge c WHERE c.patientId = :patientId AND c.status = :status")
+    List<Charge> findByPatientIdAndStatusForUpdate(@Param("patientId") UUID patientId, @Param("status") Charge.Status status);
 
     Page<Charge> findByPatientId(UUID patientId, Pageable pageable);
     Page<Charge> findByPatientIdAndStatus(UUID patientId, Charge.Status status, Pageable pageable);

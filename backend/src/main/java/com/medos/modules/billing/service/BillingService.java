@@ -59,7 +59,7 @@ public class BillingService {
                 throw new BusinessException("No unbilled charges found for patient");
             }
         } else {
-            charges = chargeRepository.findByPatientIdAndStatus(request.getPatientId(), Charge.Status.unbilled);
+            charges = chargeRepository.findByPatientIdAndStatusForUpdate(request.getPatientId(), Charge.Status.unbilled);
             if (charges.isEmpty()) {
                 throw new BusinessException("No unbilled charges found for patient");
             }

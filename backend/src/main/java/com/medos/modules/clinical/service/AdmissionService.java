@@ -72,7 +72,7 @@ public class AdmissionService {
 
     @Transactional
     public Admission dischargePatient(UUID admissionId, DischargeRequest request) {
-        Admission admission = admissionRepository.findById(admissionId)
+        Admission admission = admissionRepository.findByIdForUpdate(admissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Admission", admissionId.toString()));
         if (admission.getStatus() != Admission.Status.admitted) {
             throw new BusinessException("Patient is not currently admitted");
