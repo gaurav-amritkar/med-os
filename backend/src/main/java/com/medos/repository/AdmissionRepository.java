@@ -1,6 +1,10 @@
 package com.medos.repository;
 
 import com.medos.entity.Admission;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +23,8 @@ public interface AdmissionRepository extends JpaRepository<Admission, UUID> {
     Page<Admission> findByPatientId(UUID patientId, Pageable pageable);
     Page<Admission> findByStatus(Admission.Status status, Pageable pageable);
     Page<Admission> findAll(Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Admission a WHERE a.id = :id")
+    Optional<Admission> findByIdForUpdate(@Param("id") UUID id);
 }

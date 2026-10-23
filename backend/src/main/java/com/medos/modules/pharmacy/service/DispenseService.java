@@ -45,7 +45,7 @@ public class DispenseService {
 
     @Transactional
     public void dispense(DispenseRequest request) {
-        Prescription rx = prescriptionRepository.findById(request.getPrescriptionId())
+        Prescription rx = prescriptionRepository.findByIdForUpdate(request.getPrescriptionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription", request.getPrescriptionId().toString()));
         if (rx.getStatus() != Prescription.Status.pending) {
             throw new BusinessException("Prescription is already " + rx.getStatus());
