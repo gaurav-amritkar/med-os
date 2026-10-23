@@ -31,9 +31,18 @@ public class PatientController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PageResponse<PatientDTO>> listPatients(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String bloodGroup,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(patientService.listPatients(search, page, size));
+        return ResponseEntity.ok(patientService.listPatients(search, type, bloodGroup, page, size));
+    }
+
+    /** The Hub counter rail: Total / New Today / Active OPD / IPD / Discharged. */
+    @GetMapping("/summary")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<PatientService.HubSummary> hubSummary() {
+        return ResponseEntity.ok(patientService.hubSummary());
     }
 
     @GetMapping("/{id}")

@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { patientApi, encounterApi, billingApi } from '../api';
 import useToastStore from '../store/toastStore';
 import { Link } from 'react-router-dom';
+import DataTable from '../components/DataTable.jsx';
+import CounterRow from '../components/CounterRow.jsx';
+import FilterBar from '../components/FilterBar.jsx';
 
 export default function Patients() {
   const [patients, setPatients] = useState([]);
@@ -14,6 +17,10 @@ export default function Patients() {
   const [profileTab, setProfileTab] = useState('encounters');
   const [page, setPage] = useState(0);
   const [pageMeta, setPageMeta] = useState(null);
+  // Hub state: the counter rail and the parity-spec cohort/blood filters.
+  const [summary, setSummary] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [bloodFilter, setBloodFilter] = useState('');
   // A failed request is not an empty result. Held separately from `patients` so the table
   // can say so, rather than reporting a server fault as "this hospital has no patients".
   const [loadError, setLoadError] = useState(null);
@@ -24,7 +31,18 @@ export default function Patients() {
     address: '', bloodGroup: '', dpdpConsent: false, consentPurpose: 'Treatment and billing',
   });
 
-  useEffect(() => { fetchPatients(); }, []);
+  useEffect(() => { fetchSummary(); }, []);
+
+  // Filter changes are a different result set — back to page 0. This effect
+  // also performs the initial load, so mount fetches the list exactly once.
+  useEffect(() => { fetchPatients(currentSearchTerm(), 0); }, [typeFilter, bloodFilter]);
+
+  const fetchSummary = async () => {
+    try {
+      const { data } = await patientApi.summary();
+      setSummary(data);
+    } catch { /* the rail is additive; a failed count must not hide the list */ }
+  };
 
   // Newest first, so a patient registered a moment ago is on page 0 rather than
   // on a page the UI never shows. Every list call returns to page 0 unless it is
@@ -33,7 +51,12 @@ export default function Patients() {
   const fetchPatients = async (q, nextPage = 0) => {
     setLoading(true);
     try {
-      const { data, meta } = await patientApi.list(q || undefined, nextPage);
+      const { data, meta } = await patientApi.list({
+        search: q || undefined,
+        type: typeFilter || undefined,
+        bloodGroup: bloodFilter || undefined,
+        page: nextPage,
+      });
       setPatients(data);
       setPageMeta(meta);
       setPage(nextPage);
@@ -52,6 +75,62 @@ export default function Patients() {
   };
 
   const currentSearchTerm = () => (search.length > 2 ? search : undefined);
+
+  // A name fragment plus a filter is refused by the backend (an encrypted name
+  // cannot ride a SQL filter), so the box says what the combination allows.
+  const filterActive = typeFilter !== '' || bloodFilter !== '';
+
+  const TYPE_RADIOS = [
+    { value: '', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'ipd', label: 'Admitted (IPD)' },
+    { value: 'discharged', label: 'Discharged' },
+  ];
+
+  const counters = summary ? [
+    { label: 'Total Records', value: summary.total, tone: 'neutral' },
+    { label: 'New Today', value: summary.newToday, tone: 'info' },
+    { label: 'Active OPD', value: summary.activeOpd, tone: 'warning' },
+    { label: 'Inpatient (IPD)', value: summary.ipd, tone: 'info' },
+    { label: 'Discharged', value: summary.discharged, tone: 'success' },
+  ] : [];
+
+  // Serial numbers continue across pages (page-size-relative), matching the
+  // parity spec's S.No. column.
+  const snOffset = ((pageMeta?.page ?? page) * (pageMeta?.size ?? 20)) + 1;
+  const serialOf = new Map(patients.map((r, i) => [r.id, snOffset + i]));
+
+  const columns = [
+    {
+      key: 'sno', label: 'S.No.', align: 'right',
+      render: (p) => serialOf.get(p.id) ?? '',
+    },
+    { key: 'uhid', label: 'UHID / Reg No.', mono: true },
+    { key: 'name', label: 'Patient Name' },
+    {
+      key: 'age', label: 'Age/Gender',
+      render: (p) => `${p.age}/${p.gender ? p.gender[0].toUpperCase() : '-'}`,
+    },
+    { key: 'bloodGroup', label: 'Blood Group', render: (p) => p.bloodGroup || '-' },
+    { key: 'phone', label: 'Phone' },
+    {
+      key: 'dpdpConsent', label: 'DPDP',
+      render: (p) => (
+        <span className={`badge ${p.dpdpConsent ? 'badge-success' : 'badge-danger'}`}>
+          {p.dpdpConsent ? 'Consented' : 'Not Consented'}
+        </span>
+      ),
+    },
+    { key: 'outstanding', label: 'Outstanding', align: 'right', render: (p) => `₹${p.outstanding || 0}` },
+    {
+      key: 'actions', label: '',
+      render: (p) => (
+        <Link to={`/patients/${p.id}`} className="btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+          View
+        </Link>
+      ),
+    },
+  ];
 
   const handleSearch = (e) => {
     const term = e.target.value;
@@ -74,6 +153,7 @@ export default function Patients() {
       setShowRegister(false);
       setForm({ name: '', age: '', gender: 'male', phone: '', email: '', address: '', bloodGroup: '', dpdpConsent: false, consentPurpose: 'Treatment and billing' });
       fetchPatients();
+      fetchSummary();
     } catch (err) {
       addToast(err.response?.data?.message || 'Registration failed', 'critical');
     }
@@ -102,17 +182,52 @@ export default function Patients() {
         <button className="btn-primary" onClick={() => setShowRegister(true)}>+ Register Patient</button>
       </div>
 
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', gap: 12 }} className="search-row">
-          <input
-            placeholder="Search patients by name..."
-            value={search}
-            onChange={handleSearch}
-            style={{ maxWidth: 400 }}
-          />
-          <button className="btn-ghost btn-sm" onClick={() => { setSearch(''); fetchPatients(); }}>Clear</button>
+      <FilterBar
+        search={{
+          label: filterActive ? 'Search by UHID' : 'Search patients',
+          placeholder: filterActive
+            ? 'Search by UHID…'
+            : 'Search by name or UHID…',
+          value: search,
+          onChange: handleSearch,
+        }}
+        onClear={() => {
+          setSearch('');
+          if (typeFilter || bloodFilter) {
+            // The filter effect refetches on any change from a non-empty value.
+            setTypeFilter('');
+            setBloodFilter('');
+          } else {
+            fetchPatients(undefined, 0);
+          }
+        }}
+      >
+        <div role="radiogroup" aria-label="Patient type" style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
+          {TYPE_RADIOS.map(({ value, label }) => (
+            <label key={value} style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="patient-type"
+                checked={typeFilter === value}
+                onChange={() => setTypeFilter(value)}
+              />
+              {label}
+            </label>
+          ))}
         </div>
-      </div>
+        <select
+          aria-label="All blood groups"
+          value={bloodFilter}
+          onChange={(e) => setBloodFilter(e.target.value)}
+        >
+          <option value="">All blood groups</option>
+          {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((b) => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
+      </FilterBar>
+
+      <CounterRow counters={counters} />
 
       {selectedPatient ? (
         <div className="card">
@@ -189,55 +304,19 @@ export default function Patients() {
         </div>
       ) : (
         <div className="card">
-          {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)' }}>Loading patients...</div> : (
-            <table>
-              <thead><tr><th>UHID</th><th>Name</th><th>Age/Gender</th><th>Phone</th><th>Blood</th><th>DPDP</th><th>Outstanding</th><th></th></tr></thead>
-              <tbody>
-                {patients.map((p) => (
-                  <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => openPatientProfile(p)}>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--action)' }}>{p.uhid}</td>
-                    <td style={{ fontWeight: 500 }}>{p.name}</td>
-                    <td>{p.age}/{p.gender?.[0]?.toUpperCase()}</td>
-                    <td>{p.phone}</td>
-                    <td>{p.bloodGroup || '-'}</td>
-                    <td><span className={`badge ${p.dpdpConsent ? 'badge-success' : 'badge-danger'}`}>{p.dpdpConsent ? 'Yes' : 'No'}</span></td>
-                    <td>₹{p.outstanding || 0}</td>
-                    <td>
-                      <Link to={`/patients/${p.id}`} className="btn-ghost btn-sm" style={{ textDecoration: 'none' }}
-                        onClick={(e) => e.stopPropagation()}>View</Link>
-                    </td>
-                  </tr>
-                ))}
-                {loadError && (
-                  <tr>
-                    <td colSpan={8} className="list-error" role="alert">
-                      {loadError}
-                    </td>
-                  </tr>
-                )}
-                {!loadError && patients.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="list-empty">
-                      No patients found. Register a new patient.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-          {pageMeta && pageMeta.totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, gap: 12 }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
-                Showing {page * pageMeta.size + 1}–{page * pageMeta.size + patients.length} of {pageMeta.totalElements} patients
-                {' · '}page {pageMeta.page + 1} of {pageMeta.totalPages}
-              </span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-ghost btn-sm" disabled={pageMeta.first}
-                  onClick={() => fetchPatients(currentSearchTerm(), pageMeta.page - 1)}>← Previous</button>
-                <button className="btn-ghost btn-sm" disabled={pageMeta.last}
-                  onClick={() => fetchPatients(currentSearchTerm(), pageMeta.page + 1)}>Next →</button>
-              </div>
-            </div>
+          {loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)' }}>Loading patients...</div>
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={patients}
+              rowKey={(p) => p.id}
+              onRowClick={openPatientProfile}
+              emptyMessage="No patients found. Register a new patient."
+              error={loadError}
+              pageMeta={pageMeta}
+              onPageChange={(p) => fetchPatients(currentSearchTerm(), p)}
+            />
           )}
         </div>
       )}

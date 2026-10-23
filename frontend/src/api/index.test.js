@@ -19,8 +19,10 @@ describe('paginated list endpoints are unwrapped to arrays', () => {
 
   it('patientApi.list forwards search param and tolerates bare arrays', async () => {
     get.mockResolvedValue({ data: [{ id: 'p2' }] });
-    await patientApi.list('anita');
-    expect(get).toHaveBeenCalledWith('/patients', { params: { search: 'anita' } });
+    await patientApi.list({ search: 'anita' });
+    expect(get).toHaveBeenCalledWith('/patients', {
+      params: { search: 'anita', type: undefined, bloodGroup: undefined, page: undefined },
+    });
     const { data } = await patientApi.list();
     expect(data).toEqual([{ id: 'p2' }]);
   });
@@ -52,7 +54,7 @@ describe('page metadata survives unwrapping', () => {
       data: { content: [{ id: 'p1' }], page: 1, size: 20, totalElements: 23, totalPages: 2, first: false, last: true },
     });
 
-    const { data, meta } = await patientApi.list(undefined, 1);
+    const { data, meta } = await patientApi.list({ page: 1 });
 
     expect(data).toEqual([{ id: 'p1' }]);
     expect(meta).toEqual({ page: 1, size: 20, totalElements: 23, totalPages: 2, first: false, last: true });
@@ -61,9 +63,11 @@ describe('page metadata survives unwrapping', () => {
   it('forwards the page param so a later page can be requested', async () => {
     get.mockResolvedValue({ data: { content: [], page: 2, size: 20, totalElements: 41, totalPages: 3, first: false, last: false } });
 
-    await patientApi.list(undefined, 2);
+    await patientApi.list({ page: 2 });
 
-    expect(get).toHaveBeenCalledWith('/patients', { params: { search: undefined, page: 2 } });
+    expect(get).toHaveBeenCalledWith('/patients', {
+      params: { search: undefined, type: undefined, bloodGroup: undefined, page: 2 },
+    });
   });
 
   it('reports no meta for a bare array response, so no controls render', async () => {

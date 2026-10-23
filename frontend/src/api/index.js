@@ -44,9 +44,15 @@ export const onboardingApi = {
 };
 
 export const patientApi = {
-  // `page` is sent only when asked for, so the common first-page call is
-  // unchanged; a search resets to page 0 because results are a different set.
-  list: (search, page) => client.get('/patients', { params: { search, page } }).then(unwrapPage),
+  // Hub options object, not positional args: a 4-parameter positional list
+  // (search, type, bloodGroup, page) reads as four `undefined`s and one real
+  // value, and a transposed call is misaligned silently. an object literal
+  // names what is being sent. `page` is sent only when asked for, so the
+  // common first-page call is unchanged; a search resets to page 0 because
+  // results are a different set.
+  list: ({ search, type, bloodGroup, page } = {}) =>
+    client.get('/patients', { params: { search, type, bloodGroup, page } }).then(unwrapPage),
+  summary: () => client.get('/patients/summary'),
   get: (id) => client.get(`/patients/${id}`),
   getByUhid: (uhid) => client.get(`/patients/uhid/${uhid}`),
   register: (data) => client.post('/patients', data),
