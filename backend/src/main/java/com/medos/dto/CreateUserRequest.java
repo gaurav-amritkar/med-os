@@ -41,6 +41,8 @@ public class CreateUserRequest {
     @Size(max = 128)
     private String specialization;
 
+    private String permissions;
+
     public String getUsername() {
         return username;
     }
@@ -87,6 +89,14 @@ public class CreateUserRequest {
 
     public void setSpecialization(String specialization) {
         this.specialization = specialization;
+    }
+
+    public String getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(String permissions) {
+        this.permissions = permissions;
     }
 
     /** Never renders the password, so it cannot reach a log through string building. */

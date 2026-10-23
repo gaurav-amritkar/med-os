@@ -31,6 +31,7 @@ public class UserDTO {
     private String specialization;
     private Boolean active;
     private String role;
+    private String permissions;
 
     /**
      * True while the account still carries an admin-set password, so the UI can send the
