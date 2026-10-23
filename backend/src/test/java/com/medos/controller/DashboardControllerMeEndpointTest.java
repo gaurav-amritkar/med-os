@@ -64,6 +64,7 @@ class DashboardControllerMeEndpointTest {
     @Autowired
     private NotificationRepository notificationRepository;
 
+
     @Autowired
     private DashboardService dashboardService;
 
@@ -198,7 +199,7 @@ class DashboardControllerMeEndpointTest {
         // controller's own null handling.
         var controller = new DashboardController(
                 dashboardService, userRepository, userService,
-                notificationRepository, tenantRepository, tenantService, tenantUserRepository);
+                notificationRepository, tenantRepository, tenantService, null);
         var auth = new UsernamePasswordAuthenticationToken(
                 "no-such-principal-anywhere", null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
