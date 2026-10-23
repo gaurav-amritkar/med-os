@@ -73,6 +73,15 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.writeNote(id, new com.medos.dto.AppointmentNoteRequest(note)));
     }
 
+    @GetMapping("/queue")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN','RECEPTIONIST','NURSE')")
+    public ResponseEntity<PageResponse<AppointmentDTO>> queueToday(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(appointmentService.queueToday(status, page, size));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<Void> deleteTerminal(@PathVariable UUID id) {
