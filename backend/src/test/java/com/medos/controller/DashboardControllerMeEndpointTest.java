@@ -198,7 +198,7 @@ class DashboardControllerMeEndpointTest {
         // controller's own null handling.
         var controller = new DashboardController(
                 dashboardService, userRepository, userService,
-                notificationRepository, tenantRepository, tenantService);
+                notificationRepository, tenantRepository, tenantService, tenantUserRepository);
         var auth = new UsernamePasswordAuthenticationToken(
                 "no-such-principal-anywhere", null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
@@ -216,7 +216,7 @@ class DashboardControllerMeEndpointTest {
     void dtoFactoryExcludesHash() throws Exception {
         User user = userRepository.findById(userId).orElseThrow();
         var dto = com.medos.dto.CurrentUserDTO.of(user, tenantId, "T", TenantUser.UserRole.admin,
-                  List.of("billing"));
+                  List.of("billing"), null);
 
         var serialised = objectMapper.writeValueAsString(dto);
         assertThat(serialised).doesNotContain("passwordHash").doesNotContain("hash-canary");
