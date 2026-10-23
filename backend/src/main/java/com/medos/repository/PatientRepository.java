@@ -11,7 +11,31 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface PatientRepository extends JpaRepository<Patient, UUID> {
+public interface PatientRepository extends JpaRepository<Patient, UUID>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<Patient> {
+
+    /** New registrations since a point in time — the "New Today" counter. */
+    long countByCreatedAtAfter(java.time.LocalDateTime since);
+
+    /** Patients currently admitted (IPD), distinct per patient. */
+    @Query("""
+            select count(distinct a.patientId) from Admission a
+            where a.status = com.medos.entity.Admission.Status.admitted
+            """)
+    long countIpdPatients();
+
+    @Query("""
+            select count(distinct a.patientId) from Admission a
+            where a.status = com.medos.entity.Admission.Status.discharged
+            """)
+    long countDischargedPatients();
+
+    @Query("""
+            select count(distinct e.patientId) from Encounter e
+            where e.status = com.medos.entity.Encounter.Status.open
+            """)
+    long countActiveOpdPatients();
+
     Optional<Patient> findByTenantIdAndUhid(UUID tenantId, String uhid);
     List<Patient> findByTenantId(UUID tenantId);
     Optional<Patient> findByUhid(String uhid);

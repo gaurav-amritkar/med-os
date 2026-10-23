@@ -103,7 +103,7 @@ export default function Billing() {
                 // Refetch when the term drops under the minimum length too,
                 // otherwise the previous result set stays on screen and no
                 // longer matches what is typed.
-                const { data } = await patientApi.list(term.length > 2 ? term : undefined);
+                const { data } = await patientApi.list({ search: term.length > 2 ? term : undefined });
                 setPatients(data);
               }} />
             <div style={{ maxHeight: 500, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>

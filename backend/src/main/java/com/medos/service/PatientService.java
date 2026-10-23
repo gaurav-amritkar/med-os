@@ -3,7 +3,9 @@ package com.medos.service;
 import com.medos.dto.PageResponse;
 import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
+import com.medos.entity.Admission;
 import com.medos.entity.Consent;
+import com.medos.entity.Encounter;
 import com.medos.entity.Patient;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
@@ -121,6 +123,132 @@ public class PatientService {
      * whole normalised name, or the plaintext UHID, which is the identifier
      * reception staff actually read off a card.
      */
+    /**
+     * The Patients Hub counter rail (Wave 1, medworks-parity row 3):
+     * Total / New Today / Active OPD / Inpatient (IPD) / Discharged — one
+     * group of count queries answering the whole rail at once, the same
+     * pattern the Enquiry Desk summary established.
+     */
+    public record HubSummary(long total, long newToday, long activeOpd, long ipd, long discharged) {}
+
+    public HubSummary hubSummary() {
+        LocalDateTime startOfDay = java.time.LocalDate.now().atStartOfDay();
+        return new HubSummary(
+                patientRepository.count(),
+                patientRepository.countByCreatedAtAfter(startOfDay),
+                patientRepository.countActiveOpdPatients(),
+                patientRepository.countIpdPatients(),
+                patientRepository.countDischargedPatients());
+    }
+
+    /**
+     * The board's cohort radios: All / Active / Admitted (IPD) / Discharged.
+     * Emergency has no per-patient marker in this schema yet, so it is not a
+     * radio; inventing one out of a vitals string would be a fake filter.
+     */
+    private static final java.util.Set<String> HUB_TYPES =
+            java.util.Set.of("active", "ipd", "active_opd", "discharged");
+
+    /**
+     * Patients Hub list with cohort + blood-group filters.
+     *
+     * <p>Filters route through a Specification so the row selection happens in
+     * SQL (EXISTS on admissions/encounters) instead of per-row queries.
+     * {@code search} composes inside that path by UHID only: {@code name} is
+     * AES-GCM ciphertext SQL cannot match. A name fragment together with a
+     * filter is refused with a stated error rather than silently ignoring the
+     * filter — the failure mode the silent-omission issue (#118 family) exists
+     * to prevent. Name search alone keeps the decrypt-scan path unchanged.
+     */
+    public PageResponse<PatientDTO> listPatients(String search, String type, String bloodGroup, int page, int size) {
+        String blood = bloodGroup == null || bloodGroup.isBlank() ? null : bloodGroup.trim().toUpperCase(Locale.ROOT);
+        String cohort = type == null || type.isBlank() || "all".equals(type) ? null : type;
+        if (cohort != null && !HUB_TYPES.contains(cohort)) {
+            throw new BusinessException("Unknown patient type filter: " + cohort);
+        }
+        if (cohort == null && blood == null) {
+            return listPatients(search, page, size);
+        }
+        String term = search == null ? null : search.trim();
+        if (term != null && !term.isBlank() && !looksLikeUhid(term)) {
+            throw new BusinessException(
+                    "Name search cannot be combined with the type or blood-group filters; search by UHID instead");
+        }
+        var spec = hubSpecification(term, cohort, blood);
+        var result = patientRepository.findAll(spec,
+                PageRequest.of(page, size,
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC, "createdAt", "id")));
+        return PageResponse.of(result.map(EntityDtoMapper::toDTO));
+    }
+
+    private org.springframework.data.jpa.domain.Specification<Patient> hubSpecification(
+            String uhidTerm, String cohort, String blood) {
+        return (root, query, cb) -> {
+            var preds = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            if (uhidTerm != null && !uhidTerm.isBlank()) {
+                preds.add(cb.like(cb.upper(root.get("uhid")),
+                        "%" + uhidTerm.toUpperCase(Locale.ROOT) + "%"));
+            }
+            if (blood != null) {
+                preds.add(cb.equal(root.get("bloodGroup"), blood));
+            }
+            if (cohort != null) {
+                preds.add(cohortPredicate(root, query, cb, cohort));
+            }
+            return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
+
+    /** EXISTS subqueries in SQL, not per-row repository calls. */
+    private jakarta.persistence.criteria.Predicate cohortPredicate(
+            jakarta.persistence.criteria.Root<Patient> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            String cohort) {
+        return switch (cohort) {
+            case "ipd" -> cb.exists(admissionExists(root, query, cb, Admission.Status.admitted));
+            case "discharged" -> cb.exists(admissionExists(root, query, cb, Admission.Status.discharged));
+            case "active_opd" -> {
+                var sub = query.subquery(Long.class);
+                var e = sub.from(Encounter.class);
+                sub.select(cb.literal(1L));
+                sub.where(cb.equal(e.get("patientId"), root.get("id")),
+                        cb.equal(e.get("status"), Encounter.Status.open));
+                yield cb.exists(sub);
+            }
+            // Active = anywhere in today's care: admitted OR an open encounter.
+            default -> cb.or(
+                    cb.exists(admissionExists(root, query, cb, Admission.Status.admitted)),
+                    cb.exists(openEncounterExists(root, query, cb)));
+        };
+    }
+
+    private jakarta.persistence.criteria.Subquery<Long> admissionExists(
+            jakarta.persistence.criteria.Root<Patient> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            Admission.Status status) {
+        var sub = query.subquery(Long.class);
+        var a = sub.from(Admission.class);
+        sub.select(cb.literal(1L));
+        sub.where(cb.equal(a.get("patientId"), root.get("id")),
+                cb.equal(a.get("status"), status));
+        return sub;
+    }
+
+    private jakarta.persistence.criteria.Subquery<Long> openEncounterExists(
+            jakarta.persistence.criteria.Root<Patient> root,
+            jakarta.persistence.criteria.CriteriaQuery<?> query,
+            jakarta.persistence.criteria.CriteriaBuilder cb) {
+        var sub = query.subquery(Long.class);
+        var e = sub.from(Encounter.class);
+        sub.select(cb.literal(1L));
+        sub.where(cb.equal(e.get("patientId"), root.get("id")),
+                cb.equal(e.get("status"), Encounter.Status.open));
+        return sub;
+    }
+
     public PageResponse<PatientDTO> listPatients(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Patient> result;
