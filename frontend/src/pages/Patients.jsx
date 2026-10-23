@@ -125,10 +125,14 @@ export default function Patients() {
     { key: 'bloodGroup', label: 'Blood Group', render: (p) => p.bloodGroup || '-' },
     { key: 'phone', label: 'Phone' },
     {
-      key: 'dpdpConsent', label: 'DPDP',
+      key: 'consent', label: 'Consent',
       render: (p) => (
-        <span className={`badge ${p.dpdpConsent ? 'badge-success' : 'badge-danger'}`}>
-          {p.dpdpConsent ? 'Consented' : 'Not Consented'}
+        <span style={{ display: 'flex', gap: 6 }}>
+          {p.consent?.treatment && <span className="badge badge-success">Treatment</span>}
+          {p.consent?.billing && <span className="badge badge-success">Billing</span>}
+          {p.consent?.research && <span className="badge badge-success">Research</span>}
+          {!p.consent?.treatment && !p.consent?.billing && !p.consent?.research &&
+            <span className="badge badge-danger">None</span>}
         </span>
       ),
     },
@@ -262,9 +266,7 @@ export default function Patients() {
                 {selectedPatient.uhid} • {selectedPatient.phone} • {selectedPatient.email}
               </div>
               <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }} className="badges-row">
-                <span className={`badge ${selectedPatient.dpdpConsent ? 'badge-success' : 'badge-danger'}`}>
-                  DPDP: {selectedPatient.dpdpConsent ? 'Consented' : 'Not Consented'}
-                </span>
+                <span className="badge badge-info">Consent: {selectedPatient.consent?.treatment ? 'Treatment ' : ''}{selectedPatient.consent?.billing ? 'Billing ' : ''}{selectedPatient.consent?.research ? 'Research' : ''}</span>
                 <span className="badge badge-info">
                   Outstanding: ₹{selectedPatient.outstanding || 0}
                 </span>
