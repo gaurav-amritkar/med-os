@@ -1,5 +1,6 @@
 package com.medos.service;
 
+import com.medos.dto.TenantDTO;
 import com.medos.entity.Tenant;
 import com.medos.entity.TenantConfig;
 import com.medos.entity.TenantUser;
@@ -55,6 +56,26 @@ public class TenantService {
         Tenant tenant = getTenant(tenantId);
         tenant.setActive(false);
         tenantRepository.save(tenant);
+    }
+
+    /** Updates the editable profile fields from a DTO, skipping null/absent columns. */
+    public TenantDTO updateTenant(UUID tenantId, TenantDTO dto) {
+        Tenant tenant = getTenant(tenantId);
+        if (dto.getName() != null) tenant.setName(dto.getName());
+        if (dto.getContactEmail() != null) tenant.setContactEmail(dto.getContactEmail());
+        if (dto.getContactPhone() != null) tenant.setContactPhone(dto.getContactPhone());
+        if (dto.getAddress() != null) tenant.setAddress(dto.getAddress());
+        Tenant saved = tenantRepository.save(tenant);
+        return TenantDTO.builder()
+                .id(saved.getId())
+                .name(saved.getName())
+                .slug(saved.getSlug())
+                .type(saved.getType().name())
+                .contactEmail(saved.getContactEmail())
+                .contactPhone(saved.getContactPhone())
+                .address(saved.getAddress())
+                .active(saved.getActive())
+                .build();
     }
 
     public String getConfig(UUID tenantId, String configKey) {

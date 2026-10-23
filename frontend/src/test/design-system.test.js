@@ -55,6 +55,7 @@ const INLINE_STYLE_BASELINE = {
   'pages/Onboarding.jsx': 'wave 1',
   'pages/Patients.jsx': 'wave 2',
   'pages/Pharmacy.jsx': 'wave 4',
+  'pages/Users.jsx': 'wave 2',
 };
 
 describe('design system guard', () => {

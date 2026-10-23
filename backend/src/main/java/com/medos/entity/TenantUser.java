@@ -28,6 +28,9 @@ public class TenantUser {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Column(length = 512)
+    private String permissions;
+
     /**
      * Whether this person may sign in to this hospital.
      *

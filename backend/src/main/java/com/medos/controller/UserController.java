@@ -82,6 +82,13 @@ public class UserController {
                 userService.setActive(actingTenant(), userId, request.active()));
     }
 
+    @PutMapping("/{userId}/permissions")
+    public ResponseEntity<UserDTO> updatePermissions(@PathVariable UUID userId,
+                                                     @RequestBody PermissionsRequest request) {
+        return ResponseEntity.ok(
+                userService.updatePermissions(actingTenant(), userId, request.permissions()));
+    }
+
     /**
      * The tenant this request acts for.
      *
@@ -98,5 +105,8 @@ public class UserController {
     }
 
     public record ActiveRequest(boolean active) {
+    }
+
+    public record PermissionsRequest(String permissions) {
     }
 }

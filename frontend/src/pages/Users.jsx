@@ -23,6 +23,17 @@ const ROLES = [
   { value: 'billing', label: 'Billing' },
 ];
 
+const PERMISSION_OPTIONS = [
+  { value: '/patients', label: 'Patients' },
+  { value: '/enquiries', label: 'Enquiry Desk' },
+  { value: '/appointments', label: 'Appointments' },
+  { value: '/appointments/queue', label: 'Token Queue' },
+  { value: '/encounters', label: 'OPD / Encounters' },
+  { value: '/admissions', label: 'IPD / Wards' },
+  { value: '/pharmacy', label: 'Pharmacy' },
+  { value: '/billing', label: 'Billing' },
+];
+
 const emptyForm = {
   username: '',
   fullName: '',
@@ -30,6 +41,7 @@ const emptyForm = {
   password: '',
   email: '',
   specialization: '',
+  permissions: [],
 };
 
 export default function Users() {
@@ -38,6 +50,8 @@ export default function Users() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
+  const [editingUser, setEditingUser] = useState(null);
+  const [editPerms, setEditPerms] = useState([]);
   const addToast = useToastStore((s) => s.addToast);
 
   const load = async () => {
@@ -72,15 +86,17 @@ export default function Users() {
     e.preventDefault();
     if (!validate()) return;
     try {
-      await userApi.create(form);
+      const payload = {
+        ...form,
+        permissions: form.permissions.join(','),
+      };
+      await userApi.create(payload);
       addToast(`${form.fullName} added as ${form.role}`, 'success');
       setShowAdd(false);
       setForm(emptyForm);
       setErrors({});
       load();
     } catch (err) {
-      // Field-level messages come back keyed by field name, so they land on the control
-      // they belong to rather than only in a toast.
       const fieldErrors = err.response?.data?.validationErrors;
       if (fieldErrors && Object.keys(fieldErrors).length) {
         setErrors(fieldErrors);
@@ -96,34 +112,60 @@ export default function Users() {
       load();
     } catch (err) {
       addToast(err.response?.data?.message || 'Could not change the role', 'critical');
-      load();
     }
   };
 
   const toggleActive = async (user) => {
+    const nextActive = !user.active;
     try {
-      await userApi.setActive(user.id, !user.active);
-      addToast(
-        user.active ? `${user.fullName}'s access ended` : `${user.fullName}'s access restored`,
-        'success'
-      );
+      await userApi.setActive(user.id, nextActive);
+      addToast(`${user.fullName} access ${nextActive ? 'restored' : 'ended'}`, 'success');
       load();
     } catch (err) {
       addToast(err.response?.data?.message || 'Could not change access', 'critical');
-      load();
     }
   };
 
-  const activeCount = staff.filter((s) => s.active).length;
+  const openPermissionsModal = (user) => {
+    setEditingUser(user);
+    const existing = user.permissions ? user.permissions.split(',').map((p) => p.trim()).filter(Boolean) : [];
+    setEditPerms(existing);
+  };
+
+  const savePermissions = async () => {
+    if (!editingUser) return;
+    try {
+      const permStr = editPerms.join(',');
+      await userApi.setPermissions(editingUser.id, permStr);
+      addToast(`Permissions updated for ${editingUser.fullName}`, 'success');
+      setEditingUser(null);
+      load();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not update permissions', 'critical');
+    }
+  };
+
+  const toggleFormPerm = (val) => {
+    setForm((f) => ({
+      ...f,
+      permissions: f.permissions.includes(val)
+        ? f.permissions.filter((p) => p !== val)
+        : [...f.permissions, val],
+    }));
+  };
+
+  const toggleEditPerm = (val) => {
+    setEditPerms((eps) =>
+      eps.includes(val) ? eps.filter((p) => p !== val) : [...eps, val]
+    );
+  };
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>Staff</h1>
-          <p>
-            Who can sign in to this hospital. {activeCount} active of {staff.length}.
-          </p>
+          <h1>Staff Management</h1>
+          <p className="page-sub">Add doctors, nurses, receptionists and other staff, and manage their permissions.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowAdd(true)}>
           + Add Staff
@@ -131,22 +173,20 @@ export default function Users() {
       </div>
 
       <div className="card">
-        <table>
+        <table className="table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Username</th>
               <th>Role</th>
-              <th>Status</th>
-              <th />
+              <th>Status &amp; Permissions</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="staff-meta">
-                  Loading staff…
-                </td>
+                <td colSpan={5} className="text-center">Loading staff...</td>
               </tr>
             )}
             {!loading && staff.length === 0 && (
@@ -189,8 +229,20 @@ export default function Users() {
                   {s.active && !s.mustChangePassword && (
                     <span className="badge badge-success">Active</span>
                   )}
+                  {s.permissions && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--ink-muted)', marginTop: 4 }}>
+                      Perms: {s.permissions}
+                    </div>
+                  )}
                 </td>
-                <td className="staff-actions">
+                <td className="staff-actions" style={{ textAlign: 'right' }}>
+                  <button
+                    className="btn-ghost btn-sm"
+                    onClick={() => openPermissionsModal(s)}
+                    style={{ marginRight: 8 }}
+                  >
+                    Permissions
+                  </button>
                   <button
                     className={s.active ? 'btn-ghost btn-sm' : 'btn-primary btn-sm'}
                     onClick={() => toggleActive(s)}
@@ -206,7 +258,7 @@ export default function Users() {
 
       {showAdd && (
         <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <div className="modal-header">
               <h2>Add Staff</h2>
               <button className="btn-ghost btn-sm" onClick={() => setShowAdd(false)}>
@@ -238,6 +290,7 @@ export default function Users() {
                   id="role"
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)' }}
                 >
                   {ROLES.map((r) => (
                     <option key={r.value} value={r.value}>
@@ -269,7 +322,24 @@ export default function Users() {
                 value={form.specialization}
                 onChange={(v) => setForm({ ...form, specialization: v })}
               />
-              <div className="form-actions">
+
+              <div className="form-group" style={{ marginTop: 16 }}>
+                <label style={{ fontWeight: 600, display: 'block', marginBottom: 8 }}>Additional Permissions / Options</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {PERMISSION_OPTIONS.map((po) => (
+                    <label key={po.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={form.permissions.includes(po.value)}
+                        onChange={() => toggleFormPerm(po.value)}
+                      />
+                      {po.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-actions" style={{ marginTop: 20 }}>
                 <button type="button" className="btn-ghost" onClick={() => setShowAdd(false)}>
                   Cancel
                 </button>
@@ -281,41 +351,62 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      {editingUser && (
+        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h2>Permissions for {editingUser.fullName}</h2>
+              <button className="btn-ghost btn-sm" onClick={() => setEditingUser(null)}>
+                ✕
+              </button>
+            </div>
+            <p className="staff-note">
+              Grant specific module or option access beyond their base role ({editingUser.role}).
+            </p>
+            <div style={{ margin: '20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {PERMISSION_OPTIONS.map((po) => (
+                <label key={po.value} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editPerms.includes(po.value)}
+                    onChange={() => toggleEditPerm(po.value)}
+                  />
+                  {po.label}
+                </label>
+              ))}
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-ghost" onClick={() => setEditingUser(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn-primary" onClick={savePermissions}>
+                Save Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/**
- * A labelled input that shows its own error.
- *
- * <p>The message states the rule, and `aria-invalid`/`aria-describedby` wire it to the
- * control so it is announced rather than only coloured.
- */
 function Field({ id, label, value, onChange, error, hint, type = 'text' }) {
-  const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null].filter(Boolean).join(' ') || undefined;
   return (
     <div className="form-group">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
         type={type}
+        className={error ? 'input-error' : undefined}
+        aria-invalid={!!error}
+        aria-describedby={describedBy}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? 'true' : undefined}
-        aria-describedby={describedBy || undefined}
       />
-      {hint && !error && (
-        <div id={`${id}-hint`} className="field-hint">
-          {hint}
-        </div>
-      )}
-      {error && (
-        <div id={`${id}-error`} className="field-error" role="alert">
-          {error}
-        </div>
-      )}
+      {hint && !error && <span id={`${id}-hint`} className="form-hint">{hint}</span>}
+      {error && <span id={`${id}-error`} className="field-error">{error}</span>}
     </div>
   );
 }
