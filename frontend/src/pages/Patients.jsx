@@ -30,7 +30,16 @@ export default function Patients() {
 
   const [form, setForm] = useState({
     name: '', age: '', gender: 'male', phone: '', email: '',
-    address: '', bloodGroup: '', dpdpConsent: false, consentPurpose: 'Treatment and billing',
+    address: '', bloodGroup: '', consent: { treatment: false, billing: false, research: false, purpose: { treatment: '', billing: '', research: '' } },
+  });
+
+  // Helper to update nested consent fields cleanly
+  const setConsent = (path, value) => setForm(p => {
+    const parts = path.split('.');
+    let obj = p.consent;
+    for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+    obj[parts[parts.length - 1]] = value;
+    return {...p};
   });
 
   useEffect(() => { fetchSummary(); }, []);
@@ -150,10 +159,11 @@ export default function Patients() {
       const { data } = await patientApi.register({
         ...form,
         age: parseInt(form.age),
+        consent: form.consent,
       });
       addToast(`Patient ${data.name} registered. UHID: ${data.uhid}`, 'success');
       setShowRegister(false);
-      setForm({ name: '', age: '', gender: 'male', phone: '', email: '', address: '', bloodGroup: '', dpdpConsent: false, consentPurpose: 'Treatment and billing' });
+      setForm({ name: '', age: '', gender: 'male', phone: '', email: '', address: '', bloodGroup: '', consent: { treatment: false, billing: false, research: false, purpose: { treatment: '', billing: '', research: '' } } });
       fetchPatients();
       fetchSummary();
     } catch (err) {
@@ -390,16 +400,45 @@ export default function Patients() {
                 </div>
               </div>
               <div className="form-group">
+                {/* Independent consent purposes per DPDP Act §6(2) */}
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ width: 'auto' }} checked={form.dpdpConsent}
-                    onChange={(e) => setForm({...form, dpdpConsent: e.target.checked})} />
-                  DPDP Consent Granted *
+                  <input type="checkbox" style={{ width: 'auto' }}
+                    checked={form.consent.treatment}
+                    onChange={(e) => setConsent('consent.treatment', e.target.checked)} />
+                  Treatment
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" style={{ width: 'auto' }}
+                    checked={form.consent.billing}
+                    onChange={(e) => setForm(p => ({...p, consent: {...p.consent, billing: e.target.checked}}))} />
+                  Billing
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" style={{ width: 'auto' }}
+                    checked={form.consent.research}
+                    onChange={(e) => setForm(p => ({...p, consent: {...p.consent, research: e.target.checked}}))} />
+                  Research
                 </label>
               </div>
-              {form.dpdpConsent && (
+              {form.consent.treatment && (
                 <div className="form-group">
-                  <label>Consent Purpose</label>
-                  <input value={form.consentPurpose} onChange={(e) => setForm({...form, consentPurpose: e.target.value})} />
+                  <label>Purpose (treatment)</label>
+                  <input value={form.consent.purpose?.treatment || ''}
+                    onChange={(e) => setConsent('consent.purpose.treatment', e.target.value)} />
+                </div>
+              )}
+              {form.consent.billing && (
+                <div className="form-group">
+                  <label>Purpose (billing)</label>
+                  <input value={form.consent.purpose?.billing || ''}
+                    onChange={(e) => setConsent('consent.purpose.billing', e.target.value)} />
+                </div>
+              )}
+              {form.consent.research && (
+                <div className="form-group">
+                  <label>Purpose (research)</label>
+                  <input value={form.consent.purpose?.research || ''}
+                    onChange={(e) => setConsent('consent.purpose.research', e.target.value)} />
                 </div>
               )}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
