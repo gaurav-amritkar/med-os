@@ -5,7 +5,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
 import EnquiryDesk from './pages/EnquiryDesk';
-import Appointments from './pages/Appointments';import Encounters from './pages/Encounters';
+import Appointments from './pages/Appointments';
+import TokenQueue from './pages/TokenQueue';import Encounters from './pages/Encounters';
 import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
@@ -44,7 +45,8 @@ export default function App() {
           <Route path="/pharmacy" element={<ProtectedRoute roles={['ADMIN','PHARMACIST','DOCTOR']}><Pharmacy /></ProtectedRoute>} />
           <Route path="/admissions" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE']}><Admissions /></ProtectedRoute>} />
           <Route path="/enquiries" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST']}><EnquiryDesk /></ProtectedRoute>} />
-          <Route path="/appointments" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><Appointments /></ProtectedRoute>} />          <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><Appointments /></ProtectedRoute>} />
+          <Route path="/appointments/queue" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><TokenQueue /></ProtectedRoute>} />          <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
           <Route path="/staff" element={<ProtectedRoute roles={['ADMIN']}><Users /></ProtectedRoute>} />
         </Route>
 

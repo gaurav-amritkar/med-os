@@ -208,6 +208,26 @@ public class AppointmentService {
         return toDto(saved);
     }
 
+    /**
+     * The waiting room: today's appointments that have been checked in (or
+     * currently in consultation), ordered by the per-day token. This is the
+     * token-queue module: it filters by optional {@code status} and pages.
+     */
+    public PageResponse<AppointmentDTO> queueToday(String status, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Order.asc("tokenDate"), Sort.Order.asc("tokenNo")));
+        Specification<Appointment> spec = (root, q, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> preds = new java.util.ArrayList<>();
+            preds.add(cb.isNotNull(root.get("tokenNo")));
+            if (status != null && !status.isBlank()) {
+                preds.add(cb.equal(root.get("status"), Appointment.Status.valueOf(status.trim().toLowerCase(Locale.ROOT))));
+            }
+            return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+        Page<Appointment> paged = appointmentRepository.findAll(spec, pageable);
+        return PageResponse.of(paged.map(this::toDto));
+    }
+
     /** Delete ONLY terminal rows — a cancelled/no-show record is destroyed, not archived. */
     @Transactional
     public void deleteTerminal(UUID id) {

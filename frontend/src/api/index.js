@@ -142,4 +142,5 @@ export const appointmentApi = {
   updateStatus: (id, data) => client.post(`/appointments/${id}/status`, data),
   writeNote: (id, note) => client.post(`/appointments/${id}/note`, note),
   delete: (id) => client.delete(`/appointments/${id}`),
+  queue: (status, page) => client.get('/appointments/queue', { params: { status, page } }).then(unwrapPage),
 };
