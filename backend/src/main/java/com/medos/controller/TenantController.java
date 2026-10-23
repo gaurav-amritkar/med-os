@@ -1,6 +1,7 @@
 package com.medos.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.medos.dto.TenantDTO;
 import com.medos.entity.Tenant;
@@ -9,6 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,12 +54,44 @@ public class TenantController {
         return ResponseEntity.ok(tenants);
     }
 
+    /**
+     * Patch tenant attributes (name, type, contact email/phone, address).
+     *
+     * <p>Requires {@code SUPER_ADMIN} — the same guard that protects the list.
+     */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<TenantDTO> updateTenant(@PathVariable UUID id, @RequestBody TenantDTO dto) {
+        TenantDTO updated = tenantService.updateTenant(id, dto);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Deactivate a tenant: set {@code active} to false.
+     */
+    @PostMapping("/{id}/disable")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> deactivateTenant(@PathVariable UUID id) {
+        tenantService.deactivateTenant(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Re-activate a previously deactivated tenant.
+     */
+    @PostMapping("/{id}/enable")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Void> activateTenant(@PathVariable UUID id) {
+        tenantService.activateTenant(id);
+        return ResponseEntity.noContent().build();
+    }
+
     private static TenantDTO toDto(Tenant t) {
         return TenantDTO.builder()
                 .id(t.getId())
                 .name(t.getName())
                 .slug(t.getSlug())
-                .type(t.getType() == null ? null : t.getType().name())
+                .type(t.getType().name())
                 .contactEmail(t.getContactEmail())
                 .contactPhone(t.getContactPhone())
                 .address(t.getAddress())
