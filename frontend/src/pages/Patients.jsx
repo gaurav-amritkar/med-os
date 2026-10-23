@@ -24,6 +24,8 @@ export default function Patients() {
   // A failed request is not an empty result. Held separately from `patients` so the table
   // can say so, rather than reporting a server fault as "this hospital has no patients".
   const [loadError, setLoadError] = useState(null);
+  // Per-field validation errors from the API (issue 117) — mapped onto controls.
+  const [formErrors, setFormErrors] = useState({});
   const addToast = useToastStore((s) => s.addToast);
 
   const [form, setForm] = useState({
@@ -155,7 +157,14 @@ export default function Patients() {
       fetchPatients();
       fetchSummary();
     } catch (err) {
-      addToast(err.response?.data?.message || 'Registration failed', 'critical');
+      const valErrs = err?.response?.data?.validationErrors || {};
+      if (Object.keys(valErrs).length > 0) {
+        setFormErrors(valErrs);
+        addToast(err.response?.data?.message || 'Please fix the highlighted fields.', 'warning');
+      } else {
+        setFormErrors({});
+        addToast(err.response?.data?.message || 'Registration failed', 'critical');
+      }
     }
   };
 
@@ -331,12 +340,18 @@ export default function Patients() {
             <form onSubmit={handleRegister}>
               <div className="form-group">
                 <label>Full Name *</label>
-                <input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required />
+                <input
+                  aria-invalid={!!formErrors.name}
+                  aria-describedby={formErrors.name ? 'err-name' : undefined}
+                  className={formErrors.name ? 'input-error' : ''}
+                  value={form.name} onChange={(e) => { setForm({...form, name: e.target.value}); setFormErrors(p => ({...p, name: undefined})); }} required />
+                {formErrors.name && <span id="err-name" className="form-error" role="alert">{formErrors.name}</span>}
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Age *</label>
-                  <input type="number" min={0} max={150} value={form.age} onChange={(e) => setForm({...form, age: e.target.value})} required />
+                  <input type="number" min={0} max={150} aria-invalid={!!formErrors.age} aria-describedby={formErrors.age ? 'err-age' : undefined} className={formErrors.age ? 'input-error' : ''} value={form.age} onChange={(e) => { setForm({...form, age: e.target.value}); setFormErrors(p => ({...p, age: undefined})); }} required />
+                  {formErrors.age && <span id="err-age" className="form-error" role="alert">{formErrors.age}</span>}
                 </div>
                 <div className="form-group">
                   <label>Gender</label>
@@ -350,11 +365,13 @@ export default function Patients() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Phone *</label>
-                  <input value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} required />
+                  <input aria-invalid={!!formErrors.phone} aria-describedby={formErrors.phone ? 'err-phone' : undefined} className={formErrors.phone ? 'input-error' : ''} value={form.phone} onChange={(e) => { setForm({...form, phone: e.target.value}); setFormErrors(p => ({...p, phone: undefined})); }} required />
+                  {formErrors.phone && <span id="err-phone" className="form-error" role="alert">{formErrors.phone}</span>}
                 </div>
                 <div className="form-group">
                   <label>Email</label>
-                  <input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} />
+                  <input type="email" aria-invalid={!!formErrors.email} aria-describedby={formErrors.email ? 'err-email' : undefined} className={formErrors.email ? 'input-error' : ''} value={form.email} onChange={(e) => { setForm({...form, email: e.target.value}); setFormErrors(p => ({...p, email: undefined})); }} />
+                  {formErrors.email && <span id="err-email" className="form-error" role="alert">{formErrors.email}</span>}
                 </div>
               </div>
               <div className="form-row">
