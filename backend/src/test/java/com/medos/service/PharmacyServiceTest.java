@@ -122,7 +122,7 @@ class PharmacyServiceTest {
         MedicineBatch b1 = batch(UUID.randomUUID(), older, 20);
         MedicineBatch b2 = batch(UUID.randomUUID(), newer, 100);
 
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         // Repository returns in FEFO order (oldest expiry first) — service relies on this ordering.
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
@@ -162,7 +162,7 @@ class PharmacyServiceTest {
         MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 10);
         MedicineBatch b2 = batch(UUID.randomUUID(), today.plusDays(90), 50);
 
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1, b2));
@@ -178,7 +178,7 @@ class PharmacyServiceTest {
 
     @Test
     void dispense_noStock_throwsAndDoesNotUpdatePrescription() {
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(eq(MEDICINE_ID), any()))
                 .thenReturn(List.of());
@@ -196,7 +196,7 @@ class PharmacyServiceTest {
         MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 5);
         // With the pre-check fix (#32), total available is validated BEFORE any
         // batch mutations — so b1 should remain unchanged when stock is insufficient.
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1));
@@ -218,7 +218,7 @@ class PharmacyServiceTest {
     void dispense_alreadyDispensedPrescription_throws() {
         Prescription rx = pendingRx();
         rx.setStatus(Prescription.Status.dispensed);
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(rx));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> dispenseService.dispense(dispenseRequest(1)));
@@ -228,7 +228,7 @@ class PharmacyServiceTest {
 
     @Test
     void dispense_unknownPrescription_throwsNotFound() {
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.empty());
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> dispenseService.dispense(dispenseRequest(1)));
@@ -237,7 +237,7 @@ class PharmacyServiceTest {
 
     @Test
     void dispense_unknownPatient_throwsNotFound() {
-        when(prescriptionRepository.findById(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,

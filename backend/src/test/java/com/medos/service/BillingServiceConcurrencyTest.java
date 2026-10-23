@@ -95,7 +95,7 @@ class BillingServiceConcurrencyTest {
                 .totalAmount(new BigDecimal("118.00"))
                 .status(Charge.Status.unbilled)
                 .build();
-        when(chargeRepository.findByPatientIdAndStatus(PATIENT_ID, Charge.Status.unbilled))
+        when(chargeRepository.findByPatientIdAndStatusForUpdate(PATIENT_ID, Charge.Status.unbilled))
                 .thenReturn(Collections.singletonList(charge));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(new Patient()));
 
