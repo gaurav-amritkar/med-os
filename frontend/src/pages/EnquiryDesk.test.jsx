@@ -140,7 +140,7 @@ describe('EnquiryDesk board', () => {
 
     await waitFor(() => expect(screen.getByText('ENQ-1')).toBeInTheDocument());
     await user.click(screen.getByLabelText('Follow up ENQ-1'));
-    expect(screen.getByRole('dialog', { name: 'Enquiry status note' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /mark follow-up/i })).toBeInTheDocument();
     await user.type(screen.getByTestId('enq-note'), 'spoke to her, call back Tuesday');
     await user.click(screen.getByRole('button', { name: 'Follow-up' }));
 

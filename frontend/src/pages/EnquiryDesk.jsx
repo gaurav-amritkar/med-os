@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
+import Modal from '../components/Modal.jsx';
 import CounterRow from '../components/CounterRow.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import useToastStore from '../store/toastStore';
@@ -242,9 +243,7 @@ function LogEnquiryModal({ saving, onClose, onSubmit }) {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label="Log Enquiry" onClick={(e) => e.stopPropagation()}>
-        <h3>Log Enquiry</h3>
+    <Modal title="Log Enquiry" onClose={onClose}>
         <div className="form-group">
           <label htmlFor="enq-name">Contact name</label>
           <input id="enq-name" value={form.contactName} onChange={set('contactName')} />
@@ -276,17 +275,14 @@ function LogEnquiryModal({ saving, onClose, onSubmit }) {
           <button type="button" className="btn-primary" disabled={saving}
             onClick={() => onSubmit({ ...form, reason: form.reason || '' })}>Log Enquiry</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
 function StatusModal({ next, saving, onClose, onSubmit }) {
   const [note, setNote] = useState('');
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label="Enquiry status note" onClick={(e) => e.stopPropagation()}>
-        <h3>{`Mark ${STATUS_LABELS[next].toLowerCase()}`}</h3>
+    <Modal title={`Mark ${STATUS_LABELS[next].toLowerCase()}`} onClose={onClose}>
         <div className="form-group">
           <label htmlFor="enq-note">Note</label>
           <input id="enq-note" data-testid="enq-note"
@@ -298,7 +294,6 @@ function StatusModal({ next, saving, onClose, onSubmit }) {
           <button type="button" className="btn-primary" disabled={saving}
             onClick={() => onSubmit({ next, note })}>{STATUS_LABELS[next]}</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
