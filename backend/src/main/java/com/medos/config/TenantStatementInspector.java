@@ -37,7 +37,7 @@ public class TenantStatementInspector implements StatementInspector {
             "patients", "appointments", "encounters", "charges", "invoices",
             "payments", "prescriptions", "lab_orders", "medicine_batches",
             "medicine_catalog", "stock_transactions", "opd_queue", "rooms",
-            "admissions", "enquiries", "enquiry_status_history"
+            "admissions", "enquiries", "enquiry_status_history", "consents"
     );
 
     /** For {@code TenantWriteScopingGuardTest} to verify the entity↔table alignment. */

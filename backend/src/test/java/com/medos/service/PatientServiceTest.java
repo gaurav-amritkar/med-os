@@ -4,6 +4,7 @@ import com.medos.dto.PageResponse;
 import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Patient;
+import com.medos.entity.Consent;
 import com.medos.exception.BusinessException;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
@@ -39,6 +40,10 @@ class PatientServiceTest {
     private PatientRepository patientRepository;
     @Mock
     private ConsentRepository consentRepository;
+    @Mock
+    private com.medos.repository.UserRepository userRepository;
+    @Mock
+    private com.medos.security.CurrentUserProvider currentUserProvider;
     @Mock
     private AuditLogger auditLogger;
     @Mock
@@ -253,5 +258,145 @@ class PatientServiceTest {
 
         assertTrue(result.getContent().isEmpty());
         verify(patientRepository, times(1)).findAllByOrderByCreatedAtDescIdDesc(any(PageRequest.class));
+    }
+
+    // ------------------------------------------------------------------ #114 consent events
+
+    private Patient patientWithConsent(UUID tenantId, boolean consent) {
+        return Patient.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .uhid("UHID000042")
+                .name("Asha Rao")
+                .age(34)
+                .gender("female")
+                .phone("9812345678")
+                .dpdpConsent(consent)
+                .outstanding(BigDecimal.ZERO)
+                .build();
+    }
+
+    private void signedInAs(String username) {
+        UUID userId = UUID.randomUUID();
+        when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(
+                com.medos.entity.User.builder().id(userId).username(username).fullName(username).build()));
+    }
+
+    @Test
+    void recordConsent_grant_appendsAnEventWithTenantStaffAndNotice() {
+        Patient patient = patientWithConsent(TENANT, false);
+        when(patientRepository.findById(patient.getId())).thenReturn(Optional.of(patient));
+        when(patientRepository.save(any(Patient.class))).thenAnswer(inv -> inv.getArgument(0));
+        signedInAs("reception1");
+
+        com.medos.dto.PatientConsentRequest req = new com.medos.dto.PatientConsentRequest();
+        req.setGranted(true);
+
+        PatientDTO result = patientService.recordConsent(patient.getId(), req);
+
+        ArgumentCaptor<Consent> captor = ArgumentCaptor.forClass(Consent.class);
+        verify(consentRepository).save(captor.capture());
+        Consent event = captor.getValue();
+        assertEquals(TENANT, event.getTenantId());
+        assertEquals(patient.getId(), event.getPatientId());
+        assertEquals("DPDP_DATA_PROCESSING", event.getConsentType());
+        assertTrue(event.getGranted());
+        // The old code wrote the patient's name here, making the record claim the
+        // patient consented to themselves. It must be the staff member.
+        assertEquals("reception1", event.getGrantedBy());
+        assertNotEquals(patient.getName(), event.getGrantedBy());
+        assertEquals(PatientService.CURRENT_DPDP_NOTICE_VERSION, event.getNoticeVersion());
+
+        // The patient row keeps a cache of the latest event for banner/list reads.
+        assertTrue(result.getDpdpConsent());
+        assertTrue(patient.getDpdpConsent());
+        assertNotNull(patient.getDpdpConsentAt());
+        verify(auditLogger).log(eq("CONSENT_GRANTED"), eq("Patient"),
+                eq(patient.getId().toString()), eq("dpdpConsent=false"), contains("dpdpConsent=true"));
+    }
+
+    @Test
+    void recordConsent_withdrawal_appendsANewEventInsteadOfDeletingTheGrant() {
+        Patient patient = patientWithConsent(TENANT, true);
+        when(patientRepository.findById(patient.getId())).thenReturn(Optional.of(patient));
+        when(patientRepository.save(any(Patient.class))).thenAnswer(inv -> inv.getArgument(0));
+        signedInAs("reception1");
+
+        com.medos.dto.PatientConsentRequest req = new com.medos.dto.PatientConsentRequest();
+        req.setGranted(false);
+        req.setPurpose("Patient withdrew at the desk");
+
+        PatientDTO result = patientService.recordConsent(patient.getId(), req);
+
+        ArgumentCaptor<Consent> captor = ArgumentCaptor.forClass(Consent.class);
+        verify(consentRepository).save(captor.capture());
+        assertFalse(captor.getValue().getGranted());
+        assertEquals("Patient withdrew at the desk", captor.getValue().getPurpose());
+        // Append-only: nothing is deleted or updated to "undo" the earlier grant.
+        verify(consentRepository, never()).deleteById(any());
+        verify(consentRepository, never()).delete(any(Consent.class));
+
+        assertFalse(result.getDpdpConsent());
+        assertFalse(patient.getDpdpConsent());
+        verify(auditLogger).log(eq("CONSENT_WITHDRAWN"), eq("Patient"),
+                eq(patient.getId().toString()), eq("dpdpConsent=true"), contains("dpdpConsent=false"));
+    }
+
+    @Test
+    void recordConsent_refusesANoticeVersionTheServerDoesNotKnow() {
+        Patient patient = patientWithConsent(TENANT, false);
+        when(patientRepository.findById(patient.getId())).thenReturn(Optional.of(patient));
+
+        com.medos.dto.PatientConsentRequest req = new com.medos.dto.PatientConsentRequest();
+        req.setGranted(true);
+        req.setNoticeVersion("2019-01");
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> patientService.recordConsent(patient.getId(), req));
+        assertTrue(ex.getMessage().contains("Unknown consent notice version"));
+        verify(consentRepository, never()).save(any());
+        verify(patientRepository, never()).save(any(Patient.class));
+    }
+
+    @Test
+    void recordConsent_missingOrCrossTenantPatient_isNotFound() {
+        UUID otherTenantPatient = UUID.randomUUID();
+        // The inspector adds tenant_id to the SELECT, so another tenant's patient
+        // is simply absent here; that must surface as 404, not as a write.
+        when(patientRepository.findById(otherTenantPatient)).thenReturn(Optional.empty());
+
+        com.medos.dto.PatientConsentRequest req = new com.medos.dto.PatientConsentRequest();
+        req.setGranted(true);
+
+        assertThrows(com.medos.exception.ResourceNotFoundException.class,
+                () -> patientService.recordConsent(otherTenantPatient, req));
+        verify(consentRepository, never()).save(any());
+    }
+
+    @Test
+    void registerPatient_withConsent_recordsStaffAsGrantorNotThePatient() {
+        PatientRegistrationRequest req = new PatientRegistrationRequest();
+        req.setName("Asha Rao");
+        req.setAge(34);
+        req.setGender("female");
+        req.setPhone("9812345678");
+        req.setDpdpConsent(true);
+        req.setConsentPurpose("Treatment");
+
+        when(patientRepository.getNextUhidSeq()).thenReturn(42L);
+        when(patientRepository.save(any(Patient.class))).thenAnswer(inv -> {
+            Patient p = inv.getArgument(0);
+            p.setId(UUID.randomUUID());
+            return p;
+        });
+        signedInAs("reception1");
+
+        patientService.registerPatient(req);
+
+        ArgumentCaptor<Consent> captor = ArgumentCaptor.forClass(Consent.class);
+        verify(consentRepository).save(captor.capture());
+        assertEquals("reception1", captor.getValue().getGrantedBy());
+        assertEquals(PatientService.CURRENT_DPDP_NOTICE_VERSION, captor.getValue().getNoticeVersion());
     }
 }
