@@ -9,6 +9,7 @@ import com.medos.repository.TenantConfigRepository;
 import com.medos.repository.TenantRepository;
 import com.medos.repository.TenantUserRepository;
 import com.medos.repository.UserRepository;
+import com.medos.util.AuditLogger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -21,6 +22,7 @@ public class TenantService {
     private final TenantUserRepository tenantUserRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final UserRepository userRepository;
+    private final AuditLogger auditLogger;
 
     public Tenant createTenant(String name, Tenant.TenantType type, String slug, String contactEmail, String contactPhone, String address) {
         if (tenantRepository.existsBySlug(slug)) {
@@ -46,16 +48,37 @@ public class TenantService {
         return tenantRepository.findById(tenantId).orElseThrow(() -> new IllegalArgumentException("Tenant not found"));
     }
 
+    /**
+     * Re-activate a deactivated tenant. Audited: re-admitting a hospital is the
+     * access-granting half of the pair, and needs the same record.
+     */
     public void activateTenant(UUID tenantId) {
         Tenant tenant = getTenant(tenantId);
+        boolean wasActive = Boolean.TRUE.equals(tenant.getActive());
         tenant.setActive(true);
         tenantRepository.save(tenant);
+        auditLogger.log("ACTIVATE", "tenant", tenantId.toString(),
+                "active=" + wasActive, "active=true");
     }
 
+    /**
+     * Deactivate a tenant: set {@code active} to false.
+     *
+     * <p>Audited, because this is the action that cuts a whole hospital off:
+     * the service only flips the flag, but the consequences land
+     * on every person who tries to sign in from that moment — login rejects
+     * them ({@code AuthService.firstActiveTenantMembership}) and their issued
+     * tokens stop working on the next request ({@code JwtAuthenticationFilter}).
+     * Without the audit row, "who disabled this hospital and when" would be
+     * unanswerable.
+     */
     public void deactivateTenant(UUID tenantId) {
         Tenant tenant = getTenant(tenantId);
+        boolean wasActive = Boolean.TRUE.equals(tenant.getActive());
         tenant.setActive(false);
         tenantRepository.save(tenant);
+        auditLogger.log("DEACTIVATE", "tenant", tenantId.toString(),
+                "active=" + wasActive, "active=false");
     }
 
     /** Updates the editable profile fields from a DTO, skipping null/absent columns. */

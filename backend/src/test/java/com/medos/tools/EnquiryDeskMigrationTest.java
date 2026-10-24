@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ class EnquiryDeskMigrationTest {
         List<Path> files = new ArrayList<>();
         try (var stream = Files.list(MIGRATIONS)) {
             stream.filter(p -> p.getFileName().toString().matches("V\\d+__.*\\.sql"))
-                    .sorted()
+                    .sorted(TenantActiveNotNullMigrationTest.byVersion())
                     .forEach(files::add);
         }
         assertThat(files).as("migrations must be found in " + MIGRATIONS.toAbsolutePath()).isNotEmpty();

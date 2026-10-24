@@ -75,7 +75,7 @@ class KeyRewrapPostgresTest {
         List<Path> files = new ArrayList<>();
         try (var stream = Files.list(MIGRATIONS)) {
             stream.filter(p -> p.getFileName().toString().matches("V\\d+__.*\\.sql"))
-                    .sorted()
+                    .sorted(com.medos.tools.TenantActiveNotNullMigrationTest.byVersion())
                     .forEach(files::add);
         }
         assertThat(files).as("migrations must be found in " + MIGRATIONS.toAbsolutePath()).isNotEmpty();

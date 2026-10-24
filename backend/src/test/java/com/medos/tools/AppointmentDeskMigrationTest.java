@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Properties;
@@ -31,10 +32,21 @@ class AppointmentDeskMigrationTest {
 
     private static final Path MIGRATIONS = Path.of("..", "database", "migrations");
 
+    /**
+     * File-name sort breaks at V10 ("V10" lexicographically precedes "V1" and
+     * V2..V9), so order by the numeric version in the name, as Flyway does.
+     */
+    private static Comparator<Path> byVersion() {
+        return Comparator.comparingInt(p -> {
+            String n = p.getFileName().toString();
+            return Integer.parseInt(n.substring(1, n.indexOf("__")));
+        });
+    }
+
     private List<Path> migrationFiles() throws IOException {
         try (var stream = Files.list(MIGRATIONS)) {
             return stream.filter(p -> p.getFileName().toString().matches("V\\d+__.*\\.sql"))
-                    .sorted().collect(Collectors.toList());
+                    .sorted(byVersion()).collect(Collectors.toList());
         }
     }
 
