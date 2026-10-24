@@ -305,6 +305,15 @@ img, svg { display: block; max-width: 100%; }
   text-transform: capitalize;
 }
 
+.topbar__tenant {
+  font-size: var(--t-micro);
+  color: var(--ink-muted);
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar__avatar {
   width: 36px;
   height: 36px;

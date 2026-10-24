@@ -4,6 +4,7 @@ const TOKEN_KEY = 'medos_token';
 const USER_KEY = 'medos_user';
 const TOKEN_EXPIRY_KEY = 'medos_token_expiry';
 const TENANT_KEY = 'medos_tenant';
+const TENANT_NAME_KEY = 'medos_tenant_name';
 const ROLE_KEY = 'medos_role';
 
 /**
@@ -22,6 +23,7 @@ const getStoredToken = () => {
       sessionStorage.removeItem(USER_KEY);
       sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
       sessionStorage.removeItem(TENANT_KEY);
+      sessionStorage.removeItem(TENANT_NAME_KEY);
       sessionStorage.removeItem(ROLE_KEY);
       return null;
     }
@@ -57,6 +59,10 @@ const getStoredTenant = () => {
   return sessionStorage.getItem(TENANT_KEY) || null;
 };
 
+const getStoredTenantName = () => {
+  return sessionStorage.getItem(TENANT_NAME_KEY) || null;
+};
+
 const getStoredRole = () => {
   return sessionStorage.getItem(ROLE_KEY) || null;
 };
@@ -73,6 +79,7 @@ const useAuthStore = create((set, get) => ({
   user: getStoredUser(),
   token: getStoredToken(),
   tenantId: getStoredTenant(),
+  tenantName: getStoredTenantName(),
   role: getStoredRole(),
 
   login: (token, user, expiresIn) => {
@@ -82,7 +89,8 @@ const useAuthStore = create((set, get) => ({
     sessionStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toString());
     if (user.role) sessionStorage.setItem(ROLE_KEY, user.role);
     if (user.tenantId) sessionStorage.setItem(TENANT_KEY, user.tenantId);
-    set({ token, user, role: user.role, tenantId: user.tenantId });
+    if (user.tenantName) sessionStorage.setItem(TENANT_NAME_KEY, user.tenantName);
+    set({ token, user, role: user.role, tenantId: user.tenantId, tenantName: user.tenantName });
   },
 
   logout: () => {
@@ -90,8 +98,9 @@ const useAuthStore = create((set, get) => ({
     sessionStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
     sessionStorage.removeItem(TENANT_KEY);
+    sessionStorage.removeItem(TENANT_NAME_KEY);
     sessionStorage.removeItem(ROLE_KEY);
-    set({ token: null, user: null, role: null, tenantId: null });
+    set({ token: null, user: null, role: null, tenantId: null, tenantName: null });
   },
 
   isAuthenticated: () => !!getStoredToken(),
@@ -110,11 +119,12 @@ const useAuthStore = create((set, get) => ({
     const token = getStoredToken();
     const user = getStoredUser();
     const tenantId = getStoredTenant();
+    const tenantName = getStoredTenantName();
     const role = getStoredRole();
     if (token && user) {
-      set({ token, user, tenantId, role });
+      set({ token, user, tenantId, tenantName, role });
     }
-    return { token, user, tenantId, role };
+    return { token, user, tenantId, tenantName, role };
   },
 }));
 
