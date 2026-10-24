@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { userApi } from '../api';
+import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
 /**
@@ -257,14 +258,7 @@ export default function Users() {
       </div>
 
       {showAdd && (
-        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
-            <div className="modal-header">
-              <h2>Add Staff</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowAdd(false)}>
-                ✕
-              </button>
-            </div>
+        <Modal title="Add Staff" onClose={() => setShowAdd(false)}>
             <p className="staff-note">
               They sign in with this password once, then choose their own.
             </p>
@@ -348,19 +342,11 @@ export default function Users() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {editingUser && (
-        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <div className="modal-header">
-              <h2>Permissions for {editingUser.fullName}</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setEditingUser(null)}>
-                ✕
-              </button>
-            </div>
+        <Modal title={`Permissions for ${editingUser.fullName}`} onClose={() => setEditingUser(null)} size="narrow">
             <p className="staff-note">
               Grant specific module or option access beyond their base role ({editingUser.role}).
             </p>
@@ -384,8 +370,7 @@ export default function Users() {
                 Save Permissions
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

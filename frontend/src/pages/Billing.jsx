@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { billingApi, patientApi } from '../api';
+import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
 export default function Billing() {
@@ -222,12 +223,7 @@ export default function Billing() {
       </div>
 
       {showInvoiceModal && (
-        <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Generate Invoice</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowInvoiceModal(false)}>✕</button>
-            </div>
+        <Modal title="Generate Invoice" onClose={() => setShowInvoiceModal(false)}>
             <p style={{ marginBottom: 16, color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
               Select charges to bill, then generate a GST-compliant invoice.
             </p>
@@ -251,17 +247,11 @@ export default function Billing() {
                 Generate Invoice
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {showPaymentModal && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Record Payment</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowPaymentModal(null)}>✕</button>
-            </div>
+        <Modal title="Record Payment" onClose={() => setShowPaymentModal(null)}>
             <div style={{ marginBottom: 16, fontSize: '0.85rem', color: 'var(--ink-faint)' }}>
               Invoice: {showPaymentModal.invoiceNumber}<br />
               Total: ₹{showPaymentModal.totalAmount} • Pending: ₹{showPaymentModal.totalAmount - showPaymentModal.paidAmount}
@@ -296,8 +286,7 @@ export default function Billing() {
                 Record Payment
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

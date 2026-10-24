@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { admissionApi, patientApi } from '../api';
+import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
 export default function Admissions() {
@@ -158,12 +159,7 @@ export default function Admissions() {
       </div>
 
       {showAdmit && selectedRoom && (
-        <div className="modal-overlay" onClick={() => setShowAdmit(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Admit Patient: {selectedRoom.roomNumber}</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowAdmit(false)}>✕</button>
-            </div>
+        <Modal title={`Admit Patient: ${selectedRoom.roomNumber}`} onClose={() => setShowAdmit(false)}>
             <form onSubmit={handleAdmit}>
               <div className="form-group">
                 <label>Room</label>
@@ -183,17 +179,11 @@ export default function Admissions() {
                 <button type="submit" className="btn-primary">Admit Patient</button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {discharging && (
-        <div className="modal-overlay" onClick={() => setDischarging(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Discharge Patient</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setDischarging(null)}>✕</button>
-            </div>
+        <Modal title="Discharge Patient" onClose={() => setDischarging(null)}>
             <div style={{ marginBottom: 16 }}>
               <div style={{ color: 'var(--ink)', fontWeight: 500 }}>Patient: {getPatientName(discharging.patientId)}</div>
               <div style={{ color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
@@ -216,8 +206,7 @@ export default function Admissions() {
               <button className="btn-primary" onClick={handleDischarge}
                 disabled={!dischargeDiagnosis.trim()}>Process Discharge</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

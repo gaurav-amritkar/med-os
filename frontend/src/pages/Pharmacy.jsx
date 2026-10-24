@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { pharmacyApi, encounterApi } from '../api';
+import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
 export default function Pharmacy() {
@@ -115,12 +116,7 @@ export default function Pharmacy() {
       </div>
 
       {showAddMed && (
-        <div className="modal-overlay" onClick={() => setShowAddMed(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Add Medicine</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowAddMed(false)}>✕</button>
-            </div>
+        <Modal title="Add Medicine" onClose={() => setShowAddMed(false)}>
             <form onSubmit={handleAddMedicine}>
               <div className="form-group">
                 <label htmlFor="med-name">Name *</label>
@@ -162,17 +158,11 @@ export default function Pharmacy() {
                 <button type="submit" className="btn-primary">Add Medicine</button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {dispenseRx && (
-        <div className="modal-overlay" onClick={() => setDispenseRx(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Dispense Prescription</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setDispenseRx(null)}>✕</button>
-            </div>
+        <Modal title="Dispense Prescription" onClose={() => setDispenseRx(null)}>
             <div className="form-group">
               <label>Prescription ID</label>
               <input value={dispenseRx.id} disabled />
@@ -188,8 +178,7 @@ export default function Pharmacy() {
               <button className="btn-ghost" onClick={() => setDispenseRx(null)}>Cancel</button>
               <button className="btn-primary" onClick={handleDispense}>Dispense FEFO</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <div style={{ display: 'flex', gap: 20 }} className="pharmacy-layout">
@@ -354,65 +343,8 @@ export default function Pharmacy() {
                 </table>
               )}
 
-              {showAddMed && (
-                <div className="modal-overlay" onClick={() => setShowAddMed(false)}>
-                  <div className="modal" onClick={(e) => e.stopPropagation()}>
-                    <div className="modal-header">
-                      <h2>Add Medicine</h2>
-                      <button className="btn-ghost btn-sm" onClick={() => setShowAddMed(false)}>✕</button>
-                    </div>
-                    <form onSubmit={handleAddMedicine}>
-                      <div className="form-group">
-                        <label htmlFor="med-name">Name *</label>
-                        <input id="med-name" name="name" value={medForm.name} required
-                          onChange={(e) => setMedForm({ ...medForm, name: e.target.value })}
-                          placeholder="Amoxicillin 500mg" />
-                      </div>
-                      <div className="form-group">
-                        <label htmlFor="med-generic">Generic name</label>
-                        <input id="med-generic" value={medForm.genericName}
-                          onChange={(e) => setMedForm({ ...medForm, genericName: e.target.value })}
-                          placeholder="Amoxicillin" />
-                      </div>
-                      <div className="form-row">
-                        <div className="form-group">
-                          <label htmlFor="med-price">Unit price *</label>
-                          <input id="med-price" type="number" step="0.01" min={0} required
-                            value={medForm.unitPrice}
-                            onChange={(e) => setMedForm({ ...medForm, unitPrice: e.target.value })} />
-                        </div>
-                        <div className="form-group">
-                          <label htmlFor="med-reorder">Reorder level</label>
-                          <input id="med-reorder" type="number" min={0}
-                            value={medForm.reorderLevel}
-                            onChange={(e) => setMedForm({ ...medForm, reorderLevel: e.target.value })} />
-                        </div>
-                      </div>
-                      <div className="form-group">
-                        <label htmlFor="med-keywords">Keywords</label>
-                        <input id="med-keywords" value={medForm.keywords}
-                          onChange={(e) => setMedForm({ ...medForm, keywords: e.target.value })}
-                          placeholder="amoxy antibiotic" />
-                        <small style={{ display: 'block', color: 'var(--ink-faint)', marginTop: 4 }}>
-                          Used to suggest this medicine when prescribing.
-                        </small>
-                      </div>
-                      <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
-                        <button type="button" className="btn-ghost" onClick={() => setShowAddMed(false)}>Cancel</button>
-                        <button type="submit" className="btn-primary">Add Medicine</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
-
               {showStockIn && (
-                <div className="modal-overlay" onClick={() => setShowStockIn(false)}>
-                  <div className="modal" onClick={(e) => e.stopPropagation()}>
-                    <div className="modal-header">
-                      <h2>Add Stock: {selectedMed.name}</h2>
-                      <button className="btn-ghost btn-sm" onClick={() => setShowStockIn(false)}>✕</button>
-                    </div>
+                <Modal title={`Add Stock: ${selectedMed.name}`} onClose={() => setShowStockIn(false)}>
                     <form onSubmit={handleStockIn}>
                       <div className="form-group">
                         <label>Batch Number *</label>
@@ -443,8 +375,7 @@ export default function Pharmacy() {
                         <button type="submit" className="btn-primary">Add Stock</button>
                       </div>
                     </form>
-                  </div>
-                </div>
+                </Modal>
               )}
             </div>
           )}

@@ -952,6 +952,8 @@ select[aria-invalid='true'] {
   padding: var(--s6);
 }
 
+.modal--narrow { max-width: 520px; }
+
 .modal-header {
   display: flex;
   align-items: flex-start;

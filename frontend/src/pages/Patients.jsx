@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { patientApi, encounterApi, billingApi } from '../api';
+import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 import { Link } from 'react-router-dom';
 import DataTable from '../components/DataTable.jsx';
@@ -341,12 +342,7 @@ export default function Patients() {
       )}
 
       {showRegister && (
-        <div className="modal-overlay" onClick={() => setShowRegister(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Register New Patient</h2>
-              <button className="btn-ghost btn-sm" onClick={() => setShowRegister(false)}>✕</button>
-            </div>
+        <Modal title="Register New Patient" onClose={() => setShowRegister(false)}>
             <form onSubmit={handleRegister}>
               <div className="form-group">
                 <label>Full Name *</label>
@@ -446,8 +442,7 @@ export default function Patients() {
                 <button type="submit" className="btn-primary">Register Patient</button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

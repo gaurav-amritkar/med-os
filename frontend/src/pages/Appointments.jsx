@@ -20,6 +20,7 @@
 
 import { useEffect, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
+import Modal from '../components/Modal.jsx';
 import CounterRow from '../components/CounterRow.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 import useToastStore from '../store/toastStore';
@@ -322,10 +323,7 @@ function BookAppointmentModal({ onClose, onBooked }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" role="dialog" aria-label="Book Appointment" onClick={(e) => e.stopPropagation()}>
-        <h3>Book Appointment</h3>
-
+    <Modal title="Book Appointment" onClose={onClose}>
         <div className="form-group">
           <label htmlFor="appt-patient">Patient</label>
           {patient ? (
@@ -413,8 +411,7 @@ function BookAppointmentModal({ onClose, onBooked }) {
             {saving ? 'Booking…' : 'Book'}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
