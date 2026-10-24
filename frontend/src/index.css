@@ -327,9 +327,16 @@ img, svg { display: block; max-width: 100%; }
   max-width: 100%;
 }
 
-.page-header { margin-bottom: var(--s6); }
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s6);
+}
 
-.page-header h1 {
+.page-header h1,
+.page-header h2 {
   font-size: var(--t-h2);
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -1600,4 +1607,159 @@ select[aria-invalid='true'] {
 .table-footer .table-footer-buttons {
   display: flex;
   gap: var(--s2);
+}
+
+/* =============================================================================
+   Appointments journey — the booking form, the day-token, the queue board.
+   -----------------------------------------------------------------------------
+   One bold element per screen: the token itself. Everywhere else the shared
+   grammar stays quiet — standard counters, standard rows, standard buttons.
+   Token numerals are set in the mono face deliberately: a token is an ordinal
+   the queue software hands out, not a word, so it reads as what it is.
+   ========================================================================== */
+
+/* — booking form: the patient picker -------------------------------------- */
+
+.appt-patient-results {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  margin-top: calc(-1 * var(--s1));
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.appt-patient-option {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  min-height: var(--target);
+  align-items: center;
+  font: inherit;
+  font-size: var(--t-label);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  text-align: left;
+}
+
+.appt-patient-option:last-child { border-bottom: 0; }
+.appt-patient-option:hover { background: var(--sunken); }
+.appt-patient-option:focus-visible { outline: 2px solid var(--action); outline-offset: -2px; }
+
+.appt-patient-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  background: var(--accent-glow);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s1) var(--s2) var(--s1) var(--s3);
+  font-size: var(--t-label);
+  color: var(--ink);
+}
+
+/* — booking form: visit-type radios --------------------------------------- */
+
+.appt-type-radios { display: flex; gap: var(--s4); flex-wrap: wrap; }
+
+.appt-type-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--target);
+  font-size: var(--t-label);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.appt-type-radio input { accent-color: var(--action); width: 18px; height: 18px; }
+
+/* — the token board --------------------------------------------------------- */
+
+.queue-now {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--action);
+  border-radius: var(--r-md);
+  padding: var(--s4) var(--s5);
+  margin-bottom: var(--s5);
+}
+
+.queue-now-servng {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s5);
+  flex-wrap: wrap;
+}
+
+.queue-now-kicker {
+  font-size: var(--t-kicker);
+  color: var(--ink-muted);
+}
+
+.queue-now-token {
+  font-family: var(--font-mono);
+  font-size: var(--t-h1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--action);
+  font-variant-numeric: tabular-nums;
+}
+
+.queue-now-patient {
+  font-size: var(--t-h3);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.queue-now-doctor { font-size: var(--t-label); color: var(--ink-muted); }
+.queue-now-idle { font-size: var(--t-label); color: var(--ink-faint); }
+
+.queue-token {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--action);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .queue-now-servng { gap: var(--s3); }
+}
+
+/* — appointments board: seven counters must read as one line, and the board's
+   filter selects name themselves in one short slot, not the row's full width */
+.appointments-page .counter-row { gap: var(--s2); margin-bottom: var(--s4); }
+.appointments-page .counter-chip { padding: var(--s2) var(--s3); }
+.appointments-page .filter-row select { flex: 0 0 auto; width: auto; }
+.appointments-page .badges-row { flex-wrap: nowrap; }
+.appointments-page td .btn { white-space: nowrap; }
+.appointments-page .cell-mono { white-space: nowrap; }
+
+/* — queue board: the now-serving token is this screen's one bold element;
+   repeated row buttons stay quiet so they do not out-shout it */
+.token-queue-page table .btn-primary {
+  background: var(--surface);
+  color: var(--action);
+  border-color: var(--line);
+}
+.token-queue-page table .btn-primary:hover {
+  background: var(--sunken);
+  box-shadow: none;
+  transform: none;
+}
+.token-queue-page table .btn-success {
+  background: var(--surface);
+  color: var(--normal);
+  border-color: var(--line);
+}
+.token-queue-page table .btn-success:hover {
+  background: var(--normal-tint);
+  box-shadow: none;
+  transform: none;
 }
