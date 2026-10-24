@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { patientApi, encounterApi, billingApi } from '../api';
 import Modal from '../components/Modal';
+import useAuthStore from '../store/authStore';
 import useToastStore from '../store/toastStore';
 import { Link } from 'react-router-dom';
 import DataTable from '../components/DataTable.jsx';
@@ -28,6 +29,12 @@ export default function Patients() {
   // Per-field validation errors from the API (issue 117) — mapped onto controls.
   const [formErrors, setFormErrors] = useState({});
   const addToast = useToastStore((s) => s.addToast);
+  const role = useAuthStore((s) => s.user?.role?.toLowerCase());
+  // Matches the API's role gate: consent is captured at the front desk.
+  const canManageConsent = role === 'receptionist' || role === 'admin';
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [withdrawingConsent, setWithdrawingConsent] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState('');
 
   const [form, setForm] = useState({
     name: '', age: '', gender: 'male', phone: '', email: '',
@@ -192,6 +199,45 @@ export default function Patients() {
     } catch {}
   };
 
+  // A consent change is a new event, not a field edit: the API appends a row and
+  // returns the patient with its cache updated. Replacing the row in the list
+  // keeps the hidden profile and the table's DPDP badge in step.
+  const applyConsentResult = (updated) => {
+    setSelectedPatient(updated);
+    setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const recordConsent = async () => {
+    setConsentSaving(true);
+    try {
+      const { data } = await patientApi.recordConsent(selectedPatient.id, {
+        granted: true,
+        purpose: 'Treatment and billing',
+      });
+      applyConsentResult(data);
+      addToast('Consent recorded', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not record consent', 'critical');
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
+  const withdrawConsent = async () => {
+    setConsentSaving(true);
+    try {
+      const { data } = await patientApi.withdrawConsent(selectedPatient.id, withdrawReason.trim());
+      applyConsentResult(data);
+      setWithdrawingConsent(false);
+      setWithdrawReason('');
+      addToast('Consent withdrawn', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not withdraw consent', 'critical');
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -269,6 +315,17 @@ export default function Patients() {
                 <span className="badge badge-info">
                   Outstanding: ₹{selectedPatient.outstanding || 0}
                 </span>
+                {canManageConsent && (selectedPatient.dpdpConsent ? (
+                  <button type="button" className="btn-ghost btn-sm"
+                    onClick={() => setWithdrawingConsent(true)}>
+                    Withdraw consent
+                  </button>
+                ) : (
+                  <button type="button" className="btn-secondary btn-sm"
+                    onClick={recordConsent} disabled={consentSaving}>
+                    {consentSaving ? 'Recording…' : 'Record consent'}
+                  </button>
+                ))}
               </div>
             </div>
             <button className="btn-ghost btn-sm" onClick={() => setSelectedPatient(null)}>← Back</button>
@@ -339,6 +396,30 @@ export default function Patients() {
             />
           )}
         </div>
+      )}
+
+      {withdrawingConsent && selectedPatient && (
+        <Modal title="Withdraw consent" onClose={() => setWithdrawingConsent(false)} size="narrow">
+          <p style={{ marginBottom: 16, color: 'var(--ink-muted)', fontSize: '0.9rem' }}>
+            This records a withdrawal for {selectedPatient.name}. It does not delete the
+            earlier grant: the consent history keeps both events, so the record shows what
+            was agreed to and when it was withdrawn.
+          </p>
+          <div className="form-group">
+            <label htmlFor="consent-withdraw-reason">Reason (optional)</label>
+            <input id="consent-withdraw-reason" value={withdrawReason}
+              onChange={(e) => setWithdrawReason(e.target.value)}
+              placeholder="What the patient said" />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn-ghost" onClick={() => setWithdrawingConsent(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn-danger" onClick={withdrawConsent} disabled={consentSaving}>
+              {consentSaving ? 'Withdrawing…' : 'Withdraw consent'}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {showRegister && (

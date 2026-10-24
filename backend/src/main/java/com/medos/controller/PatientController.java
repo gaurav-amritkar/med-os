@@ -1,6 +1,7 @@
 package com.medos.controller;
 
 import com.medos.dto.PageResponse;
+import com.medos.dto.PatientConsentRequest;
 import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.service.PatientService;
@@ -55,5 +56,39 @@ public class PatientController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PatientDTO> getByUhid(@PathVariable String uhid) {
         return ResponseEntity.ok(patientService.getByUhid(uhid));
+    }
+
+    /**
+     * Captures a DPDP consent grant (or, with {@code granted=false}, a withdrawal)
+     * after registration.
+     *
+     * <p>Front-desk roles only, matching registration: consent is captured in
+     * conversation with the patient, and a clinician in the middle of an
+     * encounter should not be the one recording it.
+     */
+    @PostMapping("/{id}/consent")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
+    public ResponseEntity<PatientDTO> recordConsent(
+            @PathVariable UUID id,
+            @Valid @RequestBody PatientConsentRequest request) {
+        return ResponseEntity.ok(patientService.recordConsent(id, request));
+    }
+
+    /**
+     * Withdraws consent, appending a {@code granted=false} event.
+     *
+     * <p>Kept as its own verb because withdrawal is a distinct act with its own
+     * intent: a caller reaching for DELETE should not be able to accidentally
+     * grant by omitting a field.
+     */
+    @DeleteMapping("/{id}/consent")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
+    public ResponseEntity<PatientDTO> withdrawConsent(
+            @PathVariable UUID id,
+            @RequestParam(required = false) String reason) {
+        PatientConsentRequest request = new PatientConsentRequest();
+        request.setGranted(false);
+        request.setPurpose(reason);
+        return ResponseEntity.ok(patientService.recordConsent(id, request));
     }
 }

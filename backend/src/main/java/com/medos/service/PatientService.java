@@ -1,17 +1,21 @@
 package com.medos.service;
 
 import com.medos.dto.PageResponse;
+import com.medos.dto.PatientConsentRequest;
 import com.medos.dto.PatientDTO;
 import com.medos.dto.PatientRegistrationRequest;
 import com.medos.entity.Admission;
 import com.medos.entity.Consent;
 import com.medos.entity.Encounter;
 import com.medos.entity.Patient;
+import com.medos.entity.User;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.mapper.EntityDtoMapper;
 import com.medos.repository.ConsentRepository;
 import com.medos.repository.PatientRepository;
+import com.medos.repository.UserRepository;
+import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import com.medos.util.BlindIndexUtil;
 import lombok.RequiredArgsConstructor;
@@ -43,8 +47,22 @@ public class PatientService {
      */
     static final int MAX_NAME_SCAN = 5000;
 
+    /**
+     * The DPDP notice currently shown to patients.
+     *
+     * <p>Stamped on every consent event so the history can answer "what was this
+     * person told?". A client may echo it, but may not invent an older one: the
+     * server refuses any version it does not recognise rather than record a
+     * claim nobody can verify.
+     */
+    public static final String CURRENT_DPDP_NOTICE_VERSION = "2026-10";
+
+    private static final String DPDP_CONSENT_TYPE = "DPDP_DATA_PROCESSING";
+
     private final PatientRepository patientRepository;
     private final ConsentRepository consentRepository;
+    private final UserRepository userRepository;
+    private final CurrentUserProvider currentUserProvider;
     private final AuditLogger auditLogger;
     private final BlindIndexUtil blindIndexUtil;
 
@@ -99,11 +117,13 @@ public class PatientService {
 
         if (consentGranted) {
             Consent consent = Consent.builder()
+                    .tenantId(saved.getTenantId())
                     .patientId(saved.getId())
-                    .consentType("DPDP_DATA_PROCESSING")
+                    .consentType(DPDP_CONSENT_TYPE)
                     .granted(true)
-                    .grantedBy(saved.getName())
+                    .grantedBy(currentStaffLabel())
                     .purpose(req.getConsentPurpose() != null ? req.getConsentPurpose() : "Treatment and billing")
+                    .noticeVersion(CURRENT_DPDP_NOTICE_VERSION)
                     .build();
             consentRepository.save(consent);
         }
@@ -112,6 +132,93 @@ public class PatientService {
                 null, "UHID=" + saved.getUhid());
 
         return EntityDtoMapper.toDTO(saved);
+    }
+
+    /**
+     * Records a DPDP consent grant or withdrawal as a new event.
+     *
+     * <p>Registration no longer requires consent, so the front desk needs a way to
+     * capture it later — and to record its withdrawal, which DPDP §6(4) makes a
+     * right the data principal can exercise at any time. Both are appended as
+     * rows: an earlier grant is never edited or deleted, because the history is
+     * the evidence of what the patient agreed to and when.
+     *
+     * <p>The patient row's {@code dpdp_consent} flag is a cache of the latest
+     * event, kept so list and banner reads do not need a second query. The event
+     * table remains the authority.
+     *
+     * <p>Cross-tenant access is refused by the read-side tenant predicate, not by
+     * an explicit check: {@code findById} on another hospital's patient returns
+     * empty and this becomes a 404, the same answer as a patient that does not
+     * exist.
+     */
+    @Transactional
+    public PatientDTO recordConsent(UUID patientId, PatientConsentRequest request) {
+        if (request == null || request.getGranted() == null) {
+            throw new BusinessException("granted is required");
+        }
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient", patientId.toString()));
+
+        boolean granted = request.getGranted();
+        boolean previous = Boolean.TRUE.equals(patient.getDpdpConsent());
+        String noticeVersion = resolveNoticeVersion(request.getNoticeVersion());
+        LocalDateTime capturedAt = LocalDateTime.now();
+
+        Consent consent = Consent.builder()
+                .tenantId(patient.getTenantId())
+                .patientId(patient.getId())
+                .consentType(DPDP_CONSENT_TYPE)
+                .granted(granted)
+                .grantedAt(capturedAt)
+                .grantedBy(currentStaffLabel())
+                .purpose(request.getPurpose() != null && !request.getPurpose().isBlank()
+                        ? request.getPurpose().trim()
+                        : "Treatment and billing")
+                .noticeVersion(noticeVersion)
+                .build();
+        consentRepository.save(consent);
+
+        patient.setDpdpConsent(granted);
+        patient.setDpdpConsentAt(capturedAt);
+        patientRepository.save(patient);
+
+        auditLogger.log(granted ? "CONSENT_GRANTED" : "CONSENT_WITHDRAWN", "Patient",
+                patient.getId().toString(),
+                "dpdpConsent=" + previous,
+                "dpdpConsent=" + granted + ";noticeVersion=" + noticeVersion);
+
+        return EntityDtoMapper.toDTO(patient);
+    }
+
+    private String resolveNoticeVersion(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return CURRENT_DPDP_NOTICE_VERSION;
+        }
+        String trimmed = requested.trim();
+        if (!CURRENT_DPDP_NOTICE_VERSION.equals(trimmed)) {
+            throw new BusinessException("Unknown consent notice version: " + trimmed
+                    + ". The current notice is " + CURRENT_DPDP_NOTICE_VERSION);
+        }
+        return trimmed;
+    }
+
+    /**
+     * Username of the signed-in staff member who captured the consent.
+     *
+     * <p>The old registration path wrote the <em>patient's</em> name here, which
+     * made the consent record claim the patient recorded their own consent. The
+     * JWT principal is the user id, so it is resolved to a username; bootstrap and
+     * test paths with no authentication are labelled {@code system} rather than
+     * inventing a person.
+     */
+    private String currentStaffLabel() {
+        UUID userId = currentUserProvider == null ? null : currentUserProvider.getCurrentUserId();
+        if (userId == null) {
+            return "system";
+        }
+        return userRepository == null ? userId.toString()
+                : userRepository.findById(userId).map(User::getUsername).orElse(userId.toString());
     }
 
     /**

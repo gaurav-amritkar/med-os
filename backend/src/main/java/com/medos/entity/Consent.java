@@ -7,18 +7,22 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(TenantEntityListener.class)
 @Table(name = "consents")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Consent {
+public class Consent implements TenantOwned {
 
     @Id
     @GeneratedValue
     @Column(columnDefinition = "uuid")
     private UUID id;
+
+    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
+    private UUID tenantId;
 
     @Column(name = "patient_id", nullable = false, columnDefinition = "uuid")
     private UUID patientId;
@@ -37,6 +41,15 @@ public class Consent {
 
     @Column(columnDefinition = "TEXT")
     private String purpose;
+
+    /**
+     * Which DPDP notice the patient was shown.
+     *
+     * <p>Nullable on purpose: consent rows captured before V12 have no recorded
+     * notice, and filling one in would assert a document nobody can produce.
+     */
+    @Column(name = "notice_version", length = 32)
+    private String noticeVersion;
 
     @Column(name = "expiry_date")
     private LocalDate expiryDate;

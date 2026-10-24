@@ -57,6 +57,12 @@ export const patientApi = {
   get: (id) => client.get(`/patients/${id}`),
   getByUhid: (uhid) => client.get(`/patients/uhid/${uhid}`),
   register: (data) => client.post('/patients', data),
+  // Consent is captured after registration as an append-only event (issue 114).
+  // `granted` decides the direction; withdrawal also has its own verb so the
+  // intent is explicit at the call site.
+  recordConsent: (id, data) => client.post(`/patients/${id}/consent`, data),
+  withdrawConsent: (id, reason) =>
+    client.delete(`/patients/${id}/consent`, { params: reason ? { reason } : {} }),
 };
 
 export const encounterApi = {
