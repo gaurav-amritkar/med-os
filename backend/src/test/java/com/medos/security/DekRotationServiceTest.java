@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,9 +38,20 @@ class DekRotationServiceTest {
     private FakeTenantKeyStore store;
     private TenantKeyHolder holder;
     private Rotations rotations;
+    private TenantKeyHolder previousHolder;
+    private TenantKeyResolver previousResolver;
 
     @BeforeEach
     void setUp() {
+        // Remember whatever the Spring context (or an earlier class) installed, so this
+        // unit test can hand the statics back untouched. Leaving an in-memory holder
+        // behind would make a later @SpringBootTest use it while its cached context
+        // still believes the production store is wired — the failure looks like a
+        // rotation that did not reach the database.
+        previousHolder = TenantKeyHolder.isInitialised() ? TenantKeyHolder.get() : null;
+        previousResolver = TenantKeyResolverFactory.isInitialised()
+                ? TenantKeyResolverFactory.get() : null;
+
         store = new FakeTenantKeyStore();
         byte[] kek = new byte[32];
         RANDOM.nextBytes(kek);
@@ -47,6 +59,18 @@ class DekRotationServiceTest {
         TenantKeyHolder.setInstance(holder);
         TenantKeyResolverFactory.setInstance(holder);
         rotations = new Rotations();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantKeyHolder.reset();
+        TenantKeyResolverFactory.reset();
+        if (previousHolder != null) {
+            TenantKeyHolder.setInstance(previousHolder);
+        }
+        if (previousResolver != null) {
+            TenantKeyResolverFactory.setInstance(previousResolver);
+        }
     }
 
     @Test
