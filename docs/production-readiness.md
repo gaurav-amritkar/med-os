@@ -15,9 +15,10 @@
 MedOS is a Spring Boot 3.5 + React 19 multi-tenant Hospital Management System
 with core functionality implemented, a production deployment descriptor, TLS
 termination, a hardened CI pipeline and envelope encryption for patient PII.
-Security controls are present and mostly enforced. What remains is
-**observability** (nothing is instrumented), **container hardening**, and **two
-concrete blockers** listed below.
+Security controls are present and mostly enforced. Observability is implemented
+(Prometheus scrape, JSON logs, correlation IDs and alert rules — 2026-10-22).
+What remains is **container hardening** (CSP, resource limits), API/contract
+work, and the feature/compliance gaps listed below.
 
 ## Current State Assessment (corrected 2026-10-12)
 
@@ -28,15 +29,17 @@ concrete blockers** listed below.
 - **Database**: PostgreSQL 16. Managed via Supabase in production (ADR-0008);
       an in-host `db` service exists for development only
 - **Multi-tenancy**: row-level via `tenant_id` + `TenantStatementInspector`
-      ⚠️ **`SELECT` root-`FROM` only** — `INSERT`/`UPDATE`/`DELETE` are not
-      scoped, so writes depend on services setting `tenantId` explicitly
+      ✅ `SELECT`, `UPDATE` and `DELETE` are scoped at the SQL boundary, and a
+      tenant-table `INSERT` whose column list omits `tenant_id` is refused
+      (#182). Entity↔table↔listener alignment is guarded by
+      `TenantWriteScopingGuardTest`
 - **Deployment**: `docker-compose.yml` (dev) and **`docker-compose.prod.yml`
       (production)** — the latter publishes only Caddy, runs migrations as a
       one-shot gated job, and bridges an `internal: true` network
 
 ### Security Controls ✅
 - JWT authentication with secret validation (≥32 bytes Base64) and issuer assertion
-- Tenant isolation at the read path; ⚠️ not at the write path (see above)
+- Tenant isolation at the read and write paths (`TenantStatementInspector`, #182)
 - Password hashing with BCrypt
 - Rate limiting: 5 failed attempts per **(username + IP)** → 15 min lockout.
       ⚠️ Login only — there is no general API rate limiter, and
@@ -49,7 +52,7 @@ concrete blockers** listed below.
 - CSRF disabled (appropriate for stateless JWT)
 - CORS configured with specific origins; WebSocket `CONNECT` requires a valid
       Bearer token and a permitted origin
-- Actuator at `/manage` exposing only `health,info`; swagger/OpenAPI is ADMIN-only
+- Actuator at `/manage` exposing `health,info,prometheus`; swagger/OpenAPI is ADMIN-only
 - TLS via Caddy with ACME, HTTP→HTTPS redirect and HSTS
 
 ### Identified Gaps
@@ -70,9 +73,11 @@ concrete blockers** listed below.
    - ✅ No API gateway — **and in production there is no direct exposure either**:
      only Caddy publishes 80/443, backend and Redis sit on `internal: true`
    - ✅ No distributed tracing — still true (a v1 non-goal, ADR-0006)
-   - ✅ No centralized logging — still true
-   - ✅ No monitoring stack (Prometheus/Grafana) — still true, and this is the
-     largest remaining gap
+   - 🟡 No centralized logging *stack* (Loki/ELK) — still true, but production
+     now emits one JSON object per line with `requestId`, ready to ship
+   - 🟡 Metrics scraping exists (`/manage/prometheus` + Prometheus rule file);
+     no packaged Grafana dashboard. Alerting is defined in
+     `tools/observability/prometheus-rules-medos.yml`
    - ✅ Secrets in `.env` files — **production reads file-backed secrets from
      `/run/secrets`** (ADR-0004). Dev still uses `.env`.
    - ~~No Redis cluster~~ — **not a defect.** ADR-0007 declares Redis
@@ -98,11 +103,12 @@ concrete blockers** listed below.
    - Timeout configurations
 
 2. **Observability**
-   - OpenTelemetry tracing with Jaeger
-   - Prometheus metrics endpoint exposure
-   - Structured logging with correlation IDs
+   - OpenTelemetry tracing with Jaeger — still absent (a v1 non-goal, ADR-0006)
+   - ✅ Prometheus metrics endpoint exposure — **done** (#9)
+   - ✅ Structured logging with correlation IDs — **done** (#9)
    - Health checks for all dependencies
-   - API monitoring and alerting
+   - ✅ API monitoring and alerting — rule file + runbook **done** (#9);
+     Grafana dashboard still not packaged
 
 3. **Deployment Hardening**
    - Kubernetes/ECS deployment with Helm charts
@@ -120,8 +126,10 @@ concrete blockers** listed below.
      Redis non-authoritative
    - ✅ Automated PII **KEK** rotation — **done** (dry-run/apply/verify, resumable,
      fail-closed, audited to `key_rotations`)
-   - ❌ Automated **DEK** rotation (`dek_rotation`) — still missing; needs a data
-     migration, and `currentGeneration()` hardcodes `1`
+   - 🟡 Automated **DEK** rotation (`dek_rotation`) — generation advance,
+     superseded-key archive (`tenant_dek_history`, V6) and audit row are
+     **implemented** (#180); the optional row-backfill runner that converges old
+     ciphertext onto the current generation is still pending
    - Regular disaster recovery drills
    - Backup restoration testing procedures
    - Database connection pool tuning — ⚠️ `DB_POOL_SIZE` in `.env.prod` is
@@ -151,7 +159,7 @@ concrete blockers** listed below.
      stateless with a 10h TTL, so `JWT_SECRET` rotation is the only way to
      invalidate outstanding tokens
 
-## Real remaining gaps (2026-10-12)
+## Real remaining gaps (updated 2026-10-24)
 
 If you only read one section, read this one. Everything above is the original
 assessment, corrected inline.
@@ -159,16 +167,19 @@ assessment, corrected inline.
 **Blockers**
 1. ~~Wire `BOOTSTRAP_ADMIN_PASSWORD` into `docker-compose.prod.yml`~~ ✅ **done**
    (#137), with `tools/verify-prod-secrets.sh` in CI to stop it recurring.
-2. `/api/v1/users/me` returns the password hash (#106).
+2. ~~`/api/v1/users/me` returns the password hash (#106)~~ ✅ **done** (#108) —
+   `CurrentUserDTO` replaced the entity.
 
 **Largest genuine gap**
-3. **Observability is at zero.** No `micrometer-registry-prometheus`, no JSON
-   logging (no `logback*.xml` — plain console text), no correlation ID, no
-   tracing, and actuator exposes only `health,info`. Operationally you are flying
-   blind: no way to tell a slow query from a slow payment.
+3. ~~**Observability is at zero.**~~ ✅ **Fixed 2026-10-22 (#9).** Micrometer
+   Prometheus registry, `/manage/prometheus`, JSON logging via the `json-logs`
+   profile, `RequestCorrelationFilter` (`X-Request-Id`/MDC `requestId`), and a
+   promtool-validated alert rule file are all on `main`. See
+   `docs/operations.md` §6.
 
 **Security hardening**
-4. Tenant scoping does not cover `INSERT`/`UPDATE`/`DELETE`.
+4. ~~Tenant scoping does not cover `INSERT`/`UPDATE`/`DELETE`.~~ ✅ **Fixed**
+   (#182) — writes are scoped at the SQL boundary and tenantless INSERTs are refused.
 5. `/api/v1/onboarding/register` has no rate limit and no secret rotation; its
    guard is a single shared secret with no per-operator attribution, and tenant
    creation is not audited.
@@ -200,16 +211,18 @@ assessment, corrected inline.
 - [x] Rate limiting for authentication
 - [x] PII encryption framework
 - [x] Basic test suite (backend unit, some e2e)
+- [x] Production deployment descriptor, TLS/HSTS and file-backed secrets (#16)
+- [x] Prometheus metrics, JSON logging and correlation IDs (#9)
+- [x] Flyway-owned schema with `ddl-auto: validate` in prod
 
 ### 🔧 In Progress / Required
-- [ ] Fix DDL auto in prod profile (`validate` instead of `update`)
 - [ ] Refactor god services into bounded contexts
 - [ ] Add API gateway (Kong or Spring Cloud Gateway)
 - [ ] Implement async processing (RabbitMQ/SQS)
 - [ ] Add distributed tracing (OpenTelemetry)
-- [ ] Implement monitoring stack (Prometheus/Grafana)
-- [ ] Add centralized logging (ELK/OpenSearch)
-- [ ] Move secrets to Vault/AWS Secrets Manager
+- [x] Prometheus metrics endpoint + alert rules (#9); Grafana dashboard still TODO
+- [x] Structured JSON logging with correlation IDs (#9); log aggregation (ELK/OpenSearch) still TODO
+- [ ] Move secrets to Vault/AWS Secrets Manager (Docker file secrets are in place)
 - [ ] ~~Set up Redis cluster~~ (not required — ADR-0007)
 - [ ] Configure PostgreSQL read replicas
 - [ ] Implement circuit breaker pattern
@@ -252,8 +265,10 @@ assessment, corrected inline.
 ### Short-term (Weeks 2-4)
 1. Refactor PharmacyService into PrescriptionService and InventoryService
 2. Implement API gateway with rate limiting
-3. Add Prometheus metrics endpoint and basic Grafana dashboard
-4. Set up centralized logging with correlation IDs
+3. ~~Add Prometheus metrics endpoint and basic Grafana dashboard~~ — metrics
+   endpoint **done** (#9); Grafana dashboard still TODO
+4. ~~Set up centralized logging with correlation IDs~~ — JSON logs + correlation
+   IDs **done** (#9); log aggregation still TODO
 5. Implement circuit breaker for Stripe payments
 
 ### Medium-term (Months 2-3)
@@ -264,7 +279,8 @@ assessment, corrected inline.
 5. Conduct first disaster recovery drill
 
 ### Long-term (Months 4+)
-1. Implement comprehensive monitoring and alerting
+1. ~~Implement comprehensive monitoring and alerting~~ — Prometheus scrape +
+   promtool-validated alert rules **done** (#9); dashboards and on-call routing remain
 2. Add advanced security testing to CI (OWASP ZAP, dependency scanning)
 3. Implement feature flag system for safe rollouts
 4. Add performance benchmarking and load testing
