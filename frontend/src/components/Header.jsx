@@ -2,7 +2,7 @@ import useAuthStore from '../store/authStore';
 import Icon from './icons';
 
 export default function Header({ onMenuClick, navOpen }) {
-  const { user, logout } = useAuthStore();
+  const { user, tenantName, logout } = useAuthStore();
   const initial = user?.fullName?.[0] || user?.username?.[0] || 'U';
 
   return (
@@ -21,6 +21,7 @@ export default function Header({ onMenuClick, navOpen }) {
       <div className="topbar__identity">
         <div className="user-info">
           <div className="topbar__name">{user?.fullName || user?.username}</div>
+          {tenantName && <div className="topbar__tenant">{tenantName}</div>}
           {user?.role && <div className="topbar__role">{user.role}</div>}
         </div>
       </div>

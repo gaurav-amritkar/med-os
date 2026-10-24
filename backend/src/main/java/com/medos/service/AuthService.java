@@ -86,6 +86,7 @@ public class AuthService {
                 ? "super_admin"
                 : activeMembership.getRole().name();
         UUID tenantId = activeMembership == null ? null : activeMembership.getTenant().getId();
+        String tenantName = activeMembership == null ? null : activeMembership.getTenant().getName();
         TenantUser.UserRole role = TenantUser.UserRole.valueOf(roleString);
 
         user.setLastLogin(LocalDateTime.now());
@@ -102,6 +103,7 @@ public class AuthService {
                 roleString,
                 user.getSpecialization(),
                 tenantId,
+                tenantName,
                 Boolean.TRUE.equals(user.getMustChangePassword())
         );
     }

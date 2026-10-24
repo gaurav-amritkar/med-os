@@ -95,6 +95,8 @@ class AuthServiceTest {
         assertEquals(user.getId(), response.getUserId());
         assertEquals("admin", response.getUsername());
         assertEquals("admin", response.getRole());
+        assertEquals(membershipTenantId, response.getTenantId());
+        assertEquals("Clinic A", response.getTenantName());
         assertNotNull(user.getLastLogin());
         verify(userRepository).save(user);
     }
