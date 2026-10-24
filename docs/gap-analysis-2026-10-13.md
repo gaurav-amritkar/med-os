@@ -33,7 +33,7 @@
 | G12 | No container resource limits; one noisy service OOMs the host | Infra | **P1** | #134/O3 |
 | G13 | Redis healthcheck leaks password to process list (`-a` flag) | Infra | **P1** | #134/O4 |
 | G14 | Backup/restore runbook never drilled against production target | Infra | **P1** | #134/O5 |
-| G15 | Zero observability: no Prometheus metrics, no structured logs, no correlation IDs | Observability | **P1** | #9 |
+| G15 | ~~Zero observability: no Prometheus metrics, no structured logs, no correlation IDs~~ | Observability | ✅ **Fixed** | #9 — scrape, JSON logs, correlation IDs, alert rules |
 | G16 | ~~`TenantStatementInspector` covers `SELECT` root-FROM only; writes rely on services setting `tenantId`~~ | Architecture | ✅ **Fixed** | #182 — inspector scopes UPDATE/DELETE and refuses tenant-table INSERTs that omit `tenant_id` |
 | G17 | Name search decrypts up to 5,000 rows per query in Java; dies past a few thousand patients | Architecture | **P1** | #134 |
 | G18 | ~~Per-tenant DEK rotation not implemented; `currentGeneration()` hardcodes `1`~~ | Architecture | ✅ **Fixed** | #180 — generation-aware resolution, V6 archive, audited `dek_rotation` op |
@@ -155,14 +155,11 @@
 
 ## §5 Observability gap
 
-### G15 — Zero observability
-**Evidence:** #9 (`docs/roadmap.md:102`) marked "Not Started — genuinely the largest remaining gap". No Micrometer/Prometheus endpoint, no JSON-structured logging appender, no `X-Correlation-Id` middleware.  
-**Impact:** For a hospital system handling PHI and financial transactions, production incidents cannot be diagnosed. There is no way to know when a multi-tenant isolation query is slow, when a crypto operation fails silently, or whether specific roles are triggering unexpected 500s.  
-**Fix (in priority order):**  
-1. Add `spring-boot-starter-actuator` + Micrometer Prometheus registry; expose `/actuator/prometheus` (internal network only).  
-2. Switch to Logback JSON encoder (`logstash-logback-encoder`); emit `tenantId`, `userId`, `traceId` on every log line via MDC.  
-3. Add a servlet filter that generates/propagates `X-Correlation-Id` and puts it in MDC + response header.  
-4. Add a Prometheus scraper + Grafana in `docker-compose.prod.yml` as a first-party stack.
+### ✅ G15 — Zero observability — FIXED (#9, closed 2026-10-24)
+**Evidence at the time:** #9 (`docs/roadmap.md:102`) was marked "Not Started — genuinely the largest remaining gap". No Micrometer/Prometheus endpoint, no JSON-structured logging appender, no correlation-ID middleware.
+**Impact:** For a hospital system handling PHI and financial transactions, production incidents could not be diagnosed. There was no way to know when a multi-tenant isolation query was slow, when a crypto operation failed silently, or whether specific roles were triggering unexpected 500s.
+**Resolution:** `micrometer-registry-prometheus` + `/manage/prometheus` (prod-profile exposure guarded by `ObservabilityProdComposeGuardTest`), `logback-spring.xml` `json-logs` profile with `LogstashEncoder`, `RequestCorrelationFilter` (`X-Request-Id` → MDC `requestId`), runbook in `docs/operations.md` §6 and 7 promtool-validated rules in `tools/observability/prometheus-rules-medos.yml`.
+**Still absent (follow-up, not the acceptance criteria):** OpenTelemetry tracing, Grafana dashboards, custom business meters (dispensing throughput, stock-outs, invoice ageing, Redis latency), and `userId`/`tenantId` in MDC.
 
 ---
 

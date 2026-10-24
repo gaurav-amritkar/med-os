@@ -76,7 +76,7 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 >   fallback). No `*_PASSWORD_FILE` indirection, which Spring Boot would ignore.
 >
 > Issue **#16 (TLS termination + HSTS + docker secrets) is therefore done** and
-> should be closed.
+> was closed on GitHub on 2026-10-24.
 >
 > ⚠️ **Correction:** branch protection was *documented* in `7c105b6` but never
 > applied — `docs/branch-protection.md` described it as a manual
@@ -109,14 +109,14 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 | # | Issue | Area | Status |
 |---|-------|------|--------|
-| 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance | ⬜ **Not Started — genuinely the largest remaining gap** |
+| 9 | Prometheus metrics, structured logs, correlation IDs | devops/performance | ✅ **Done** (2026-10-22) — scrape + JSON logs + correlation IDs in prod; alerts in `docs/operations.md` §6. **Closed on GitHub 2026-10-24.** |
 | 10 | Backup/restore runbook + Redis persistence policy | docs/devops | ✅ Done (docs/operations.md) |
 | 11 | OpenAPI docs (springdoc) + API versioning plan | api/docs | 🟡 **Partial** — springdoc is wired and ADMIN-gated (`/v3/api-docs`, `/swagger-ui.html`); no versioning plan |
 | 12 | ~~Replace JPA-entity responses with dedicated DTOs~~ | api | ✅ Done (commit `185414f`) |
 | 13 | Standardize error contract + RBAC matrix test | api/testing | ✅ Done (commit `67bd469`) |
 | 14 | ~~Frontend hardening: token storage, error boundaries, states~~ | security/testing | ✅ Done (commit `e5fdc0e`) |
 | 15 | CI hardening: Trivy image scan + Flyway deploy gate | devops | ✅ **Done** — see note below |
-| 16 | TLS termination + HSTS + docker secrets | devops | ✅ **Done** — see Phase 1 note above |
+| 16 | TLS termination + HSTS + docker secrets | devops | ✅ **Done** — see Phase 1 note above. **Closed on GitHub 2026-10-24**; live DNS/secret population and a production restore drill remain deployment operations, not code. |
 
 > **Correction:** #15 and #16 were both marked "Not Started". Both are implemented
 > on `main`:
