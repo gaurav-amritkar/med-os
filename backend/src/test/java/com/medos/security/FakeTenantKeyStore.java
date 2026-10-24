@@ -110,6 +110,12 @@ public class FakeTenantKeyStore implements TenantKeyStore {
     }
 
     @Override
+    public int destroyArchivedDek(UUID tenantId, int generation) {
+        Map<Integer, byte[]> archived = archivedDeks.get(tenantId);
+        return archived == null || archived.remove(generation) == null ? 0 : 1;
+    }
+
+    @Override
     public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
         return Optional.of(1);
     }

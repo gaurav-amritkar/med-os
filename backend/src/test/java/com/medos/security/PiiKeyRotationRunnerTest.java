@@ -58,6 +58,9 @@ class PiiKeyRotationRunnerTest {
         rotations = mock(KeyRotationRepository.class);
         org.mockito.Mockito.lenient().when(rotations.save(any(KeyRotation.class)))
                 .thenAnswer(call -> call.getArgument(0));
+        org.mockito.Mockito.lenient()
+                .when(rotations.findByOperationAndTenantIdOrderByStartedAtDesc(any(), any()))
+                .thenReturn(List.of());
         runner = runnerFor(new KeyRewrapService(store, rotations));
     }
 
@@ -319,8 +322,12 @@ class PiiKeyRotationRunnerTest {
 
             org.mockito.ArgumentCaptor<KeyRotation> audit =
                     org.mockito.ArgumentCaptor.forClass(KeyRotation.class);
+            Map<String, String> backup = Map.of(
+                    "backup-ref", "pgdump://nightly/2026-10-24",
+                    "backup-sha256", "a".repeat(64),
+                    "backup-verified-at", "2026-10-24T18:00:00");
             new PiiKeyRotationRunner(store, new KeyRewrapService(store, rotations),
-                    store.currentKek(), () -> shutdowns++, Map.of(), rotations)
+                    new NoopReencryptor(), store.currentKek(), () -> shutdowns++, backup, rotations)
                     .run(new DefaultApplicationArguments(
                             "--dek-rotate", "--tenant-id=" + tenant, "--initiated-by=ops-admin"));
 
@@ -334,6 +341,7 @@ class PiiKeyRotationRunnerTest {
             assertThat(finalRow.getDekGeneration()).isEqualTo(2);
             assertThat(finalRow.getStatus()).isEqualTo("completed");
             assertThat(finalRow.getInitiatedBy()).isEqualTo("ops-admin");
+            assertThat(finalRow.getBackupRef()).isEqualTo("pgdump://nightly/2026-10-24");
             assertThat(shutdowns).isEqualTo(1);
         } finally {
             TenantKeyHolder.reset();
@@ -344,6 +352,53 @@ class PiiKeyRotationRunnerTest {
                     TenantKeyHolder.setInstance(savedHolder);
                 }
             }
+        }
+    }
+
+    @Test
+    @DisplayName("dek-rotate refuses without a verified backup and writes no audit row")
+    void dekRotateRefusesWithoutBackup() throws Exception {
+        UUID tenant = store.addTenant();
+        TenantKeyResolver savedResolver = TenantKeyResolverFactory.isInitialised()
+                ? TenantKeyResolverFactory.get() : null;
+        TenantKeyHolder holder = TenantKeyHolder.inMemoryForTesting(b64(store.currentKek()));
+        TenantKeyResolverFactory.setInstance(holder);
+        TenantKeyHolder.setInstance(holder);
+        try {
+            holder.resolveDek(tenant);
+
+            assertThatThrownBy(() -> new PiiKeyRotationRunner(store,
+                    new KeyRewrapService(store, rotations), new NoopReencryptor(),
+                    store.currentKek(), () -> shutdowns++, Map.of(), rotations)
+                    .run(new DefaultApplicationArguments(
+                            "--dek-rotate", "--tenant-id=" + tenant, "--initiated-by=ops-admin")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("backup");
+
+            verifyNoInteractions(rotations);
+        } finally {
+            TenantKeyHolder.reset();
+            TenantKeyResolverFactory.reset();
+            if (savedResolver != null) {
+                TenantKeyResolverFactory.setInstance(savedResolver);
+                if (savedResolver instanceof TenantKeyHolder savedHolder) {
+                    TenantKeyHolder.setInstance(savedHolder);
+                }
+            }
+        }
+    }
+
+    /** A re-encryptor for runner tests: the key flow is what is under test here. */
+    private static final class NoopReencryptor implements DekReencryptor {
+        @Override
+        public Batch reencryptBatch(UUID tenantId, int toGeneration, boolean rebuildNameIndex,
+                                    Cursor cursor, int batchSize) {
+            return new Batch(0, 0, cursor);
+        }
+
+        @Override
+        public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt) {
+            return new Verification(0, 0, 0);
         }
     }
 

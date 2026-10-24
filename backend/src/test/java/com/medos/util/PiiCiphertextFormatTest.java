@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+import javax.crypto.spec.SecretKeySpec;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -80,6 +82,32 @@ class PiiCiphertextFormatTest {
         assertThat(formatWithGeneration(1, KEY_A).decrypt(legacy))
                 .as("a partially-migrated database must still serve reads")
                 .isEqualTo("Anita Sharma");
+    }
+
+    @Test
+    @DisplayName("legacy ciphertext still decrypts after the tenant rotates to a new generation")
+    void legacyCiphertextSurvivesRotation() {
+        // Written before generation tracking existed, so it was written under
+        // generation 1 and has no prefix to say so. This is the one case where the
+        // generation cannot be read from the value, and guessing "current" would
+        // make the value unreadable the moment the tenant rotates.
+        String legacy = PiiCiphertextFormat.singleKeyResolver(1, KEY_A)
+                .withWriteGeneration(1)
+                .encryptUnversioned("Anita Sharma");
+        assertThat(legacy).doesNotStartWith("kv1.");
+
+        SecretKeySpec gen1 = new SecretKeySpec(
+                Base64.getDecoder().decode(KEY_A), "AES");
+        SecretKeySpec gen2 = new SecretKeySpec(
+                Base64.getDecoder().decode(KEY_B), "AES");
+        PiiCiphertextFormat afterRotation = new PiiCiphertextFormat(
+                gen -> gen == 1 ? gen1 : gen == 2 ? gen2 : null)
+                .withWriteGeneration(2);
+
+        assertThat(afterRotation.decrypt(legacy))
+                .as("a compromise rotation must not turn readable old data into lost data")
+                .isEqualTo("Anita Sharma");
+        assertThat(afterRotation.encrypt("Anita Sharma")).startsWith("kv1.d2:");
     }
 
     @Test

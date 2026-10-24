@@ -97,6 +97,19 @@ public class TenantKeyStoreJdbc implements TenantKeyStore {
     }
 
     /**
+     * Destroys an archived generation after the caller has verified that no row
+     * still names it. Deliberately a physical DELETE: keeping the wrapped bytes
+     * around would leave the compromised key recoverable by anyone who later gains
+     * the KEK, which defeats the rotation.
+     */
+    @Override
+    public int destroyArchivedDek(UUID tenantId, int generation) {
+        return jdbc.update(
+                "DELETE FROM tenant_dek_history WHERE tenant_id = ? AND dek_generation = ?",
+                tenantId, generation);
+    }
+
+    /**
      * A nullable BYTEA column maps to a null element, and {@code findFirst()} throws on
      * a null first element. Both key columns are nullable in the schema, so an absent
      * key has to read as an empty Optional; otherwise "no index key yet" surfaces as a

@@ -43,6 +43,16 @@ public interface TenantKeyResolver {
     /** Blind-index key for tenantId, or null if none exists. Never creates. */
     byte[] findBlindIndexKeyOrNull(UUID tenantId);
 
+    /**
+     * Rotate the tenant's blind-index key independently of the data key.
+     *
+     * <p>Existing {@code patients.name_index} digests stop matching by construction;
+     * a caller rotating it as part of a compromise response must re-index every named
+     * patient. Kept separate from {@link #rotateDek(UUID)} because a suspected index
+     * key does not justify rewriting ciphertext.
+     */
+    void rotateBlindIndexKey(UUID tenantId);
+
     /** Ensure the acting tenant has a DEK. Idempotent. */
     void ensureDekExists();
 
@@ -67,6 +77,18 @@ public interface TenantKeyResolver {
      * archive). Returns the generation new writes will be labelled with.
      */
     int rotateDek(UUID tenantId);
+
+    /**
+     * Destroy an archived DEK generation after a compromise rotation has verified that
+     * no ciphertext still names it.
+     *
+     * <p>This is the one irreversible step in the key lifecycle. It is on the resolver
+     * seam rather than the store so a caller cannot reach past verification: the only
+     * supported path is {@link DekRotationService}, which destroys only after a full
+     * read-back pass. Returns 0 when the generation was already destroyed, so a resumed
+     * run after a crash between verification and destruction is a no-op.
+     */
+    int destroyArchivedDek(UUID tenantId, int generation);
 
     /** Re-wrap all tenant key material under the current KEK. Requires previous KEK. */
     int rewrapAll();

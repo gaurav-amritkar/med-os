@@ -162,6 +162,27 @@ public class TenantKeyHolder implements TenantKeyResolver {
     }
 
     /**
+     * Rotate the blind-index key, leaving the data key and every ciphertext untouched.
+     *
+     * <p>Existing digests stop matching, so this is only safe as part of a flow that
+     * re-indexes every named patient — see
+     * {@link DekRotationService#rotate(UUID, String, DekRotationService.BackupAttestation, boolean)}.
+     */
+    @Override
+    public void rotateBlindIndexKey(UUID tenantId) {
+        blindIndexKeys().rotateIndependently(requireTenant(tenantId));
+    }
+
+    /**
+     * Destroy an archived generation. Only {@link DekRotationService} calls this, and
+     * only after verifying that no ciphertext still names the generation.
+     */
+    @Override
+    public int destroyArchivedDek(UUID tenantId, int generation) {
+        return keyStore.destroyArchivedDek(requireTenant(tenantId), generation);
+    }
+
+    /**
      * Ensure a blind-index key exists for the acting tenant.
      *
      * <p>Separate from {@link #ensureDekExists()} so an index key can be rotated without
@@ -631,6 +652,13 @@ public class TenantKeyHolder implements TenantKeyResolver {
             // Nothing is persisted, so a re-wrap is a no-op by construction: the point
             // is that no DEK bytes change.
             return stored.size();
+        }
+
+        @Override
+        public int destroyArchivedDek(UUID tenantId, int generation) {
+            UUID acting = requireTenant(tenantId);
+            Map<Integer, byte[]> generations = archived.get(acting);
+            return generations == null || generations.remove(generation) == null ? 0 : 1;
         }
 
         @Override

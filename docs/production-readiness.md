@@ -126,10 +126,16 @@ work, and the feature/compliance gaps listed below.
      Redis non-authoritative
    - ✅ Automated PII **KEK** rotation — **done** (dry-run/apply/verify, resumable,
      fail-closed, audited to `key_rotations`)
-   - 🟡 Automated **DEK** rotation (`dek_rotation`) — generation advance,
-     superseded-key archive (`tenant_dek_history`, V6) and audit row are
-     **implemented** (#180); the optional row-backfill runner that converges old
-     ciphertext onto the current generation is still pending
+   - ✅ Automated **DEK** rotation (`dek_rotation`) — **done** (issue 91): the
+     full compromise path is one command — mandatory verified-backup attestation
+     → archive generation N and advance to N+1 → `JdbcDekReencryptor` rewrites
+     every encrypted column of `patients` and `encounters` in resumable keyset
+     batches → read-back verification decrypts every value → only then is
+     generation N destroyed. Optional blind-index rotation rebuilds every
+     `patients.name_index`. Audited to `key_rotations` (`backup_ref`,
+     `bi_key_rotated`, `rows_rewritten`, status). Ops surface and hard rules in
+     `docs/operations.md` §7e. Remaining limitation: writes are not frozen, so
+     run in a low-write window when rotating the index key
    - Regular disaster recovery drills
    - Backup restoration testing procedures
    - Database connection pool tuning — ⚠️ `DB_POOL_SIZE` in `.env.prod` is
@@ -138,9 +144,15 @@ work, and the feature/compliance gaps listed below.
 #### Security Enhancements
 1. **Regular Testing**
    - OWASP ZAP penetration testing in CI
-   - PII encryption end-to-end validation — 🟡 partial (key isolation,
-     blind-index independence, versioned/legacy ciphertext and migration tests
-     exist; no full encrypt → rotate → decrypt journey)
+   - ✅ PII encryption end-to-end validation — **done** (issue 91): the full
+     encrypt → rotate → re-encrypt → verify → decrypt journey runs against real
+     tables in `JdbcDekReencryptorTest` (mixed generations, resumable batches,
+     blind-index rebuild, and a byte-identical fingerprint proving a second
+     tenant's keyring and ciphertext are untouched) and `DekRotationServiceTest`
+     (backup refusal, destroy-only-after-verify, resume without double rotation,
+     tenant key isolation). `EncryptedPiiTablesTest` keeps the re-encryption
+     registry equal to the entity model, so a new encrypted column cannot be
+     silently skipped
    - ✅ Migration validation — **done** (live Flyway `validate` + checksum
      immutability gate + gate self-test, in CI)
    - ✅ Role-based access control testing — **done** (`RbacMatrixTest`, 22 cases;
@@ -230,7 +242,7 @@ assessment, corrected inline.
 - [ ] Create Kubernetes deployment manifests
 - [ ] Implement backup and disaster recovery procedures
 - [ ] Run OWASP ZAP penetration testing
-- [ ] Validate PII encryption end-to-end
+- [x] Validate PII encryption end-to-end (issue 91: encrypt → DEK rotate → re-encrypt → verify → decrypt)
 - [ ] Test migration rollforward/backward procedures
 - [ ] Conduct disaster recovery drill
 

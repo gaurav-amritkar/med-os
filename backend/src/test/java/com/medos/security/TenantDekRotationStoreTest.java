@@ -44,6 +44,9 @@ class TenantDekRotationStoreTest {
     private org.springframework.core.env.Environment environment;
 
     @Autowired
+    private DekReencryptor reencryptor;
+
+    @Autowired
     private org.springframework.transaction.PlatformTransactionManager txManager;
 
     private UUID tenantId;
@@ -116,12 +119,14 @@ class TenantDekRotationStoreTest {
 
         TenantContext.setTenantId(tenantId);
         try {
+            holderWithRealStore();
             // The service owns the rotation; the test only verifies the audit trail it
             // leaves (calling both would rotate twice — the second run is safe, but the
             // recorded generation would then be 2 past the first).
             com.medos.security.DekRotationService.Result result =
-                    new com.medos.security.DekRotationService(TenantKeyResolverFactory.get(), rotations)
-                            .rotate(tenantId, "ops-admin");
+                    new com.medos.security.DekRotationService(
+                            TenantKeyResolverFactory.get(), rotations, reencryptor)
+                            .rotate(tenantId, "ops-admin", backup(), false);
             org.assertj.core.api.Assertions.assertThat(result.status())
                     .isEqualTo(com.medos.security.DekRotationService.Status.COMPLETED);
 
@@ -168,6 +173,13 @@ class TenantDekRotationStoreTest {
         // IDENTICAL to the KEK the Spring context booted with — unwraps in this test
         // must use the same key material the production holder does.
         return TestKekHolder.kek();
+    }
+
+    private DekRotationService.BackupAttestation backup() {
+        return new DekRotationService.BackupAttestation(
+                "pgdump://nightly/2026-10-24",
+                "a".repeat(64),
+                java.time.LocalDateTime.now().minusHours(1));
     }
 
     private static byte[] randomDek() {

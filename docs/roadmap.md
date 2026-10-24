@@ -163,9 +163,9 @@ Implemented on `main`, superseding the old "the PII key cannot be rotated" posit
 | One tenant's key cannot decrypt another's records | ✅ Done (#86) + `TenantKeyIsolationTest` |
 | KEK re-wrap: dry-run / apply / verify, resumable, fail-closed | ✅ Done (#88, #130) |
 | Operator runbook for rotation | ✅ Done (#89, #131, `docs/operations.md` §7d) |
-| **Per-tenant DEK rotation (`dek_rotation`)** | ✅ **Closed** (2026-10-22) — rotation primitive live: archive → advance → replace, audited; see Wave-0 evidence column |
+| **Per-tenant DEK rotation (`dek_rotation`)** | ✅ **Closed** (2026-10-25) — full compromise rotation: mandatory verified backup → archive/advance → batched re-encryption of `patients` + `encounters` → read-back verification → destroy the old DEK; audited with `backup_ref`, `bi_key_rotated`, `rows_rewritten` |
 | **Ciphertext above generation 1** | ✅ **Closed** (2026-10-22) — `currentGeneration()` resolves the tenant's `dek_generation`; writes follow the current generation |
-| Blind-index key rotation | 🔴 Not implemented — `rotateIndependently` has no operator surface |
+| Blind-index key rotation | ✅ **Closed** (2026-10-25) — `MEDOS_KEY_ROTATION_ROTATE_BI_KEY=true` rotates the index key and rebuilds every `patients.name_index` in the same run |
 
 ---
 
@@ -182,7 +182,7 @@ cannot start without. Its five items, verified against the working tree:
 |---|---|---|
 | Consent decoupled from registration | ✅ **Closed** (2026-10-22) | `PatientService` no longer throws when `dpdpConsent` is absent; the DTO field is optional and the stored flag mirrors it (no fabricated consent event). Pinned by `PatientServiceTest.registerPatient_withoutConsent_registersAndLeavesNoConsentEvent` and `PatientRegistrationConsentOptionalTest` (400 → 201) |
 | `/users/me` stops returning the password hash | ✅ **Closed** (#108, `fd19cce`) | `CurrentUserDTO`; Playwright assertion green 2026-10-22 |
-| Per-tenant DEK rotation | ✅ **Closed** (2026-10-22) | `DekRotationService` (`archive → advance → replace`, fail-closed, `key_rotations.op='dek_rotation'` audited) over `TenantKeyHolder.rotateDek`; superseded generations staged in `tenant_dek_history` (V6) so `kv1.d<N>:` ciphertext stays readable — rotation is online, no re-encryption window. `currentGeneration()` now resolves the tenant's row (was hardcoded `1`); format's resolver honours the `d<gen>` prefix (was ignored). Pinned by `TenantDekRotationTest` (6) + `TenantDekRotationStoreTest` (3) + 3 runner-mode specs, both mutants of the pinned contract verified killed. Ops surface: `MEDOS_KEY_ROTATION_MODE=dek-rotate` + tenant-id (§7e). Deferred: row-backfill runner to converge rows onto the current generation (optional efficiency, not a correctness gap) |
+| Per-tenant DEK rotation | ✅ **Closed** (2026-10-25) | `DekRotationService` implements the full compromise path: mandatory `BackupAttestation` (ref + SHA-256 + verified time) before any key change; archive generation N and advance to N+1; `JdbcDekReencryptor` rewrites every encrypted column in `patients` and `encounters` in resumable keyset batches (per-batch transactions, idempotent rerun); `DekReencryptor.verify` decrypts every value, counts any not at the target generation, and recomputes every `name_index` when the blind-index key rotated; only then is generation N deleted from `tenant_dek_history`. Statuses `in_progress` / `reencryption_incomplete` / `failed` / `completed`; an unfinished run resumes at its recorded target instead of advancing again. `EncryptedPiiTables` is checked against the entity model so a new encrypted column cannot be missed. Pinned by `DekRotationServiceTest` (9), `JdbcDekReencryptorTest` (4, including byte-identical isolation for another tenant), `EncryptedPiiTablesTest` (2), `PiiCiphertextFormatTest` (14, including legacy ciphertext surviving a rotation), `TenantDekRotationTest` (6), `TenantDekRotationStoreTest` (3) and runner specs. Ops surface: `MEDOS_KEY_ROTATION_MODE=dek-rotate` + tenant/operator/backup vars + optional `MEDOS_KEY_ROTATION_ROTATE_BI_KEY` (§7e). |
 | Observability (metrics, structured logs, correlation IDs) | ✅ **Closed** (2026-10-22) | Slice 1 (PR #179): correlation IDs + scrape endpoint + `json-logs` profile. Closure (this PR): prod containers wired — `SPRING_PROFILES_ACTIVE: prod,json-logs` (guard `ObservabilityProdComposeGuardTest`); **prod-profile exposure bug fixed** — `application-prod.yml` replaces (not extends) the base exposure list, so the scrape family had silently vanished in every prod-profile boot; proved live: `/manage/prometheus` 200 on a prod-profile container with real families (`http_server_requests_seconds*`, `hikaricp_connections_*`, `jvm_*`). JSON output proven parseable by booting with the profile (`ObservabilityJsonLogsProfileTest` — one object per line, `app` pinned, `@timestamp` present). Alert thresholds defined with exact metric names + drop-in promtool-validated rules file (`tools/observability/prometheus-rules-medos.yml`, 7 rules across traffic/resources/security/scrape) |
 | Shared `<DataTable>` / `<CounterRow>` / `<FilterBar>` component set | ✅ **Closed** (2026-10-22) | Built in `frontend/src/components/` with 19 tests (19 vitest specs): `<DataTable>` owns the §3.2 #6–#8 grammar (dense table, `role="alert"` failure ≠ empty state, "Showing X–Y of Z · page i of N" footer with ‹ Prev/Next ›). Adoption follows each page's restyle wave — the design-system ratchet (`src/test/design-system.test.js`) keeps the eight existing page components on their documented inline-style baseline until then |
 
@@ -241,12 +241,15 @@ gate is now the organizing priority._
    promtool-validated drop-in rules file (`tools/observability/
    prometheus-rules-medos.yml`: 7 rules — 5xx rate, p95 latency, DB pool
    pressure, heap, GC pause, login-failure spike, scrape liveness).
-6. **Per-tenant DEK rotation** ✅ Closed (2026-10-22): designed and implemented in one
-   pass with the `TenantKeyResolver` seam deepening — generation-aware resolution
-   (`PiiCiphertextFormat` now honours `d<gen>`), per-generation archive
-   (`tenant_dek_history`, V6), audited primitive (`dek_rotation`, §7e runbook).
-   Remaining follow-up: the optional row-backfill runner (documented in the Wave-0
-   evidence row), not needed for correctness.
+6. **Per-tenant DEK rotation** ✅ Closed (2026-10-25): the full compromise rotation.
+   The `TenantKeyResolver` seam deepening (generation-aware resolution, per-generation
+   archive in `tenant_dek_history` V6, audited `dek_rotation` primitive) was the
+   substrate; issue 91 added the response itself — mandatory verified-backup
+   attestation, `JdbcDekReencryptor` rewriting every encrypted column in resumable
+   keyset batches, read-back verification, destruction of the old DEK only after it
+   passes, and an optional blind-index rotation that rebuilds `patients.name_index`.
+   The row-backfill follow-up is therefore done, not pending: the runner visits every
+   row by design. Runbook and hard rules: `docs/operations.md` §7e.
 7. **Then Wave 1 (front desk)** 🟡 In progress (started 2026-10-22, under the
    parity spec's wave gates): the substrate went first — inspector write-scoping
    (PR #182, G16) — then module by module. **Enquiry Desk** ✅ closed (2026-10-22,

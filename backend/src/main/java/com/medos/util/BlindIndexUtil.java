@@ -70,6 +70,21 @@ public class BlindIndexUtil {
         if (indexKey == null) {
             return null;
         }
+        return indexName(normalised, indexKey);
+    }
+
+    /**
+     * Compute the digest for a name with an explicit key.
+     *
+     * <p>Extracted so a re-index after a blind-index-key rotation uses exactly the
+     * same normalisation and HMAC as the write path. A second implementation here
+     * would drift, and the symptom would be search silently returning nothing.
+     */
+    public static String indexName(String name, byte[] indexKey) {
+        String normalised = normaliseName(name);
+        if (normalised == null || normalised.isEmpty() || indexKey == null) {
+            return null;
+        }
         try {
             Mac mac = Mac.getInstance(HMAC);
             mac.init(new SecretKeySpec(indexKey, HMAC));

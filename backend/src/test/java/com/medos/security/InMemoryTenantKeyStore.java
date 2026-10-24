@@ -55,6 +55,12 @@ public class InMemoryTenantKeyStore implements TenantKeyStore {
     }
 
     @Override
+    public int destroyArchivedDek(UUID tenantId, int generation) {
+        Map<Integer, byte[]> generations = archivedDeks.get(tenantId);
+        return generations == null || generations.remove(generation) == null ? 0 : 1;
+    }
+
+    @Override
     public Optional<Integer> wrappedKekVersionOf(UUID tenantId) {
         return Optional.ofNullable(kekVersions.get(tenantId));
     }
