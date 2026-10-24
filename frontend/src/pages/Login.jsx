@@ -82,6 +82,7 @@ export default function Login() {
         role: data.role,
         specialization: data.specialization,
         tenantId: data.tenantId,
+        tenantName: data.tenantName,
       }, data.expiresIn);
       addToast(`Welcome back, ${data.fullName}`, 'success');
       navigate((data.role || '').toLowerCase() === 'super_admin' ? '/onboarding' : '/dashboard', { replace: true });

@@ -16,6 +16,7 @@ public class LoginResponse {
     private String role;
     private String specialization;
     private UUID tenantId;
+    private String tenantName;
 
     /**
      * True while the account still carries an admin-set password.

@@ -49,6 +49,8 @@ describe('Login page', () => {
         fullName: 'System Administrator',
         role: 'admin',
         specialization: null,
+        tenantId: 'ten-1',
+        tenantName: 'Clinic A',
         expiresIn: 3600,
       },
     });
@@ -62,6 +64,8 @@ describe('Login page', () => {
     expect(authApi.login).toHaveBeenCalledWith({ username: 'admin', password: 'secret' });
     expect(useAuthStore.getState().token).toBe('jwt-123');
     expect(useAuthStore.getState().user.username).toBe('admin');
+    expect(useAuthStore.getState().tenantName).toBe('Clinic A');
+    expect(sessionStorage.getItem('medos_tenant_name')).toBe('Clinic A');
     expect(sessionStorage.getItem('medos_token')).toBe('jwt-123');
     expect(useToastStore.getState().toasts[0].message).toMatch(/welcome back/i);
   });
