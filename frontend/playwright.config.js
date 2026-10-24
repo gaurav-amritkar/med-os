@@ -18,9 +18,15 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // Drive the real installed Chrome instead of Playwright's bundled
+    // chromium test build (~1.6G in ~/Library/Caches/ms-playwright).
+    channel: 'chrome',
   },
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.js/ },
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // The channel override repeats here: project-level use replaces the
+    // global use spread for the chromium project, so driving the installed
+    // Chrome must be said twice.
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
   ],
 });
