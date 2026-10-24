@@ -32,6 +32,20 @@ public interface TenantKeyStore {
      */
     int archiveDek(UUID tenantId, int generation, byte[] wrappedDek, int kekVersion);
 
+    /**
+     * Destroy an archived generation's wrapped material.
+     *
+     * <p>Only legal after verification that no ciphertext still names that
+     * generation: once the row is gone the material is unrecoverable, which is the
+     * point of a compromise response but also why it must never be the first step.
+     * Returns 0 when the generation was already destroyed, so a resumed run after a
+     * crash between verification and destruction is a no-op.
+     */
+    default int destroyArchivedDek(UUID tenantId, int generation) {
+        throw new UnsupportedOperationException(
+                "This key store cannot destroy archived DEK generations");
+    }
+
     /** The KEK version currently wrapping this tenant's key columns. */
     Optional<Integer> wrappedKekVersionOf(UUID tenantId);
 

@@ -44,6 +44,9 @@ class TenantDekRotationStoreTest {
     private org.springframework.core.env.Environment environment;
 
     @Autowired
+    private DekReencryptor reencryptor;
+
+    @Autowired
     private org.springframework.transaction.PlatformTransactionManager txManager;
 
     private UUID tenantId;
@@ -116,12 +119,14 @@ class TenantDekRotationStoreTest {
 
         TenantContext.setTenantId(tenantId);
         try {
+            holderWithRealStore();
             // The service owns the rotation; the test only verifies the audit trail it
             // leaves (calling both would rotate twice — the second run is safe, but the
             // recorded generation would then be 2 past the first).
             com.medos.security.DekRotationService.Result result =
-                    new com.medos.security.DekRotationService(TenantKeyResolverFactory.get(), rotations)
-                            .rotate(tenantId, "ops-admin");
+                    new com.medos.security.DekRotationService(
+                            TenantKeyResolverFactory.get(), rotations, reencryptor)
+                            .rotate(tenantId, "ops-admin", backup(), false);
             org.assertj.core.api.Assertions.assertThat(result.status())
                     .isEqualTo(com.medos.security.DekRotationService.Status.COMPLETED);
 
@@ -144,22 +149,15 @@ class TenantDekRotationStoreTest {
     }
 
     private TenantKeyHolder holderWithRealStore() {
-        // The Spring context wires the production holder against this H2 store already;
-        // re-register to make sure the factory and holder statics agree on the instance.
-        TenantKeyHolder holder;
-        if (!TenantKeyHolder.isInitialised()) {
-            // CI-order lesson (same as TenantIsolationTest's guard): a unit test class
-            // that runs earlier in this JVM may have cleared the statics a *cached*
-            // context relies on, and a cached context never re-runs EncryptionConfig.
-            // Rebuild the production pair exactly as EncryptionConfig does rather than
-            // depending on class order.
-            holder = new TenantKeyHolder(
-                    environment.getProperty("medos.security.pii-encryption-key"),
-                    keyStore, txManager);
-            TenantKeyHolder.setInstance(holder);
-        } else {
-            holder = TenantKeyHolder.get();
-        }
+        // Always rebuild the production pair against this H2 store and re-register it.
+        // A unit-test class earlier in this JVM may have installed an in-memory holder,
+        // and a cached Spring context never re-runs EncryptionConfig to undo it. The
+        // holder is stateless apart from a bounded key cache, so a fresh equivalent
+        // instance is harmless — and it makes this test independent of class order.
+        TenantKeyHolder holder = new TenantKeyHolder(
+                environment.getProperty("medos.security.pii-encryption-key"),
+                keyStore, txManager);
+        TenantKeyHolder.setInstance(holder);
         TenantKeyResolverFactory.setInstance(holder);
         return holder;
     }
@@ -168,6 +166,13 @@ class TenantDekRotationStoreTest {
         // IDENTICAL to the KEK the Spring context booted with — unwraps in this test
         // must use the same key material the production holder does.
         return TestKekHolder.kek();
+    }
+
+    private DekRotationService.BackupAttestation backup() {
+        return new DekRotationService.BackupAttestation(
+                "pgdump://nightly/2026-10-24",
+                "a".repeat(64),
+                java.time.LocalDateTime.now().minusHours(1));
     }
 
     private static byte[] randomDek() {

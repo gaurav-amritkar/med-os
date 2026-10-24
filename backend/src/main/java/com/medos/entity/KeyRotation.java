@@ -63,4 +63,19 @@ public class KeyRotation {
 
     @Column(name = "initiated_by", length = 255)
     private String initiatedBy;
+
+    /**
+     * Verified backup / restore point for a DEK rotation (V13).
+     *
+     * <p>A DEK rotation rewrites ciphertext and cannot be undone by restoring a key
+     * file, so the evidence row names the backup it would be recovered from. NULL for
+     * a KEK re-wrap, which is reversible without one.
+     */
+    @Column(name = "backup_ref", length = 512)
+    private String backupRef;
+
+    /** True when the tenant's blind-index key was rotated and name_index rebuilt. */
+    @Builder.Default
+    @Column(name = "bi_key_rotated", nullable = false)
+    private Boolean biKeyRotated = false;
 }

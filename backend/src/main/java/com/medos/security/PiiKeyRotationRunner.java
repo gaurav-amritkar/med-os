@@ -40,6 +40,7 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
     private final TenantKeyStore keyStore;
     private final KeyRewrapService rewrap;
     private final KeyRotationRepository rotations;
+    private final DekReencryptor reencryptor;
     private final byte[] currentKek;
     private final Runnable shutdown;
     private final Map<String, String> configured;
@@ -55,32 +56,45 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
     public PiiKeyRotationRunner(
             TenantKeyStore keyStore,
             KeyRotationRepository rotations,
+            DekReencryptor reencryptor,
             org.springframework.context.ConfigurableApplicationContext context,
             @Value("${medos.security.pii-encryption-key:}") String currentKekBase64,
             @Value("${medos.key-rotation.mode:}") String mode,
             @Value("${medos.key-rotation.new-kek:}") String newKek,
             @Value("${medos.key-rotation.target-version:}") String targetVersion,
             @Value("${medos.key-rotation.initiated-by:}") String initiatedBy,
-            @Value("${medos.key-rotation.tenant-id:}") String tenantId) {
-        this(keyStore, new KeyRewrapService(keyStore, rotations), decode(currentKekBase64),
-                context::close, optionsFrom(mode, newKek, targetVersion, initiatedBy, tenantId),
+            @Value("${medos.key-rotation.tenant-id:}") String tenantId,
+            @Value("${medos.key-rotation.backup-ref:}") String backupRef,
+            @Value("${medos.key-rotation.backup-sha256:}") String backupSha256,
+            @Value("${medos.key-rotation.backup-verified-at:}") String backupVerifiedAt,
+            @Value("${medos.key-rotation.rotate-bi-key:}") String rotateBiKey) {
+        this(keyStore, new KeyRewrapService(keyStore, rotations), reencryptor, decode(currentKekBase64),
+                context::close, optionsFrom(mode, newKek, targetVersion, initiatedBy, tenantId,
+                        backupRef, backupSha256, backupVerifiedAt, rotateBiKey),
                 rotations);
     }
 
     PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
             Runnable shutdown) {
-        this(keyStore, rewrap, currentKek, shutdown, Map.of());
+        this(keyStore, rewrap, null, currentKek, shutdown, Map.of(), null);
     }
 
     PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
             Runnable shutdown, Map<String, String> configured) {
-        this(keyStore, rewrap, currentKek, shutdown, configured, null);
+        this(keyStore, rewrap, null, currentKek, shutdown, configured, null);
     }
 
     PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap, byte[] currentKek,
             Runnable shutdown, Map<String, String> configured, KeyRotationRepository rotationsRepository) {
+        this(keyStore, rewrap, null, currentKek, shutdown, configured, rotationsRepository);
+    }
+
+    PiiKeyRotationRunner(TenantKeyStore keyStore, KeyRewrapService rewrap,
+            DekReencryptor reencryptor, byte[] currentKek, Runnable shutdown,
+            Map<String, String> configured, KeyRotationRepository rotationsRepository) {
         this.keyStore = keyStore;
         this.rewrap = rewrap;
+        this.reencryptor = reencryptor;
         this.rotations = rotationsRepository;
         this.currentKek = currentKek;
         this.shutdown = shutdown;
@@ -89,11 +103,17 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
 
     static Map<String, String> optionsFrom(String mode, String newKek, String targetVersion,
             String initiatedBy) {
-        return optionsFrom(mode, newKek, targetVersion, initiatedBy, "");
+        return optionsFrom(mode, newKek, targetVersion, initiatedBy, "", "", "", "", "");
     }
 
     static Map<String, String> optionsFrom(String mode, String newKek, String targetVersion,
             String initiatedBy, String tenantId) {
+        return optionsFrom(mode, newKek, targetVersion, initiatedBy, tenantId, "", "", "", "");
+    }
+
+    static Map<String, String> optionsFrom(String mode, String newKek, String targetVersion,
+            String initiatedBy, String tenantId, String backupRef, String backupSha256,
+            String backupVerifiedAt, String rotateBiKey) {
         Map<String, String> options = new LinkedHashMap<>();
         put(options, "dry-run", mode);
         put(options, "apply", mode);
@@ -103,6 +123,10 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
         put(options, "target-version", targetVersion);
         put(options, "initiated-by", initiatedBy);
         put(options, "tenant-id", tenantId);
+        put(options, "backup-ref", backupRef);
+        put(options, "backup-sha256", backupSha256);
+        put(options, "backup-verified-at", backupVerifiedAt);
+        put(options, "rotate-bi-key", rotateBiKey);
         return options;
     }
 
@@ -211,17 +235,77 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
             throw new IllegalStateException(
                     "TenantKeyResolver is not initialised; a DEK rotation cannot run without it.");
         }
+        if (reencryptor == null) {
+            throw new IllegalStateException("No DEK re-encryptor is wired; refusing to rotate a "
+                    + "data key without the pass that destroys the old one.");
+        }
+
+        // The backup gate is here as well as in the service: an operator gets the refusal
+        // before any key material is touched, and the service keeps the invariant even if
+        // it is called from somewhere else.
+        DekRotationService.BackupAttestation backup = new DekRotationService.BackupAttestation(
+                options.get("backup-ref"),
+                options.get("backup-sha256"),
+                parseBackupVerifiedAt(options.get("backup-verified-at")));
+        backup.validate();
+
+        boolean rotateBiKey = flag(options, "rotate-bi-key");
         DekRotationService.Result result = new DekRotationService(
-                com.medos.security.TenantKeyResolverFactory.get(), rotations).rotate(tenantId, initiatedBy);
+                com.medos.security.TenantKeyResolverFactory.get(), rotations, reencryptor)
+                .rotate(tenantId, initiatedBy, backup, rotateBiKey);
         if (result.status() == DekRotationService.Status.FAILED) {
             throw new IllegalStateException("DEK rotation for tenant " + tenantId
                     + " failed and was recorded as failed: " + result.detail());
         }
-        log.info("DEK rotation complete for tenant {}: generation {} -> {}", tenantId,
-                result.fromGeneration(), result.toGeneration());
+        if (result.status() == DekRotationService.Status.INCOMPLETE) {
+            throw new IllegalStateException("DEK rotation for tenant " + tenantId
+                    + " is incomplete and was recorded as resumable: " + result.detail()
+                    + ". Rerun the same command to resume.");
+        }
+        log.info("DEK rotation complete for tenant {}: generation {} -> {}, {} row(s) rewritten",
+                tenantId, result.fromGeneration(), result.toGeneration(), result.rowsRewritten());
     }
 
-    private void apply(Map<String, String> options) {        String newKekBase64 = options.get("new-kek");
+    private static java.time.LocalDateTime parseBackupVerifiedAt(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String value = raw.trim();
+        try {
+            return java.time.LocalDateTime.parse(value);
+        } catch (java.time.format.DateTimeParseException ignored) {
+            // fall through to an offset form such as 2026-10-24T18:00:00Z
+        }
+        try {
+            return java.time.OffsetDateTime.parse(value).toLocalDateTime();
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalStateException("MEDOS_KEY_ROTATION_BACKUP_VERIFIED_AT must be an "
+                    + "ISO-8601 date-time (e.g. 2026-10-24T18:00:00Z), got: " + raw, e);
+        }
+    }
+
+    /**
+     * A flag is true when present with no value or an affirmative value. Spelling out
+     * {@code false} is accepted so an environment file can turn it off without deleting
+     * the line; anything else is refused rather than guessed at.
+     */
+    private static boolean flag(Map<String, String> options, String name) {
+        if (!options.containsKey(name)) {
+            return false;
+        }
+        String raw = options.get(name);
+        String value = raw == null ? "" : raw.trim().toLowerCase();
+        if (value.isEmpty() || value.equals("true") || value.equals("1") || value.equals("yes")) {
+            return true;
+        }
+        if (value.equals("false") || value.equals("0") || value.equals("no")) {
+            return false;
+        }
+        throw new IllegalStateException("--" + name + " must be true or false, got: " + raw);
+    }
+
+    private void apply(Map<String, String> options) {
+        String newKekBase64 = options.get("new-kek");
         if (newKekBase64 == null || newKekBase64.isBlank()) {
             throw new IllegalStateException(
                     "--apply requires --new-kek=<base64 32-byte KEK>. Refusing to rotate: "
@@ -320,7 +404,8 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
      */
     private Map<String, String> parse(ApplicationArguments args) {
         List<String> known = List.of("dry-run", "apply", "verify", "dek-rotate", "new-kek",
-                "target-version", "tenant-id", "initiated-by");
+                "target-version", "tenant-id", "initiated-by", "backup-ref", "backup-sha256",
+                "backup-verified-at", "rotate-bi-key");
         Map<String, String> options = new LinkedHashMap<>(configured);
         for (String arg : args.getNonOptionArgs()) {
             throw new IllegalStateException("Unexpected argument: " + arg);
@@ -330,8 +415,9 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
             if (!known.contains(key)) {
                 throw new IllegalStateException("Unknown rotation option: --" + key
                         + ". Known options: --dry-run, --apply, --verify, --dek-rotate, --new-kek, "
-                        + "--target-version, --tenant-id, --initiated-by. Refusing to continue, because a "
-                        + "misspelled flag must not turn into an unintended action.");
+                        + "--target-version, --tenant-id, --initiated-by, --backup-ref, "
+                        + "--backup-sha256, --backup-verified-at, --rotate-bi-key. Refusing to "
+                        + "continue, because a misspelled flag must not turn into an unintended action.");
             }
             options.put(key, args.getOptionValues(name).isEmpty() ? "" : args.getOptionValues(name).get(0));
         }

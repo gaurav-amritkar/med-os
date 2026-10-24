@@ -138,6 +138,26 @@ public class PiiCiphertextFormat {
     }
 
     /**
+     * True when the value is ciphertext written before the generation prefix existed.
+     *
+     * <p>Used by a compromise rotation to decide whether a prefix-less value must be
+     * decrypted and rewritten, or is simply plaintext and must be left alone. The test
+     * is deliberately the same one {@link #decrypt} uses: Base64 that decodes to at
+     * least an IV and a tag. Anything else is treated as plaintext, exactly as the read
+     * path treats it.
+     */
+    public static boolean isLegacyCiphertext(String stored) {
+        if (stored == null || stored.isBlank() || isVersioned(stored) || looksLikePrefix(stored)) {
+            return false;
+        }
+        try {
+            return Base64.getDecoder().decode(stored).length >= IV_LENGTH + TAG_LENGTH;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
      * The DEK generation named by the prefix, or null for a legacy value.
      */
     public static Integer parseGeneration(String stored) {
@@ -231,7 +251,7 @@ public class PiiCiphertextFormat {
         if (decoded.length < IV_LENGTH + TAG_LENGTH) {
             return stored;
         }
-        return decryptPayload(stored, currentGenerationForWrite());
+        return decryptPayload(stored, LEGACY_GENERATION);
     }
 
     private String decryptPayload(String base64Payload, int generation) {
@@ -297,6 +317,20 @@ public class PiiCiphertextFormat {
     }
 
     private static final int MAX_PROBE_GENERATION = 64;
+
+    /**
+     * The generation unversioned (pre-versioning) ciphertext was written under.
+     *
+     * <p>Values without a {@code kv1.d<N>:} prefix predate generation tracking, which
+     * began at generation 1. Decrypting them with the <em>current</em> generation
+     * instead made an old value unreadable the moment its tenant rotated: the
+     * prefix-less path tried the new key and failed even though the old generation
+     * was still archived. A compromise rotation must not turn "old but readable"
+     * into "old and lost", so this path is pinned to the only generation such a
+     * value can have used.
+     */
+    private static final int LEGACY_GENERATION = 1;
+
     private Integer writeGeneration;
     private java.util.function.IntSupplier writeGenerationSupplier;
 
