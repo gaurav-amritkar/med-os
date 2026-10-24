@@ -67,10 +67,16 @@ export default function TokenQueue() {
     return () => clearInterval(timer.current);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Owns its own failure like the board's act() — never an unhandled rejection. */
   async function act(row, next) {
-    await appointmentApi.updateStatus(row.id, { status: next });
-    addToast(`${row.patientName} marked ${next === 'in_consultation' ? 'in consultation' : 'completed'}`, 'success');
-    load();
+    try {
+      await appointmentApi.updateStatus(row.id, { status: next });
+      addToast(`${row.patientName} marked ${next === 'in_consultation' ? 'in consultation' : 'completed'}`, 'success');
+      load();
+    } catch (err) {
+      addToast(err?.response?.data?.message || `Could not move ${row.patientName} to ${next === 'in_consultation' ? 'consultation' : 'completed'}`, 'critical');
+      load();
+    }
   }
 
   const inConsultation = rows

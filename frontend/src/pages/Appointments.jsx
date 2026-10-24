@@ -112,24 +112,37 @@ export default function Appointments() {
   useEffect(() => { load(page); // eslint-disable-line react-hooks/exhaustive-deps -- mirrors EnquiryDesk's fetch-on-mount
   }, [statusFilter, typeFilter, page, refreshTick]);
 
-  /** One action per row per state — the lifecycle never branches. */
+  /**
+   * One action per row per state — the lifecycle never branches. The handler
+   * is not awaited by its onClick: it owns its own failure, so a rejected
+   * call (a 409 from a race, a dropped session) is announced as a toast and
+   * never escapes as an unhandled rejection.
+   */
   async function act(row, action) {
-    if (action.via === 'delete') {
-      if (!window.confirm(`Delete ${row.apptRef} (${row.patientName})? This cannot be undone.`)) return;
-      await appointmentApi.delete(row.id);
-      addToast('Appointment deleted', 'success');
+    try {
+      if (action.via === 'delete') {
+        if (!window.confirm(`Delete ${row.apptRef} (${row.patientName})? This cannot be undone.`)) return;
+        await appointmentApi.delete(row.id);
+        addToast('Appointment deleted', 'success');
+        return load(page);
+      }
+      // checkIn and delete take no body on the server; only status moves do.
+      const res = (action.via === 'updateStatus'
+        ? await appointmentApi.updateStatus(row.id, { status: action.status })
+        : await appointmentApi[action.via](row.id));
+      const updated = res?.data;
+      // The token toast is the story of how tokens are given, so it only
+      // speaks when it has the number to name.
+      if (action.token && updated?.tokenNo != null) {
+        addToast(`Token ${updated.tokenNo} issued to ${row.patientName}`, 'success');
+      } else {
+        addToast(`${row.patientName} marked ${STATUS_LABELS[action.status].toLowerCase()}`, 'success');
+      }
       return load(page);
+    } catch (err) {
+      addToast(err?.response?.data?.message || `Could not ${action.label.toLowerCase()} ${row.patientName}`, 'critical');
+      load(page);
     }
-    // checkIn and delete take no body on the server; only status moves do.
-    const updated = (action.via === 'updateStatus'
-      ? await appointmentApi.updateStatus(row.id, { status: action.status })
-      : await appointmentApi[action.via](row.id)).data;
-    if (action.token) {
-      addToast(`Token ${updated.tokenNo} issued to ${row.patientName}`, 'success');
-    } else {
-      addToast(`${row.patientName} marked ${STATUS_LABELS[action.status].toLowerCase()}`, 'success');
-    }
-    return load(page);
   }
 
   const counters = summary ? [
@@ -282,7 +295,7 @@ function BookAppointmentModal({ onClose, onBooked }) {
       .catch(() => setDoctors([]));
   }, []);
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     const next = {};
     if (!patient) next.patient = 'Choose a patient';
@@ -292,21 +305,20 @@ function BookAppointmentModal({ onClose, onBooked }) {
     else if (reason.trim().length > 2000) next.reason = 'Reason must be 2000 characters or fewer';
     if (Object.keys(next).length > 0) { setErrors(next); return; }
     setSaving(true);
-    appointmentApi.book({
-      patientId: patient.id,
-      doctorId,
-      appointmentDate: when,
-      type,
-      reason: reason.trim(),
-    })
-      .then(() => {
-        addToast(`Booked ${patient.name} · ${apptTimeLabel(when)}`, 'success');
-        onBooked();
-      })
-      .catch((err) => {
-        setSaving(false);
-        addToast(err?.response?.data?.message || 'Could not book the appointment', 'critical');
+    try {
+      await appointmentApi.book({
+        patientId: patient.id,
+        doctorId,
+        appointmentDate: when,
+        type,
+        reason: reason.trim(),
       });
+      addToast(`Booked ${patient.name} · ${apptTimeLabel(when)}`, 'success');
+      onBooked();
+    } catch (err) {
+      setSaving(false);
+      addToast(err?.response?.data?.message || 'Could not book the appointment', 'critical');
+    }
   }
 
   return (
