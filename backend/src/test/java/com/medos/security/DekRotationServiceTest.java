@@ -115,6 +115,26 @@ class DekRotationServiceTest {
                 .hasMessageContaining("initiated-by");
         assertThat(rotations.saves()).isZero();
         assertThat(holder.generationFor(tenant)).isEqualTo(1);
+
+        // The same refusal on the resume path: an interrupted run must not be
+        // finishable by nobody. The runner requires --initiated-by on every
+        // invocation, so this is defence in depth for a direct service call.
+        ScriptedReencryptor interrupted = new ScriptedReencryptor();
+        interrupted.failOnBatch = true;
+        assertThat(service(interrupted).rotate(tenant, "ops@example.test", backup(), false).status())
+                .isEqualTo(DekRotationService.Status.INCOMPLETE);
+        int savesAfterTheInterruptedRun = rotations.saves();
+
+        assertThatThrownBy(() -> service(new ScriptedReencryptor())
+                .rotate(tenant, "  ", backup(), false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("initiated-by");
+        assertThat(rotations.saves())
+                .as("a refused resume must not record anything")
+                .isEqualTo(savesAfterTheInterruptedRun);
+        assertThat(holder.generationFor(tenant))
+                .as("the refusal happens before the key is touched again")
+                .isEqualTo(2);
     }
 
     @Test
