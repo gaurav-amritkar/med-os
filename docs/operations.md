@@ -735,13 +735,20 @@ Known limitations, stated plainly:
 - **No distributed lock.** The audit row makes a rerun resume rather than rotate
   twice, but two operators starting at the same instant should still be
   prevented operationally.
-- **Writes during the run are not frozen.** The index rebuild reads rows in
-  batches; run the rotation in a low-write window, or stop writes for the tenant,
-  if the blind-index key is being rotated. A write that commits after its row was
-  scanned can carry the previous index key.
+- **Writes during the run are not frozen, and this is not only about the index
+  key.** Run the rotation in a low-write window, or stop writes for the tenant, for
+  the whole run. Two distinct races:
+  - *Index rebuild:* a write that commits after its row was scanned can carry the
+    previous blind-index key, so its `name_index` is stale and search misses it.
+  - *Data key:* a write that resolved the tenant's generation **before** the
+    rotation and commits **after** the read-back is labelled `kv1.d<N>:` under the
+    old key. Destroying that key then makes the value permanently unreadable. The
+    window is the gap between the read-back and the destruction step, and it is the
+    reason the backup gate exists: recovery from this is a restore, not a re-run.
 - **Writes stay labelled correctly across the rotation** because a generation
   label and its key pair are read together from the store — a designed invariant,
-  not luck (`TenantDekRotationTest` pins it).
+  not luck (`TenantDekRotationTest` pins it). Correct labelling is not the same as
+  a write being safe to destroy a key under, which is the race above.
 
 ---
 
