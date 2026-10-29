@@ -66,6 +66,10 @@ try:
             "SUPABASE_POOLER_URL": "jdbc:postgresql://postgres.verify:5432/postgres",
             "DB_USER": "postgres",
             "MEDOS_DOMAIN": "verify.invalid",
+            # ACME_EMAIL is required (`:?`) by the caddy service; supplying a
+            # placeholder lets `compose config` resolve so the model check —
+            # not the textual fallback — is the gate that runs.
+            "ACME_EMAIL": "verify@invalid",
             "SECRETS_DIR": str(root / "verify-prod-secrets-tmp"),
         },
     )
