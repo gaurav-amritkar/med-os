@@ -226,6 +226,28 @@ public class EntityDtoMapper {
                 .collect(Collectors.toList());
     }
 
+    public static DischargeSummaryDTO toDTO(DischargeSummary summary) {
+        if (summary == null) return null;
+        return DischargeSummaryDTO.builder()
+                .id(summary.getId())
+                .admissionId(summary.getAdmissionId())
+                .patientId(summary.getPatientId())
+                .dischargingClinicianId(summary.getDischargingClinicianId())
+                .dischargingClinicianName(summary.getDischargingClinicianName())
+                .admissionDiagnosis(summary.getAdmissionDiagnosis())
+                .dischargeDiagnosis(summary.getDischargeDiagnosis())
+                .clinicalCourse(summary.getClinicalCourse())
+                .proceduresPerformed(summary.getProceduresPerformed())
+                .investigationsSummary(summary.getInvestigationsSummary())
+                .vitalsSummary(summary.getVitalsSummary())
+                .medicationsAtDischarge(summary.getMedicationsAtDischarge())
+                .conditionAtDischarge(summary.getConditionAtDischarge())
+                .followUpAdvice(summary.getFollowUpAdvice())
+                .nextReviewDate(summary.getNextReviewDate())
+                .signedAt(summary.getSignedAt())
+                .build();
+    }
+
     public static RoomDTO toDTO(Room room) {
         if (room == null) return null;
         return RoomDTO.builder()

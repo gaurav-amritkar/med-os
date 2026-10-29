@@ -109,6 +109,10 @@ class TenantScopingStartupGuardTest {
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.Appointment.class),
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.Charge.class),
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.Consent.class),
+                TenantScopingStartupGuard.shapeOf(
+                        com.medos.entity.DischargeSummary.class),
+                TenantScopingStartupGuard.shapeOf(
+                        com.medos.entity.DischargeSummaryAddendum.class),
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.Encounter.class),
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.Enquiry.class),
                 TenantScopingStartupGuard.shapeOf(com.medos.entity.EnquiryStatusHistory.class),

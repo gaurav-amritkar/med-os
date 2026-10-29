@@ -2,6 +2,7 @@ package com.medos.controller;
 
 import com.medos.dto.AdmissionRequest;
 import com.medos.dto.DischargeRequest;
+import com.medos.dto.DischargeResultDTO;
 import com.medos.entity.Admission;
 import com.medos.entity.Room;
 import com.medos.modules.clinical.service.AdmissionService;
@@ -32,7 +33,7 @@ public class AdmissionController {
 
     @PutMapping("/{id}/discharge")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public ResponseEntity<Admission> dischargePatient(
+    public ResponseEntity<DischargeResultDTO> dischargePatient(
             @PathVariable UUID id,
             @Valid @RequestBody DischargeRequest request) {
         featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
