@@ -1,6 +1,7 @@
 package com.medos.modules.billing.event;
 
 import lombok.Getter;
+
 import java.util.UUID;
 
 @Getter
