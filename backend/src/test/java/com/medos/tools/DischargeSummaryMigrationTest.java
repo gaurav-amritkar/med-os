@@ -125,8 +125,9 @@ class DischargeSummaryMigrationTest {
             ps.executeUpdate();
         }
         try (var ps = conn.prepareStatement(
-                "INSERT INTO rooms (id, tenant_id, room_number, room_type, occupied, version, ward) "
-                        + "VALUES (?,?,?,?,false,0,'ward-a')")) {
+                "INSERT INTO rooms (id, tenant_id, room_number, room_type, occupied, version, ward, "
+                        + "capacity, daily_rate) "
+                        + "VALUES (?,?,?,?,false,0,'ward-a',1,1.00)")) {
             ps.setObject(1, room);
             ps.setObject(2, tenant);
             ps.setString(3, "D-" + room.toString().substring(0, 4));
@@ -183,7 +184,8 @@ class DischargeSummaryMigrationTest {
                 assertThat(s.get(section)).as(section).startsWith("text|NO");
             }
             assertThat(s.get("next_review_date")).startsWith("date|YES");
-            assertThat(s.get("signed_at")).startsWith("timestamp|NO");
+            // Postgres names the plain timestamp type "timestamp without time zone".
+            assertThat(s.get("signed_at")).startsWith("timestamp without time zone|NO");
 
             Map<String, String> a = columns(conn, "discharge_summary_addenda");
             assertThat(a.keySet()).containsOnly("id", "tenant_id", "discharge_summary_id",
