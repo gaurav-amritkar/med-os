@@ -31,13 +31,13 @@
 | G10 | Double-discharge race — admission row never locked | Reliability | **P0** | #134/R2 |
 | G11 | Double-invoice race — unbilled charges claimed without row lock | Reliability | **P0** | #134/R3 |
 | G12 | No container resource limits; one noisy service OOMs the host | Infra | **P1** | #134/O3 |
-| G13 | Redis healthcheck leaks password to process list (`-a` flag) | Infra | **P1** | #134/O4 |
+| G13 | ~~Redis healthcheck leaks password to process list (`-a` flag)~~ | Infra | ✅ **Fixed** | #157 — `REDISCLI_AUTH` + private runtime server config |
 | G14 | Backup/restore runbook never drilled against production target | Infra | **P1** | #134/O5 |
 | G15 | ~~Zero observability: no Prometheus metrics, no structured logs, no correlation IDs~~ | Observability | ✅ **Fixed** | #9 — scrape, JSON logs, correlation IDs, alert rules |
 | G16 | ~~`TenantStatementInspector` covers `SELECT` root-FROM only; writes rely on services setting `tenantId`~~ | Architecture | ✅ **Fixed** | #182 — inspector scopes UPDATE/DELETE and refuses tenant-table INSERTs that omit `tenant_id` |
 | G17 | Name search decrypts up to 5,000 rows per query in Java; dies past a few thousand patients | Architecture | **P1** | #134 |
 | G18 | ~~Per-tenant DEK rotation not implemented; `currentGeneration()` hardcodes `1`~~ | Architecture | ✅ **Fixed** | #180 — generation-aware resolution, V6 archive, audited `dek_rotation` op |
-| G19 | Blind-index key rotation has no operator surface | Architecture | **P1** | ADR-0009 |
+| G19 | ~~Blind-index key rotation has no operator surface~~ | Architecture | ✅ **Fixed** | `MEDOS_KEY_ROTATION_ROTATE_BI_KEY` rebuilds every name index |
 | G20 | No discharge summary; `dischargePatient` writes only `dischargeDiagnosis` string | Feature | **P2** | #69 |
 | G21 | `lab_orders` table is dead — entity/repo exist, no service/controller, no charges generated | Feature | **P2** | #63 |
 | G22 | `ai_note` never written; read path exists but no `setAiNote` anywhere | Feature | **P2** | #65 |
@@ -142,9 +142,10 @@
 **Impact:** A single misbehaving service (OOM loop, runaway query) takes down the entire host. ADR-0001 explicitly accepts single-host, making this the only blast radius.  
 **Fix:** Add `deploy.resources.limits` (or top-level `mem_limit`/`cpus`) to all services. Sensible starting point: backend 1024 MB / 1 CPU; Caddy 128 MB; Redis 256 MB.
 
-### G13 — Redis healthcheck leaks password to process list
-**Evidence:** `docker-compose.prod.yml:105` — Redis healthcheck uses `redis-cli -a $REDIS_PASSWORD ping`. The `-a` flag places the password in the process argument list, visible to any co-tenant process via `/proc`.  
-**Fix:** Replace with `REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping` (environment variable avoids process list exposure).
+### ✅ G13 — Redis password in process arguments — FIXED (#157)
+**Resolution:** The healthcheck uses `REDISCLI_AUTH`. The server entrypoint writes
+`requirepass` into a mode-0600 runtime config, unsets the shell variable, and
+executes Redis with only the config path in argv.
 
 ### G14 — Backup/restore runbook not drilled against production
 **Evidence:** `docs/operations.md §1` acknowledges the commands target the dev compose and that Supabase PITR must be "verified in the Supabase dashboard rather than assumed".  
@@ -174,15 +175,14 @@
 **Impact:** Clinical workflows (nurse looking up a patient mid-procedure) fail silently past a low patient count.  
 **Fix short-term:** Enforce a minimum prefix length (≥3 chars) before triggering the decrypt loop; add an indexed `name_prefix` column (first 3 chars of the encrypted name, stored plaintext) to limit the candidate set. **Fix long-term:** Implement trigram blind indexing (hash each 3-gram of the plaintext name; store set in `patient_name_trigrams`; query is intersection of hashed 3-grams, decrypt only matches).
 
-### G18 — Per-tenant DEK rotation not implemented
-**Evidence:** ADR-0009 implementation status table — "Per-tenant DEK rotation (`dek_rotation`) — 🔴 not implemented"; "`currentGeneration()` hardcodes `1`; generation > 1 unreachable".  
-**Impact:** Compromised DEK cannot be remediated without decrypting and re-encrypting all patient data manually.  
-**Fix:** Implement `dek_rotation` state machine: generate new DEK, re-encrypt all ciphertext rows for the tenant in a background job (resumable by `last_row_id`), flip `current_dek_generation`, mark old DEK for purge after confirmation. `PiiKeyRotationRunner` (exists) should orchestrate this.
+### ✅ G18 — Per-tenant DEK rotation — FIXED (#206)
+**Resolution:** `dek_rotation` advances one tenant, re-encrypts in resumable
+batches, verifies every visible value, and retains the archived generation so an
+in-flight write that commits after verification remains readable across restarts.
 
-### G19 — Blind-index key rotation has no operator surface
-**Evidence:** ADR-0009 — "Blind-index key rotation: 🔴 no operator surface". `BlindIndexKeyService.rewrapAll` exists but is only called by KEK rotation, not by an explicit BI-key rotation command.  
-**Impact:** If the blind-index key is compromised, there is no way to re-key it without rebuilding the whole key store.  
-**Fix:** Add an admin-only endpoint (or `PiiKeyRotationRunner` command) that rotates the blind-index key and triggers `PatientNameIndexBackfillRunner` to re-hash all patient names.
+### ✅ G19 — Blind-index key rotation — FIXED
+**Resolution:** `MEDOS_KEY_ROTATION_ROTATE_BI_KEY=true` rotates the tenant's
+blind-index key during the DEK run and rebuilds every `patients.name_index`.
 
 ---
 

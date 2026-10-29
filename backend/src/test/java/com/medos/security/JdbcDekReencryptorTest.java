@@ -100,7 +100,7 @@ class JdbcDekReencryptorTest {
     }
 
     @Test
-    @DisplayName("a full rotation re-encrypts one tenant, destroys its old DEK, and leaves another tenant byte-identical")
+    @DisplayName("a full rotation re-encrypts one tenant, retains its old DEK, and leaves another tenant byte-identical")
     void rotatesOnlyTheNamedTenant() throws Exception {
         UUID tenantA = createTenant();
         UUID patientA = addPatient(tenantA, "Asha", "9876500011");
@@ -125,8 +125,8 @@ class JdbcDekReencryptorTest {
         assertThat(result.rowsRewritten()).isGreaterThanOrEqualTo(2);
         assertThat(holder.generationFor(tenantA)).isEqualTo(2);
         assertThat(holder.dekForGenerationOrNull(tenantA, 1))
-                .as("the old DEK is destroyed only after a full read-back")
-                .isNull();
+                .as("the old DEK stays available for a transaction that commits after read-back")
+                .isNotNull();
 
         assertThat(tenantFingerprintParts(tenantB))
                 .as("the acceptance criterion: another tenant's keyring and ciphertext are untouched")
@@ -244,6 +244,48 @@ class JdbcDekReencryptorTest {
     }
 
     // ------------------------------------------------------------------ fixtures
+
+    @Test
+    @DisplayName("a d1 write committing after verification stays readable after rotation and restart")
+    void lateCommitRemainsReadable() throws Exception {
+        UUID tenant = createTenant();
+        addPatient(tenant, "Existing patient", "9876500011");
+        String pendingName = new EncryptionUtil().convertToDatabaseColumn("Late patient");
+        assertThat(pendingName).startsWith("kv1.d1:");
+        TenantContext.clear();
+        UUID patientId = UUID.randomUUID();
+
+        try (var connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try (var insert = connection.prepareStatement(
+                    "INSERT INTO patients (id, tenant_id, uhid, name, version, dpdp_consent) "
+                            + "VALUES (?, ?, ?, ?, 0, false)")) {
+                insert.setObject(1, patientId);
+                insert.setObject(2, tenant);
+                insert.setString(3, "LATE-" + patientId.toString().substring(0, 8));
+                insert.setString(4, pendingName);
+                insert.executeUpdate();
+            }
+            // The uncommitted insert is invisible to the batch scan and verification.
+            assertThat(service().rotate(tenant, "ops", backup(), false).status())
+                    .isEqualTo(DekRotationService.Status.COMPLETED);
+            assertThat(reencryptor.verify(tenant, 2, false).passed()).isTrue();
+            connection.commit();
+        }
+
+        // A fresh resolver proves readability comes from persisted key material,
+        // rather than a surviving process-local cache.
+        TenantKeyHolder restarted = new TenantKeyHolder(kekBase64, keyStore, txManager);
+        TenantKeyHolder.setInstance(restarted);
+        TenantKeyResolverFactory.setInstance(restarted);
+        TenantContext.setTenantId(tenant);
+        try {
+            assertThat(patientRepository.findById(patientId).orElseThrow().getName())
+                    .isEqualTo("Late patient");
+        } finally {
+            TenantContext.clear();
+        }
+    }
 
     private DekRotationService service() {
         return new DekRotationService(TenantKeyResolverFactory.get(), rotations, reencryptor, 1);

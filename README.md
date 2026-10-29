@@ -451,8 +451,9 @@ After the first successful login, remove `BOOTSTRAP_ADMIN_PASSWORD` from
 
 Tracked in GitHub issues rather than papered over:
 
-- **Per-tenant DEK rotation is not implemented** — only fleet-wide KEK re-wrap is.
-  See the note above and `docs/adr/0009-envelope-encryption-per-tenant-deks.md`.
+- **Archived DEK retirement is not implemented** — per-tenant rotation re-encrypts
+  and verifies data, then retains the old generation so late commits stay readable.
+  See `docs/operations.md` §7e.
 - **No observability** — no Prometheus metrics, structured JSON logging, or
   correlation IDs. Actuator is limited to `/manage/health` and `/manage/info`.
 - **Tenant row scoping covers `SELECT` only** — `TenantStatementInspector` injects

@@ -26,9 +26,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Issue #91: the compromise rotation, at the service boundary.
  *
- * <p>The invariants pinned here are the ones that make destroying a key safe:
- * a verified backup is mandatory before anything changes; the old key is destroyed
- * only after a full read-back; a partial run is resumable without rotating twice; and
+ * <p>The invariants pinned here are the ones that make rotating a key safe:
+ * a verified backup is mandatory before anything changes; the old key remains archived
+ * for late commits; a partial run is resumable without rotating twice; and
  * an unfinished run can never overtake a newer generation.
  */
 class DekRotationServiceTest {
@@ -138,8 +138,8 @@ class DekRotationServiceTest {
     }
 
     @Test
-    @DisplayName("a complete rotation destroys the old DEK only after verification")
-    void destroysTheOldKeyOnlyAfterVerification() {
+    @DisplayName("a complete rotation retains the old DEK for writes that commit after verification")
+    void retainsTheOldKeyAfterVerification() {
         UUID tenant = UUID.randomUUID();
         byte[] dek1 = holder.resolveDek(tenant);
         ScriptedReencryptor reencryptor = new ScriptedReencryptor();
@@ -155,8 +155,8 @@ class DekRotationServiceTest {
         assertThat(result.rowsRewritten()).isEqualTo(6);
         assertThat(holder.generationFor(tenant)).isEqualTo(2);
         assertThat(holder.dekForGenerationOrNull(tenant, 1))
-                .as("the compromised generation must be gone after a verified run")
-                .isNull();
+                .as("a late d1 commit must remain decryptable after the rotation process exits")
+                .isEqualTo(dek1);
         assertThat(dek1).isNotNull();
 
         assertThat(rotations.rows).hasSize(1);
@@ -215,7 +215,7 @@ class DekRotationServiceTest {
                 .as("resuming must not advance the generation again")
                 .isEqualTo(2);
         assertThat(holder.dekForGenerationOrNull(tenant, 2)).isEqualTo(generation2);
-        assertThat(holder.dekForGenerationOrNull(tenant, 1)).isNull();
+        assertThat(holder.dekForGenerationOrNull(tenant, 1)).isNotNull();
         assertThat(rotations.rows)
                 .as("a resume updates the existing evidence row instead of starting a second run")
                 .hasSize(1);

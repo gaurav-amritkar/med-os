@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
  * old KEK file undoes it. A DEK rotation is the incident response for a suspected
  * compromise of the data key itself. It generates new DEK bytes for <b>one tenant</b>,
  * rewrites every ciphertext value that names the old generation, verifies the result,
- * and only then destroys the old wrapped key. Restoring a key file cannot undo it — a
+ * and retains the old wrapped key so a transaction that commits after verification
+ * remains readable. Restoring a key file cannot undo the rewritten ciphertext — a
  * verified backup is mandatory and is recorded on the audit row before anything changes.
  *
  * <p>The two operations are deliberately separate code paths. Conflating them is how
@@ -34,8 +35,8 @@ import java.util.regex.Pattern;
  *       rerun to continue. The old key is <b>not</b> destroyed in this state.</li>
  *   <li>{@code failed} — the rotation could not be applied at all. The old generation is
  *       still current.</li>
- *   <li>{@code completed} — every value was read back at the target generation and the
- *       old wrapped key was destroyed.</li>
+ *   <li>{@code completed} — every visible value was read back at the target generation;
+ *       the old wrapped key remains archived for late commits.</li>
  * </ul>
  */
 @Slf4j
@@ -47,7 +48,6 @@ public class DekRotationService {
     private static final Pattern SHA256_HEX = Pattern.compile("[0-9a-fA-F]{64}");
 
     private static final int DEFAULT_BATCH_SIZE = 500;
-
     /**
      * A verified pre-rotation backup. Mandatory because the operation rewrites
      * ciphertext: if the run is wrong, the only recovery is restoring this backup.
@@ -112,7 +112,7 @@ public class DekRotationService {
     }
 
     /**
-     * Rotate one tenant's DEK, re-encrypt its data, verify, and destroy the old key.
+     * Rotate one tenant's DEK, re-encrypt its data, verify, and retain the old key.
      *
      * @param tenantId    exactly one tenant; never a wildcard
      * @param initiatedBy the operator, recorded as DPDP §8(5) evidence
@@ -245,10 +245,11 @@ public class DekRotationService {
                                 + "key was NOT destroyed — rerun the same command to resume");
             }
 
-            // The only irreversible step, after the read-back has proved nothing needs
-            // the old generation. A resumed run that crashed between verification and
-            // destruction finds the row already gone and treats it as done.
-            resolver.destroyArchivedDek(tenantId, fromGeneration);
+            // Do not destroy the archived generation here. Verification can only see
+            // committed rows; a transaction that encrypted under generation N before
+            // the advance may commit a dN value after this read-back. Retaining N keeps
+            // that late write readable across process restarts. Retirement is a separate
+            // future operation that must wait for transactions to drain and re-verify.
         } catch (RuntimeException e) {
             return incomplete(row, fromGeneration, toGeneration, rowsRewritten,
                     "re-encryption did not complete: " + e.getMessage()
@@ -261,12 +262,13 @@ public class DekRotationService {
         row.setCompletedAt(LocalDateTime.now());
         rotations.save(row);
         log.info("DEK rotation for tenant {} completed: generation {} -> {}, {} row(s) rewritten, "
-                        + "old generation destroyed, backup {}",
+                        + "old generation retained for late-write safety, backup {}",
                 tenantId, fromGeneration, toGeneration, rowsRewritten, row.getBackupRef());
         return new Result(fromGeneration, toGeneration, Status.COMPLETED,
                 "every ciphertext value was read back at generation " + toGeneration
-                        + " and generation " + fromGeneration + " was destroyed; recovery requires "
-                        + "the verified backup " + row.getBackupRef(),
+                        + "; generation " + fromGeneration + " remains archived so a write that "
+                        + "committed after verification stays readable. Recovery backup: "
+                        + row.getBackupRef(),
                 rowsRewritten);
     }
 

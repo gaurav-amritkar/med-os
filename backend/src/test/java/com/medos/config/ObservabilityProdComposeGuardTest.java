@@ -49,8 +49,28 @@ class ObservabilityProdComposeGuardTest {
         // suite exercises outside a real prod boot.
         String prod = Files.readString(
                 Path.of("..", "backend", "src", "main", "resources", "application-prod.yml"));
-
         assertThat(prod).containsPattern(
                 "(?s)management:.{0,800}include: health,info,prometheus");
+    }
+
+    @Test
+    @DisplayName("prod operator settings reach their consumers without exposing the Redis password")
+    void prodOperatorSettingsAreWired() throws Exception {
+        String compose = Files.readString(Path.of("..", "docker-compose.prod.yml"));
+        String prod = Files.readString(
+                Path.of("..", "backend", "src", "main", "resources", "application-prod.yml"));
+        String redisEntrypoint = Files.readString(
+                Path.of("..", "cache", "entrypoint.sh"));
+
+        assertThat(compose)
+                .contains("ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL must be set}")
+                .contains("DB_POOL_SIZE: ${DB_POOL_SIZE:-10}")
+                .contains("REDISCLI_AUTH=")
+                .doesNotContain("redis-cli -a ")
+                .doesNotContain("cors-origins");
+        assertThat(prod).contains("maximum-pool-size: ${DB_POOL_SIZE:10}");
+        assertThat(redisEntrypoint)
+                .contains("redis-runtime.conf")
+                .doesNotContain("--requirepass");
     }
 }

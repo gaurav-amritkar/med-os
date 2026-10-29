@@ -96,13 +96,13 @@ services:
       dockerfile: Dockerfile
     image: medos-redis:${MEDOS_TAG:-local}
     # No password is set here: cache/entrypoint.sh reads
-    # /run/secrets/redis-password and passes --requirepass to redis-server.
+    # /run/secrets/redis-password and writes it to a private runtime config.
     volumes:
       - medos-redis-data:/data
     secrets: [redis-password]
     networks: [medos-private]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a $$(cat /run/secrets/redis-password) ping | grep PONG"]
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$(cat /run/secrets/redis-password)" redis-cli ping | grep PONG']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -136,6 +136,7 @@ services:
       # cross this connection.
       SPRING_DATASOURCE_URL: ${SUPABASE_POOLER_URL:?SUPABASE_POOLER_URL must be set}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:?DB_USER must be set}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
       DB_USER: ${DB_USER:?DB_USER must be set}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
@@ -148,7 +149,7 @@ services:
       # with no password. There are also no inline defaults: an unset
       # JWT_SECRET or PII_ENCRYPTION_KEY stops startup.
       CORS_ORIGINS: https://${MEDOS_DOMAIN:?MEDOS_DOMAIN must be set}
-    secrets: [db-password, redis-password, jwt-secret, pii-encryption-key, cors-origins, bootstrap-admin-password]
+    secrets: [db-password, redis-password, jwt-secret, pii-encryption-key, bootstrap-admin-password]
     networks: [medos-private]
     logging: *default-logging
     <<: *default-restart
@@ -175,6 +176,7 @@ services:
     depends_on: [frontend]
     environment:
       MEDOS_DOMAIN: ${MEDOS_DOMAIN:?MEDOS_DOMAIN must be set}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL must be set}
     ports:
       - "80:80"
       - "443:443"
@@ -215,8 +217,6 @@ secrets:
     file: ${SECRETS_DIR:-./secrets}/jwt-secret.txt
   pii-encryption-key:
     file: ${SECRETS_DIR:-./secrets}/pii-encryption-key.txt
-  cors-origins:
-    file: ${SECRETS_DIR:-./secrets}/cors-origins.txt
   # Read by backend/entrypoint.sh into BOOTSTRAP_ADMIN_PASSWORD, which
   # application-prod.yml requires with no default. It was read but never
   # declared or mounted (#137), so the backend could not start in production.

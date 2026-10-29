@@ -139,13 +139,14 @@ jobs:
           SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
           DB_USER: postgres
           MEDOS_DOMAIN: medos.invalid
+          ACME_EMAIL: ci@medos.invalid
           SECRETS_DIR: /tmp/medos-prod-secrets
         run: |
           set -euo pipefail
           mkdir -p "$SECRETS_DIR"
           # Placeholders only. The real files come from the cloud secret manager
           # per ADR-0004; compose validates the wiring, not the values.
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
+          for f in db-password redis-password jwt-secret pii-encryption-key bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           docker compose -f docker-compose.prod.yml config --quiet
@@ -155,11 +156,12 @@ jobs:
           SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
           DB_USER: postgres
           MEDOS_DOMAIN: medos.invalid
+          ACME_EMAIL: ci@medos.invalid
           SECRETS_DIR: /tmp/medos-prod-secrets
         run: |
           set -euo pipefail
           mkdir -p "$SECRETS_DIR"
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
+          for f in db-password redis-password jwt-secret pii-encryption-key bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           model=$(docker compose -f docker-compose.prod.yml config --format json)
@@ -220,7 +222,7 @@ jobs:
           #   docker-compose.yml      -> DB_PASSWORD, REDIS_PASSWORD,
           #                               JWT_SECRET, PII_ENCRYPTION_KEY, CORS_ORIGINS
           #   docker-compose.prod.yml -> SUPABASE_POOLER_URL, DB_USER,
-          #                               MEDOS_DOMAIN
+          #                               MEDOS_DOMAIN, ACME_EMAIL
           # The two keys below come from repository secrets; the rest are
           # placeholders. Nothing is deployed from CI.
           DB_PASSWORD: ci-database-password
@@ -231,11 +233,12 @@ jobs:
           SUPABASE_POOLER_URL: jdbc:postgresql://postgres.ci:5432/postgres
           DB_USER: postgres
           MEDOS_DOMAIN: medos.invalid
+          ACME_EMAIL: ci@medos.invalid
           SECRETS_DIR: ${{ runner.temp }}/medos-prod-secrets
         run: |
           set -euo pipefail
           mkdir -p "$SECRETS_DIR"
-          for f in db-password redis-password jwt-secret pii-encryption-key cors-origins bootstrap-admin-password; do
+          for f in db-password redis-password jwt-secret pii-encryption-key bootstrap-admin-password; do
             echo "ci-placeholder" > "$SECRETS_DIR/$f.txt"
           done
           docker compose build backend frontend
