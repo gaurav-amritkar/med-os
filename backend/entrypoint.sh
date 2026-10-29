@@ -22,13 +22,6 @@ elif [ -f /run/secrets/bootstrap-admin-password ]; then
     export BOOTSTRAP_ADMIN_PASSWORD=$(cat /run/secrets/bootstrap-admin-password)
 fi
 
-# Read CORS origins from environment variable (preferred) or secret file (fallback)
-if [ -n "${CORS_ORIGINS}" ]; then
-    export CORS_ORIGINS
-elif [ -f /run/secrets/cors-origins ]; then
-    export CORS_ORIGINS=$(cat /run/secrets/cors-origins)
-fi
-
 # Read database password from environment variable (preferred) or secret file (fallback)
 if [ -n "${DB_PASSWORD}" ]; then
     export DB_PASSWORD

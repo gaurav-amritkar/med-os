@@ -18,9 +18,9 @@
 > | One tenant's key cannot decrypt another's rows | ✅ shipped (`TenantKeyIsolationTest`) |
 > | KEK re-wrap: dry-run / apply / verify, resumable, fail-closed | ✅ shipped |
 > | Rotation runbook (`docs/operations.md` §7d) | ✅ shipped |
-> | **Per-tenant DEK rotation (`dek_rotation`)** | 🔴 **not implemented** |
-> | **Generation > 1 in ciphertext** | 🔴 **unreachable** (`currentGeneration()` hardcodes `1`) |
-> | Blind-index key rotation | 🔴 no operator surface |
+> | **Per-tenant DEK rotation (`dek_rotation`)** | ✅ shipped; old generation retained for late commits |
+> | **Generation > 1 in ciphertext** | ✅ shipped; writes resolve the tenant's current generation |
+> | Blind-index key rotation | ✅ shipped with rebuild via `MEDOS_KEY_ROTATION_ROTATE_BI_KEY` |
 >
 > If you are looking for a statement that "the PII key cannot be rotated", it is
 > stale — four documents carried it until 2026-10-12 and all four were wrong. The

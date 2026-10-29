@@ -130,16 +130,16 @@ work, and the feature/compliance gaps listed below.
      full compromise path is one command — mandatory verified-backup attestation
      → archive generation N and advance to N+1 → `JdbcDekReencryptor` rewrites
      every encrypted column of `patients` and `encounters` in resumable keyset
-     batches → read-back verification decrypts every value → only then is
-     generation N destroyed. Optional blind-index rotation rebuilds every
+     batches → read-back verification decrypts every visible value → generation N
+     remains archived so late commits stay readable. Optional blind-index rotation rebuilds every
      `patients.name_index`. Audited to `key_rotations` (`backup_ref`,
      `bi_key_rotated`, `rows_rewritten`, status). Ops surface and hard rules in
      `docs/operations.md` §7e. Remaining limitation: writes are not frozen, so
      run in a low-write window when rotating the index key
    - Regular disaster recovery drills
    - Backup restoration testing procedures
-   - Database connection pool tuning — ⚠️ `DB_POOL_SIZE` in `.env.prod` is
-     **inert**; `application-prod.yml` hardcodes the pool size
+   - Database connection pool tuning — ✅ `DB_POOL_SIZE` is passed by production
+     Compose and read by Hikari, defaulting to 10
 
 #### Security Enhancements
 1. **Regular Testing**

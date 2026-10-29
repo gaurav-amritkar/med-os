@@ -54,13 +54,13 @@ Confirmed and shipped:
 
 Constraints and known state (recorded as facts, not to be papered over):
 
-- **DR: DEK rotation is not implemented.** Rotating an individual tenant's DEK (rather than the fleet-wide KEK re-wrap) requires re-encrypting that tenant's rows and is not wired up.
+- **DR: DEK retirement remains conservative.** Per-tenant DEK rotation re-encrypts and verifies that tenant's rows. The previous generation remains archived so a transaction that commits after verification stays readable; automated safe retirement is not implemented.
 - **Consent is currently a condition of registration** — declining blocks care. This is a P0 compliance defect against DPDP §6(2).
 - Tenant row scoping covers `SELECT` only; writes rely on services setting `tenant_id` explicitly.
 - No observability (no metrics, structured logs, or correlation IDs); CI scans images but not dependencies; no SAST/CodeQL/secret scanning.
 - FHIR R4 and ABDM/ABHA are not implemented. ABDM sandbox credentials and HIE-CM gateway registration are external dependencies that gate that phase regardless of engineering capacity.
 - Out of scope per [ADR-0010](adr/0010-product-module-scope.md): native mobile apps, multi-country tax engines, laboratory analyser instrument drivers, and automated insurance claim adjudication. Payroll, laboratory *information* systems, and insurance claim *lifecycle tracking* are now in scope, having previously been listed as excluded under a citation to ADR-0006 that does not cover product modules.
-- Undecided / not yet specified: the mechanics of the software-subscription billing model, and per-hospital DEK rotation.
+- Undecided / not yet specified: the mechanics of the software-subscription billing model, and safe retirement of archived DEK generations.
 
 ## Brand Commitments
 

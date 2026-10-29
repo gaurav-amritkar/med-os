@@ -237,7 +237,7 @@ public class PiiKeyRotationRunner implements ApplicationRunner {
         }
         if (reencryptor == null) {
             throw new IllegalStateException("No DEK re-encryptor is wired; refusing to rotate a "
-                    + "data key without the pass that destroys the old one.");
+                    + "data key without the pass that re-encrypts and verifies stored values.");
         }
 
         // The backup gate is here as well as in the service: an operator gets the refusal

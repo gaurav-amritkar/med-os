@@ -222,7 +222,7 @@ file and `docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md`.
    `SUPABASE_POOLER_URL`, `DB_USER` and `MEDOS_DOMAIN`.
 5. **Populate the secret files** in `SECRETS_DIR` from the cloud secret manager
    (ADR-0004): `db-password.txt`, `redis-password.txt`, `jwt-secret.txt`,
-   `pii-encryption-key.txt`, `cors-origins.txt`.
+   `pii-encryption-key.txt`.
    Generate keys with `openssl rand -base64 48` and `openssl rand -base64 32`.
 6. **Validate before deploying:** `docker compose -f docker-compose.prod.yml config --quiet`
 
@@ -235,7 +235,7 @@ file and `docs/adr/0008-supabase-managed-postgres-auth-stays-inhouse.md`.
 > Also available: the full compromise rotation for an *individual tenant's* DEK
 > (`dek_rotation`) — **§7e DEK rotation** below. It archives the old generation,
 > advances the tenant to the next one, **re-encrypts every ciphertext value in
-> batches**, verifies the read-back, and only then destroys the old DEK. It is
+> batches**, verifies the read-back, and retains the old DEK for late commits. It is
 > non-reversible and refuses to run without a verified backup.
 
 ### Deploying
@@ -355,7 +355,7 @@ there is no re-encryption job, and none is needed.
 The real procedure is **§7d PII key rotation** (dry-run → apply → verify). For
 the *data key itself*, see **§7e DEK rotation** — the tenant's archived generation
 keeps data readable while the runner re-encrypts rows in batches, verifies the
-read-back, and then destroys the old DEK. The re-encryption is performed by the
+read-back, and then retains the old DEK until a separate safe-retirement operation exists. The re-encryption is performed by the
 application runner through the key seam; there is still no encrypt()/decrypt()
 SQL anywhere in this schema.
 
@@ -479,7 +479,7 @@ host's process list.
 | `MEDOS_KEY_ROTATION_MODE=dry-run` | **Dry run**, then exits. Reports tenant count, tenants to re-wrap, and any tenant that cannot unwrap. |
 | `MEDOS_KEY_ROTATION_MODE=apply` plus `MEDOS_KEY_ROTATION_NEW_KEK`, `MEDOS_KEY_ROTATION_TARGET_VERSION` | Re-wraps, reads it back, then exits. |
 | `MEDOS_KEY_ROTATION_MODE=verify` | Reads every tenant with the KEK this process booted with, fails loudly if any cannot unwrap, then exits. |
-| `MEDOS_KEY_ROTATION_MODE=dek-rotate` plus `MEDOS_KEY_ROTATION_TENANT_ID`, `MEDOS_KEY_ROTATION_INITIATED_BY`, `MEDOS_KEY_ROTATION_BACKUP_REF`, `MEDOS_KEY_ROTATION_BACKUP_SHA256`, `MEDOS_KEY_ROTATION_BACKUP_VERIFIED_AT` | Full compromise rotation for **one named tenant** (`dek_rotation`, §7e): archive → advance → re-encrypt in batches → verify → destroy the old DEK, then exits. `MEDOS_KEY_ROTATION_ROTATE_BI_KEY=true` also rotates the name index key and rebuilds `patients.name_index`. Refuses without a verified backup. |
+| `MEDOS_KEY_ROTATION_MODE=dek-rotate` plus `MEDOS_KEY_ROTATION_TENANT_ID`, `MEDOS_KEY_ROTATION_INITIATED_BY`, `MEDOS_KEY_ROTATION_BACKUP_REF`, `MEDOS_KEY_ROTATION_BACKUP_SHA256`, `MEDOS_KEY_ROTATION_BACKUP_VERIFIED_AT` | Full compromise rotation for **one named tenant** (`dek_rotation`, §7e): archive → advance → re-encrypt in batches → verify → retain the old DEK for late commits, then exits. `MEDOS_KEY_ROTATION_ROTATE_BI_KEY=true` also rotates the name index key and rebuilds `patients.name_index`. Refuses without a verified backup. |
 
 `MEDOS_KEY_ROTATION_INITIATED_BY` is recorded on the `key_rotations` row — always set it,
 it is the DPDP §8(5) evidence trail. An unrecognised mode fails the boot rather than
@@ -586,7 +586,7 @@ key. A **DEK rotation** is the incident response for the data key itself being
 suspected — and it is per tenant by design: rotate one hospital, not the whole fleet.
 
 **This operation is not reversible by restoring a key file.** It rewrites every
-encrypted value for the tenant and then destroys the old wrapped DEK. The only
+encrypted value for the tenant and retains the old wrapped DEK. The only
 recovery from a wrong run is restoring the verified backup recorded on the audit
 row. That is why the runner refuses to start without one.
 
@@ -609,10 +609,10 @@ row. That is why the runner refuses to start without one.
    `MEDOS_KEY_ROTATION_ROTATE_BI_KEY=true` rotates it and recomputes
    `patients.name_index` for every named patient with the new key. Without this,
    search would silently return nothing after the rotation.
-5. **Verify before destroy.** The runner decrypts every value it rewrote, counts
+5. **Verify and retain.** The runner decrypts every value it rewrote, counts
    any still naming an older generation, and (when the index key rotated)
-   recomputes every name digest. Only when both counts are zero does it delete
-   generation N from `tenant_dek_history`.
+   recomputes every name digest. Generation N remains in `tenant_dek_history`
+   so a transaction that commits after this snapshot remains readable.
 6. **Evidence.** `key_rotations` records the tenant, target generation, operator,
    backup reference, whether the index key rotated, rows rewritten, timestamps,
    and the final status — the DPDP §8(5) trail for "the data key changed, on
@@ -625,7 +625,7 @@ row. That is why the runner refuses to start without one.
 | `in_progress` | The audit row exists; the run may have started. A rerun resumes it rather than rotating again. |
 | `reencryption_incomplete` | The new generation is installed, but some rows were not rewritten or verification failed. All data remains readable through the archive; the old key was **not** destroyed. Rerun the same command. |
 | `failed` | The rotation could not be applied at all. The old generation is still current. |
-| `completed` | Every value was read back at the target generation and the old wrapped key was destroyed. |
+| `completed` | Every value visible to verification was read back at the target generation. The old wrapped key remains archived for late commits. |
 
 ### Modes
 
@@ -683,12 +683,12 @@ docker compose $PROD exec db psql -U "$DB_USER" -d "$DB_NAME" -c \
    SELECT COUNT(*) FROM encounters
     WHERE tenant_id = '$TENANT_ID' AND chief_complaint LIKE 'kv1.d1:%';"
 
-# 5. Confirm the old wrapped key is gone, and new writes use the new generation.
+# 5. Confirm the old wrapped key is retained, and new writes use the new generation.
 docker compose $PROD exec db psql -U "$DB_USER" -d "$DB_NAME" -c \
   "SELECT COUNT(*) FROM tenant_dek_history
     WHERE tenant_id = '$TENANT_ID' AND dek_generation = 1;
    SELECT left(name, 7) FROM patients WHERE tenant_id = '$TENANT_ID' LIMIT 1;"
--- The first count is 0; the prefix reads kv1.d2: (or higher).
+-- The first count is 1; the prefix reads kv1.d2: (or higher).
 ```
 
 If the run exits with `reencryption_incomplete`, **do not delete anything and do
@@ -713,16 +713,16 @@ LIMIT 5;
 1. **A verified backup is mandatory.** The runner refuses without a reference,
    checksum and verification time, and records the reference before changing any
    key. An unverified backup is not a restore point.
-2. **This is non-reversible.** Restoring a KEK file does not undo it, and after
-   `completed` the old DEK no longer exists. Recovery means restoring the backup
-   named on the audit row.
+2. **This rewrites ciphertext.** Restoring a KEK file does not undo it. The archived
+   old DEK keeps late commits readable; recovery from a bad rewrite still means
+   restoring the backup named on the audit row.
 3. **One tenant per run, one run at a time.** There is no "rotate everything"
    wildcard. Concurrent runs for the same tenant are refused/resumed rather than
    silently racing; a run whose target is behind the current generation is
    refused outright.
-4. **Never destroy the old key by hand.** Destruction is the last step after a
-   full read-back. Deleting `tenant_dek_history` rows early makes unrewritten
-   ciphertext permanently unreadable.
+4. **Never destroy the old key by hand.** A read-back cannot see an in-flight
+   transaction. Deleting `tenant_dek_history` rows can make a later commit
+   permanently unreadable.
 5. **Rotate the blind-index key in the same run when it is also suspected.**
    Rotating it alone leaves every `name_index` stale, and search returns nothing
    with no error. The runner's rebuild pass is what keeps search working.
@@ -742,13 +742,18 @@ Known limitations, stated plainly:
     previous blind-index key, so its `name_index` is stale and search misses it.
   - *Data key:* a write that resolved the tenant's generation **before** the
     rotation and commits **after** the read-back is labelled `kv1.d<N>:` under the
-    old key. Destroying that key then makes the value permanently unreadable. The
-    window is the gap between the read-back and the destruction step, and it is the
-    reason the backup gate exists: recovery from this is a restore, not a re-run.
+    old key. Generation N is retained, so this value remains readable. Do not delete
+    that archive row manually; safe automated retirement is not implemented.
 - **Writes stay labelled correctly across the rotation** because a generation
   label and its key pair are read together from the store — a designed invariant,
   not luck (`TenantDekRotationTest` pins it). Correct labelling is not the same as
-  a write being safe to destroy a key under, which is the race above.
+  permission to destroy a key; the retained archive is what closes the race above.
+
+> **Fix for #206 (2026-10-29):** A completed rotation retains generation N in
+> `tenant_dek_history`. This is durable across restarts and has no guessed grace
+> period: a transaction that resolved N before the advance can commit later and its
+> `kv1.dN:` value remains readable. Key destruction is intentionally unavailable
+> until a separate retirement operation can drain writes and re-verify safely.
 
 ---
 

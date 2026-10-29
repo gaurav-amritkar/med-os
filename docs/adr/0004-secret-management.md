@@ -42,5 +42,7 @@ to the KEK.
 - Rotation is a cloud-API operation, not a file edit on the host, so it is auditable and does not require redeploying an image.
 - Vault is unnecessary operational weight for a single host. Its absence means no central secret audit trail across hosts, which is acceptable while there is one host.
 - `PII_ENCRYPTION_KEY` turned out **not** to be the hard case. It is the KEK, and [ADR-0009](0009-envelope-encryption-per-tenant-deks.md) made it rotatable: rotation re-wraps per-tenant DEKs in `tenant_keys` and rewrites no ciphertext. That job now exists (`KeyRewrapService` + `PiiKeyRotationRunner`, runbook `docs/operations.md` §7d). *An earlier revision of this line said rotation "requires re-encrypting existing ciphertext" and pointed at `docs/roadmap.md` T6; that was wrong, and contradicted lines 34–38 of this same ADR.*
-- Rotating an *individual tenant's* DEK (`dek_rotation`) is still unimplemented and would require a data migration. `docs/roadmap.md` T6 (an end-to-end encrypt → rotate → decrypt test) stays open on that account.
+- Rotating an *individual tenant's* DEK (`dek_rotation`) is implemented as a
+  verified, resumable data migration. The previous generation stays archived so
+  late commits remain readable; safe automated retirement is deliberately absent.
 - The committed values must be treated as compromised regardless of rotation, because git history and any clone retain them.
