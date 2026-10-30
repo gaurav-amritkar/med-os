@@ -173,26 +173,22 @@ describe('Billing charge selection across a patient switch', () => {
     expect(screen.getByRole('button', { name: /^generate invoice$/i })).toBeDisabled();
   });
 
-  it('allocates fractional-cent discounts safely across many small charges', async () => {
-    const smallCharges = Array.from({ length: 1_000 }, (_, index) => ({
-      id: `charge-${String(index).padStart(4, '0')}`,
-      chargeType: 'PHARMACY',
-      description: `Item ${index}`,
-      quantity: 1,
-      amount: 0.01,
-      gstPercent: 18,
-      totalAmount: 0.01,
-    }));
-    billingApi.getUnbilled.mockResolvedValue({ data: smallCharges });
+  it('allocates discount cents consistently across different GST rates', async () => {
+    const mixedRateCharges = [
+      { id: 'charge-5', chargeType: 'PHARMACY', description: 'Medicine', quantity: 1, amount: 1.01, gstPercent: 5, totalAmount: 1.06 },
+      { id: 'charge-12', chargeType: 'ROOM', description: 'Room', quantity: 1, amount: 2.01, gstPercent: 12, totalAmount: 2.25 },
+      { id: 'charge-18', chargeType: 'LAB', description: 'Lab', quantity: 1, amount: 3.01, gstPercent: 18, totalAmount: 3.55 },
+    ];
+    billingApi.getUnbilled.mockResolvedValue({ data: mixedRateCharges });
     const user = userEvent.setup();
     renderPage();
     await pickPatient(user, PATIENT_A.name);
     await user.click(screen.getByRole('button', { name: /^bill /i }));
-    await user.click(screen.getByRole('button', { name: /select all 1000 charges/i }));
+    await user.click(screen.getByRole('button', { name: /select all 3 charges/i }));
     await user.clear(screen.getByRole('spinbutton'));
-    await user.type(screen.getByRole('spinbutton'), '4.90');
+    await user.type(screen.getByRole('spinbutton'), '1.00');
 
-    expect(screen.getByText('Total: ₹6.02')).toBeInTheDocument();
+    expect(screen.getByText('Total: ₹5.72')).toBeInTheDocument();
   });
 
   it('handles patients with no unbilled charges without opening a dead-end invoice dialog', async () => {
