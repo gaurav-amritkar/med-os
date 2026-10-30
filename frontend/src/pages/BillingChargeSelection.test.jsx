@@ -77,6 +77,20 @@ describe('Billing charge selection across a patient switch', () => {
     expect(screen.getByText(/0 charges selected/i)).toBeInTheDocument();
   });
 
+  it('clears the invoice discount when the patient changes', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.clear(screen.getByRole('spinbutton'));
+    await user.type(screen.getByRole('spinbutton'), '10');
+
+    await pickPatient(user, PATIENT_B.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(0);
+  });
+
   it('never posts one patient id with another patient charge ids', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -113,14 +127,93 @@ describe('Billing charge selection across a patient switch', () => {
     renderPage();
     await pickPatient(user, PATIENT_A.name);
     await user.click(screen.getByRole('button', { name: /^bill /i }));
+    expect(screen.getByText(/select charges for asha rao/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^generate invoice$/i })).toBeDisabled();
+    expect(screen.getByText(/select at least one charge/i)).toBeInTheDocument();
 
     const chargeCheckbox = screen.getByRole('checkbox', { name: /amoxicillin/i });
     await user.click(chargeCheckbox);
     expect(chargeCheckbox).toBeChecked();
     expect(screen.getByText(/1 charges selected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^generate invoice$/i })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: /^generate invoice$/i }));
     await waitFor(() => expect(billingApi.createInvoice).toHaveBeenCalledWith(
       expect.objectContaining({ patientId: PATIENT_A.id, chargeIds: ['charge-a1'] })
     ));
+  });
+
+  it('previews a flat discount against the selected charges GST base', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('checkbox', { name: /amoxicillin/i }));
+
+    const discountInput = screen.getByRole('spinbutton');
+    await user.clear(discountInput);
+    await user.type(discountInput, '10');
+
+    expect(screen.getByText('Total: ₹123.20')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^generate invoice$/i }));
+    await waitFor(() => expect(billingApi.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ discount: 10, chargeIds: ['charge-a1'] })
+    ));
+  });
+
+  it('blocks a discount larger than the selected charges subtotal', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('checkbox', { name: /amoxicillin/i }));
+    await user.clear(screen.getByRole('spinbutton'));
+    await user.type(screen.getByRole('spinbutton'), '121');
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/cannot exceed/i);
+    expect(screen.getByRole('button', { name: /^generate invoice$/i })).toBeDisabled();
+  });
+
+  it('allocates fractional-cent discounts safely across many small charges', async () => {
+    const smallCharges = Array.from({ length: 1_000 }, (_, index) => ({
+      id: `charge-${String(index).padStart(4, '0')}`,
+      chargeType: 'PHARMACY',
+      description: `Item ${index}`,
+      quantity: 1,
+      amount: 0.01,
+      gstPercent: 18,
+      totalAmount: 0.01,
+    }));
+    billingApi.getUnbilled.mockResolvedValue({ data: smallCharges });
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('button', { name: /select all 1000 charges/i }));
+    await user.clear(screen.getByRole('spinbutton'));
+    await user.type(screen.getByRole('spinbutton'), '4.90');
+
+    expect(screen.getByText('Total: ₹6.02')).toBeInTheDocument();
+  });
+
+  it('handles patients with no unbilled charges without opening a dead-end invoice dialog', async () => {
+    billingApi.getUnbilled.mockResolvedValue({ data: [] });
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+
+    expect(screen.getByText(/no unbilled charges/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^bill /i })).not.toBeInTheDocument();
+  });
+
+  it('makes select all and clear selection scope explicit', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('button', { name: /select all 1 charges/i }));
+
+    expect(screen.getByRole('checkbox', { name: /amoxicillin/i })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /clear selection/i }));
+    expect(screen.getByText(/0 charges selected/i)).toBeInTheDocument();
   });
 });
