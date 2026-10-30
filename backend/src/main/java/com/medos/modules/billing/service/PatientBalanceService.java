@@ -20,10 +20,10 @@ import java.util.UUID;
  * <p>Single statement instead of streaming charges + payments into Java
  * and writing the patient row back, so the recalc scales and avoids N+1.
  *
- * <p>Uses {@link Propagation#MANDATORY} so the recalc only runs inside an
- * existing transaction. The async event listener that triggers it is itself
- * {@code @Transactional}, so the change is committed atomically with the
- * originating write.
+ * <p>The recalculation runs in a new transaction. Its production caller is an
+ * asynchronous listener invoked after the transaction that published the
+ * balance event commits, so this write is not atomic with that originating
+ * transaction.
  */
 @Service
 public class PatientBalanceService {

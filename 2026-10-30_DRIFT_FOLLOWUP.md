@@ -34,10 +34,10 @@ Code baseline: `main` at `83c84dd`
 - Root observability guidance records the `X-Request-Id` filter while retaining the gaps in metrics and structured logging.
 - `com/medos/README.md` now describes application startup rather than claiming no side effect.
 
-## Remaining item
+## Additional source comment correction
 
-`PatientBalanceService` contains a stale class-level comment claiming MANDATORY transaction propagation, while `recalculateBalance` is annotated REQUIRES_NEW and the operations runbook describes the async post-commit path. The README contracts follow executable behavior. The Java comment remains outside this documentation-only implementation and should be corrected in a separate source cleanup.
+The stale class-level comment in `PatientBalanceService` was corrected to match the method's `REQUIRES_NEW` transaction and the asynchronous after-commit caller. This updates documentation in source comments only; it does not change runtime behavior.
 
 ## Verification
 
-Markdown content, headings, code fences, relative links, package navigation, and whitespace were reviewed after the edits. Project tests were not run because this implementation changes documentation only.
+Markdown content, headings, code fences, relative links, package navigation, and whitespace were reviewed after the edits. The Java change only corrects a comment; project tests were not run because executable behavior did not change.
