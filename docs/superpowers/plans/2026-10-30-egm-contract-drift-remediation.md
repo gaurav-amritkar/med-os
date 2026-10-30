@@ -1,7 +1,7 @@
 # EGM Contract Drift Remediation Plan
 
 Date: 2026-10-30
-Status: Implemented in the working tree based on main at 83c84dd
+Status: Implemented on `codex/egm-contract-drift-remediation` through 885a8c6; subsequent comment-only test documentation is verified
 Input: [Drift report](../../../2026-10-30_DRIFT_REPORT.md)
 
 ## Objective

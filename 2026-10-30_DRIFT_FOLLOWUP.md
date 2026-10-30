@@ -36,8 +36,8 @@ Code baseline: `main` at `83c84dd`
 
 ## Additional source comment correction
 
-The stale class-level comment in `PatientBalanceService` was corrected to match the method's `REQUIRES_NEW` transaction and the asynchronous after-commit caller. This updates documentation in source comments only; it does not change runtime behavior.
+The stale class-level comment in `PatientBalanceService` was corrected to match the method's `REQUIRES_NEW` transaction and the asynchronous after-commit caller. The test class summary was also corrected to stop describing the propagation as MANDATORY. These are comment-only changes; runtime behavior is unchanged.
 
 ## Verification
 
-Markdown content, headings, code fences, relative links, package navigation, and whitespace were reviewed after the edits. The Java change only corrects a comment; project tests were not run because executable behavior did not change.
+Markdown content, headings, code fences, relative links, package navigation, and whitespace were reviewed after the edits. `mvn -q -Dtest=PatientBalanceServiceTest test` passed; the full backend suite was not run because executable behavior did not change. Maven emitted existing JDK/Lombok/Mockito dynamic-agent warnings.

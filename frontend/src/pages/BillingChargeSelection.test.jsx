@@ -107,4 +107,20 @@ describe('Billing charge selection across a patient switch', () => {
       });
     });
   });
+
+  it('allows selecting an individual charge inside the invoice dialog', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+
+    const chargeCheckbox = screen.getByRole('checkbox', { name: /amoxicillin/i });
+    await user.click(chargeCheckbox);
+    expect(chargeCheckbox).toBeChecked();
+    expect(screen.getByText(/1 charges selected/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^generate invoice$/i }));
+    await waitFor(() => expect(billingApi.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: PATIENT_A.id, chargeIds: ['charge-a1'] })
+    ));
+  });
 });
