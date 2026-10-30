@@ -21,7 +21,7 @@ Backend Java component in `src/main/java/com/medos/service`.
 - Transactional service operations are governed by the declared Spring `@Transactional` boundaries.
 
 ## Side Effects
-- No external side effect is declared directly in this package.
+- Services persist patients, consents, encounters, prescriptions, tenants, memberships, users, and audit records through repositories. `IdempotencyService` reads, claims, caches, and releases keys in Redis.
 
 ## Verification
 - Run: `cd backend && mvn clean test`

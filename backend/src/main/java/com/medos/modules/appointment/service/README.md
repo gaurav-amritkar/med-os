@@ -11,7 +11,7 @@ Backend Java component in `src/main/java/com/medos/modules/appointment/service`.
 - Transactional service operations are governed by the declared Spring `@Transactional` boundaries.
 
 ## Side Effects
-- No external side effect is declared directly in this package.
+- `AppointmentService` persists booked appointments, check-in transitions, status changes, and notes through `AppointmentRepository`.
 
 ## Verification
 - Run: `cd backend && mvn clean test`

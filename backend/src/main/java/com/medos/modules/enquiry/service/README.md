@@ -11,7 +11,7 @@ Backend Java component in `src/main/java/com/medos/modules/enquiry/service`.
 - Transactional service operations are governed by the declared Spring `@Transactional` boundaries.
 
 ## Side Effects
-- No external side effect is declared directly in this package.
+- `EnquiryService` persists enquiry records and append-only status-history rows, and calls `AuditLogger` for desk actions. Per-tenant numbering retries unique-index conflicts.
 
 ## Verification
 - Run: `cd backend && mvn clean test`

@@ -10,7 +10,7 @@ Backend Java component in `src/main/java/com/medos/modules/payment/service`.
 - Transactional service operations are governed by the declared Spring `@Transactional` boundaries.
 
 ## Side Effects
-- No external side effect is declared directly in this package.
+- `PaymentService` persists payments and invoice changes, then publishes `PatientBalanceEvent` for asynchronous balance recalculation.
 
 ## Verification
 - Run: `cd backend && mvn clean test`

@@ -33,10 +33,10 @@ backend/ (Spring Boot)
   │   ├── config/     # Security, encryption init, Redis cache, WebSocket
   │   ├── controller/ # REST controllers
   │   ├── dto/        # Request/Response DTOs
-  │   ├── entity/     # JPA entities (25 tables)
+  │   ├── entity/     # JPA entities for the versioned database schema
   │   ├── exception/  # Global error handling
   │   ├── mapper/     # Entity <-> DTO mapping
-  │   ├── modules/    # Feature packages: billing, clinical, pharmacy, payment
+  │   ├── modules/    # Feature packages: appointment, billing, clinical, enquiry, payment, pharmacy
   │   ├── repository/ # Spring Data JPA repos
   │   ├── security/   # JWT, tenant context, KEK/DEK key management, key rotation
   │   ├── service/    # Business logic
@@ -55,7 +55,7 @@ docs/adr/    # Architecture decision records
 tools/       # Migration gate, secret-wiring gate, seeding, Trivy baseline
 ```
 
-## Database Schema (25 Tables)
+## Database Schema (30 Application Tables)
 
 Multi-tenancy first: every clinical table carries a `tenant_id`, and queries are
 scoped per tenant by `TenantStatementInspector`.
@@ -65,10 +65,13 @@ scoped per tenant by `TenantStatementInspector`.
 - `tenant_configs` - Per-tenant configuration
 - `tenant_settings` - Per-tenant settings
 - `tenant_keys` - Per-tenant wrapped DEK + blind-index key, with generation counters
-- `key_rotations` - Append-only audit log of KEK re-wrap operations
+- `key_rotations` - Audit records for KEK and DEK rotation operations
+- `tenant_dek_history` - Archived wrapped DEKs retained for old-generation ciphertext and late commits
 - `users` - Role-based login (admin, doctor, nurse, receptionist, pharmacist, billing, super_admin)
 - `patients` - Demographics, UHID, DPDP consent, outstanding balance
 - `appointments` - Scheduling, check-in/out tracking
+- `enquiries` - Tenant-scoped enquiry desk records
+- `enquiry_status_history` - Append-only enquiry transition history
 - `encounters` - Clinical visits, vitals, diagnosis, AI notes
 - `prescriptions` - Medicine orders with status tracking
 - `rooms` - Ward/bed inventory with daily rates
@@ -83,6 +86,8 @@ scoped per tenant by `TenantStatementInspector`.
 - `disease_medicine_map` - AI suggestion engine
 - `audit_log` - Full audit trail
 - `consents` - DPDP compliance records
+- `discharge_summaries` - Persisted discharge summaries
+- `discharge_summary_addenda` - Append-only amendments to discharge summaries
 - `opd_queue` - Appointment queue management
 - `notifications` - Real-time alerts
 
@@ -375,11 +380,13 @@ Modes come from environment variables, **not** CLI flags — a key on a command 
 is visible in `docker inspect`. Full runbook: `docs/operations.md` §7d. Every
 rotation is recorded in `key_rotations`.
 
-> **Not yet implemented: DEK rotation.** The KEK can be rotated today without
-> touching a single patient row. Rotating an *individual tenant's* DEK (the
-> `dek_rotation` operation the schema reserves) requires re-encrypting that
-> tenant's rows and is not wired up — `TenantKeyHolder.currentGeneration()` still
-> returns `1`, so ciphertext cannot express a generation above 1.
+**Per-tenant DEK rotation is implemented** through the guarded `dek-rotate`
+operation documented in [`docs/operations.md` §7e](docs/operations.md). It requires
+one tenant and a verified backup attestation, archives the old generation,
+advances the key, re-encrypts and verifies patient/encounter ciphertext, and can
+rebuild the blind index. The old generation remains archived for late commits.
+**Automatic safe retirement of archived generations is not implemented**; do not
+delete archive rows manually.
 
 ### Secrets
 
@@ -454,11 +461,15 @@ Tracked in GitHub issues rather than papered over:
 - **Archived DEK retirement is not implemented** — per-tenant rotation re-encrypts
   and verifies data, then retains the old generation so late commits stay readable.
   See `docs/operations.md` §7e.
-- **No observability** — no Prometheus metrics, structured JSON logging, or
-  correlation IDs. Actuator is limited to `/manage/health` and `/manage/info`.
-- **Tenant row scoping covers `SELECT` only** — `TenantStatementInspector` injects
-  `tenant_id` into the root `FROM` of reads; writes rely on services setting
-  `tenantId` explicitly.
+- **Observability remains limited** — there are no Prometheus metrics or structured
+  JSON logs. `RequestCorrelationFilter` validates or generates `X-Request-Id`, adds
+  it to MDC for the request, echoes it in the response, and clears it afterward.
+  Actuator is limited to `/manage/health` and `/manage/info`.
+- **Tenant SQL scoping is statement-shape limited** — `TenantStatementInspector`
+  adds a predicate to supported top-level SELECT, UPDATE, and DELETE statements
+  on tenant-owned tables, and rejects INSERTs that omit `tenant_id`. It does not
+  establish universal protection for arbitrary SQL, joins, subqueries, or code
+  that runs without a tenant context; writes must still set the correct tenant ID.
 - **No container hardening beyond non-root images** — no resource limits,
   `read_only`, `cap_drop` or `no-new-privileges` on any service; the `redis`,
   `caddy` and `migrate` images still run as root.

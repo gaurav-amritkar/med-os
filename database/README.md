@@ -22,9 +22,11 @@ directly, and the application only validates the schema it finds.
 
 ## Current state
 
-- The schema is at **V14**. `V1__initial_schema.sql` defines the initial 25
-  tables; subsequent migrations add key lifecycle, staff and tenant controls,
-  enquiry tracking, discharge summaries, and related constraints.
+- The schema is at **V14**. `V1__initial_schema.sql` defines 23 initial application
+  tables; seven later CREATE TABLE statements add key lifecycle,
+  tenant DEK history, enquiry tracking, and discharge summaries. The checked-in
+  history defines 30 application tables through V14; this is not a claim about a
+  deployed database.
 - Applied migrations are immutable. Every subsequent schema change is a new
   versioned file.
 - `SHA256SUMS` records a checksum per migration. `tools/verify-migrations.sh`
@@ -156,7 +158,7 @@ The blind index is as sensitive as the plaintext it protects: a holder of the
 database but not the key cannot read names, but **can confirm a guessed name** by
 comparing digests.
 
-### Key rotation: the KEK is rotatable, individual DEKs are not
+### Key rotation: both KEK re-wrap and per-tenant DEK rotation are implemented
 
 `PII_ENCRYPTION_KEY` is **not** the key that encrypts patient data. It is the
 **key-encryption key (KEK)**: it wraps a separate **per-tenant DEK** stored in
@@ -172,18 +174,21 @@ Consequences:
 - **The blind index survives rotation**, because it is not derived from the PII
   secret. This was the silent-search-breakage failure mode the split was designed
   to remove.
-- **Rotating one tenant's DEK (`dek_rotation`) is *not* implemented.** The schema
-  reserves the operation and the audit table records it, but no code path calls
-  `advanceDekGeneration`, and `TenantKeyHolder.currentGeneration()` still returns
-  `1`, so ciphertext cannot currently express a generation above 1. Doing this by
-  hand would require re-encrypting that tenant's rows.
+- **Per-tenant DEK rotation is implemented** by `DekRotationService` and
+  `TenantKeyHolder.rotateDek`. It archives the prior wrapped key, advances the
+  generation, re-encrypts and verifies tenant ciphertext, and optionally rebuilds
+  the blind index. The operator procedure and backup gate are in
+  [`docs/operations.md` §7e](../docs/operations.md).
+- **Safe automatic retirement of archived DEKs is not implemented.** The runbook
+  requires retaining old generations for late commits; never delete them manually.
 
 Design: [ADR-0009](../docs/adr/0009-envelope-encryption-per-tenant-deks.md).
 Operator runbook: [`docs/operations.md` §7d](../docs/operations.md).
 
-**Practical consequence today:** the KEK can be rotated on a normal schedule
-(§7d of the runbook, dry-run → apply → verify). An individual tenant's DEK
-still cannot be rotated without a data migration.
+**Practical consequence today:** KEK re-wrap is available through §7d, and
+per-tenant DEK rotation is available through §7e with a verified backup and
+re-encryption. Archived generations remain required for late commits until safe
+retirement is implemented.
 
 ## Invariants
 
