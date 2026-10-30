@@ -23,7 +23,7 @@ Backend Java component in `src/main/java/com/medos/config`.
 - Transactional service operations are governed by the declared Spring `@Transactional` boundaries.
 
 ## Side Effects
-- No external side effect is declared directly in this package.
+- `AdminBootstrapRunner` conditionally persists bootstrap users, tenants, and memberships. `PatientNameIndexBackfillRunner` writes missing patient name indexes. Request filters also add response headers and manage request-scoped context.
 
 ## Verification
 - Run: `cd backend && mvn clean test`

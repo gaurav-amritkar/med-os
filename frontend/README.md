@@ -60,10 +60,10 @@ E2E_BASE_URL="http://localhost:8080" E2E_PASSWORD='<admin password>' npx playwri
 `E2E_PASSWORD` is required — the specs skip rather than fail without it. Use the
 password from your `.env`, or `password` after running `./tools/seed-dev.sh`.
 
-`e2e/full.spec.js` contains one assertion that **currently fails on purpose**:
-`/api/v1/users/me` must not return a password hash, and it does until
-[#106](https://github.com/gaurav-amritkar/med-os/issues/106) is fixed. Do not
-weaken it to make the suite green.
+`e2e/full.spec.js` asserts that `/api/v1/users/me` does not return a password
+hash. The endpoint returns `CurrentUserDTO` through `DashboardController`; retain
+the assertion as a password-exclusion contract. The issue #106 fix landed in #108.
+This note describes the assertion and does not claim the E2E suite was run here.
 
 ## Configuration
 
