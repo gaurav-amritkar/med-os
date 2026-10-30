@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Critical Alerts</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .filters { display: flex; gap: 8px; }
+  .alert-meta { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--text); }
+  .chip.is-active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chip.is-active .n { opacity: .75; }
+</style>
+</head>
+<body data-active="critical-alerts" data-title="Critical Alerts">
+
+  <div class="stack">
+
+    <div class="grid grid-4">
+      <section class="card stat-card"><div class="stat-label">Open critical</div><div class="stat-value" style="color:#b91c1c;">7</div><div class="stat-delta">target: ack ≤ 5 min</div></section>
+      <section class="card stat-card"><div class="stat-label">Unacknowledged</div><div class="stat-value" style="color:#b45309;">3</div><div class="stat-delta">oldest 22 min</div></section>
+      <section class="card stat-card"><div class="stat-label">Escalated today</div><div class="stat-value">5</div><div class="stat-delta">2 to HOD · 3 to chair</div></section>
+      <section class="card stat-card"><div class="stat-label">Closed today</div><div class="stat-value">17</div><div class="stat-delta up">avg ack 3.4 min</div></section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1.9;">
+        <div class="card-head">
+          <div class="card-title">Alert feed</div>
+          <div class="filters">
+            <span class="chip is-active">All <span class="n">7</span></span>
+            <span class="chip">Lab <span class="n">3</span></span>
+            <span class="chip">Vitals <span class="n">2</span></span>
+            <span class="chip">System <span class="n">2</span></span>
+          </div>
+        </div>
+
+        <div class="alert-row">
+          <span class="alert-icon" style="background:#fdecec;"><svg width="18" height="18" viewBox="0 0 20 20" style="color:#b91c1c;"><path d="M10 3.2 17 15.5H3L10 3.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.2M10 13.4v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <span style="font-weight:650;">Panic value — Potassium 6.7 mmol/L (critical high)</span>
+              <span class="tag tag-red">Critical</span>
+            </div>
+            <div class="alert-meta">Lab · Rohit Deshmukh · Ward B-08 · raised 10:22 · unacknowledged 22 min</div>
+          </div>
+          <div style="display:flex; gap:8px; flex:none;">
+            <button class="btn small primary">Acknowledge</button>
+            <button class="btn small">Escalate</button>
+          </div>
+        </div>
+
+        <div class="alert-row">
+          <span class="alert-icon" style="background:#fdecec;"><svg width="18" height="18" viewBox="0 0 20 20" style="color:#b91c1c;"><path d="M10 3.2 17 15.5H3L10 3.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.2M10 13.4v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <span style="font-weight:650;">ICU bed transfer overdue — P-1842 waiting 34 min</span>
+              <span class="tag tag-red">Critical</span>
+            </div>
+            <div class="alert-meta">Capacity · raised 10:11 · assigned to Dr. Kavya Iyer</div>
+          </div>
+          <div style="display:flex; gap:8px; flex:none;">
+            <button class="btn small primary">View case</button>
+            <button class="btn small ghost">Snooze</button>
+          </div>
+        </div>
+
+        <div class="alert-row">
+          <span class="alert-icon" style="background:#fdf3e2;"><svg width="18" height="18" viewBox="0 0 20 20" style="color:#b45309;"><path d="M10 3.2 17 15.5H3L10 3.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.2M10 13.4v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <span style="font-weight:650;">SpO₂ 88% sustained 10 min — monitor channel</span>
+              <span class="tag tag-orange">Warning</span>
+            </div>
+            <div class="alert-meta">Vitals · Rekha Pillai · Ward A-21 · raised 10:05</div>
+          </div>
+          <div style="display:flex; gap:8px; flex:none;">
+            <button class="btn small primary">Acknowledge</button>
+            <button class="btn small ghost">Detail</button>
+          </div>
+        </div>
+
+        <div class="alert-row">
+          <span class="alert-icon" style="background:#fdf3e2;"><svg width="18" height="18" viewBox="0 0 20 20" style="color:#b45309;"><path d="M10 3.2 17 15.5H3L10 3.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.2M10 13.4v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <span style="font-weight:650;">Oxygen line pressure low — Zone 2 manifold</span>
+              <span class="tag tag-orange">Warning</span>
+            </div>
+            <div class="alert-meta">Facilities · raised 09:52 · engineering en route</div>
+          </div>
+          <div style="display:flex; gap:8px; flex:none;">
+            <button class="btn small primary">Acknowledge</button>
+            <button class="btn small ghost">Detail</button>
+          </div>
+        </div>
+
+        <div class="alert-row">
+          <span class="alert-icon" style="background:#eaf3fd;"><svg width="18" height="18" viewBox="0 0 20 20" style="color:#1d4ed8;"><path d="M10 3.2 17 15.5H3L10 3.2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v3.2M10 13.4v.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <span style="font-weight:650;">PACS sync lag 40 min — radiology reporting delayed</span>
+              <span class="tag tag-blue">Info</span>
+            </div>
+            <div class="alert-meta">System · raised 09:41 · IT ticket #4471 open</div>
+          </div>
+          <div style="display:flex; gap:8px; flex:none;">
+            <button class="btn small ghost">Open ticket</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card-stack" style="flex:1; display:flex; flex-direction:column; gap:20px;">
+        <section class="card" style="flex:1;">
+          <div class="card-head"><div class="card-title">Escalation matrix</div></div>
+          <div style="font-size:13.5px; color:var(--text); display:flex; flex-direction:column; gap:12px;">
+            <div><b style="color:var(--ink);">L1 — Nurse / tech on floor</b> · ack within 5 min</div>
+            <div><b style="color:var(--ink);">L2 — Unit in-charge / HOD</b> · after 10 min unacked, pages HOD</div>
+            <div><b style="color:var(--ink);">L3 — Medical superintendent</b> · after 25 min or repeat within shift</div>
+            <div><b style="color:var(--ink);">L4 — Audit trail</b> · every escalation written to immutable log</div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head"><div class="card-title">Acknowledgement SLA — 7 days</div></div>
+          <div id="chart-sla"></div>
+        </section>
+      </section>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+  <script src="../assets/charts.js" defer></script>
+  <script>
+    window.addEventListener("load", () => {
+      Charts.multiLine(document.getElementById("chart-sla"), {
+        labels: ["Feb 2","Feb 3","Feb 4","Feb 5","Feb 6","Feb 7","Feb 8"],
+        series: [
+          { name: "Avg ack (min)", color: "#f5a623", values: [4.8, 3.9, 4.4, 3.2, 3.8, 2.9, 3.4] },
+          { name: "Max ack (min)", color: "#ef4444", values: [14, 11, 19, 9, 13, 8, 12] },
+        ],
+      });
+    });
+  </script>
+</body>
+</html>

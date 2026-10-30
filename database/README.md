@@ -10,22 +10,34 @@ deployment ordering and recovery ambiguous.
 in the application jar: the dedicated `migrate` container reads these files
 directly, and the application only validates the schema it finds.
 
+## Interface
+
+- `database/migrations/` is the Flyway SQL input copied by
+  [`migrations.Dockerfile`](./migrations.Dockerfile); `V1__initial_schema.sql`
+  defines the initial tables and later versioned files extend them.
+- `database/init.sql` defines the `uhid_seq`, `invoice_number_seq`, and
+  `payment_number_seq` sequences when explicitly used by an operator.
+- [`migrations/README.md`](./migrations/README.md) documents the migration
+  package contract.
+
 ## Current state
 
-- **One migration: `V1__initial_schema.sql`**, which creates all 23 tables.
-  It was squashed from earlier files before it was ever applied anywhere.
-- `V1` is **frozen**. Every subsequent change is a new `V2`, `V3`, …
+- The schema is at **V14**. `V1__initial_schema.sql` defines the initial 25
+  tables; subsequent migrations add key lifecycle, staff and tenant controls,
+  enquiry tracking, discharge summaries, and related constraints.
+- Applied migrations are immutable. Every subsequent schema change is a new
+  versioned file.
 - `SHA256SUMS` records a checksum per migration. `tools/verify-migrations.sh`
-  fails the build if an applied file changes, and `tools/update-migration-manifest.sh`
-  registers a new one.
+  checks the manifest, and `tools/update-migration-manifest.sh` registers new
+  migrations.
 
 ## Adding a schema change
 
 1. Add a new, immutable SQL file in `database/migrations/` named
-   `V<next-number>__short_description.sql`. The next number is **2**:
+   `V<next-number>__short_description.sql`. The next number is **15**:
 
    ```text
-   V2__add_patient_emergency_contact.sql
+   V15__add_patient_emergency_contact.sql
    ```
 
 2. Register it, or CI will fail on an unrecorded migration:
@@ -172,3 +184,26 @@ Operator runbook: [`docs/operations.md` §7d](../docs/operations.md).
 **Practical consequence today:** the KEK can be rotated on a normal schedule
 (§7d of the runbook, dry-run → apply → verify). An individual tenant's DEK
 still cannot be rotated without a data migration.
+
+## Invariants
+
+- `database/migrations/` is the sole schema owner; the application validates
+  the schema but does not apply Flyway migrations.
+- Released migration files and their `SHA256SUMS` entries are immutable.
+- PostgreSQL string columns declared with lengths use `VARCHAR`, because
+  Hibernate schema validation rejects `CHAR(n)` for length-declared strings.
+
+## Side Effects
+
+- Applying Flyway files changes the PostgreSQL schema and migration history.
+- `database/init.sql` creates sequences in the connected database when run.
+
+## Verification
+
+- Run: `docker compose run --rm migrate validate`
+- Run: `./tools/verify-migrations.sh`
+
+## Subdirectories & Boundaries
+
+- [migrations](./migrations/README.md) — ordered Flyway schema changes and
+  their checksum manifest.

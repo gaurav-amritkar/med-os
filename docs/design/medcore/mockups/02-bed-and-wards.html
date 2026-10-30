@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Bed &amp; Wards</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .ward-grid { display: flex; flex-direction: column; gap: 5px; }
+  .ward-row { display: flex; align-items: center; gap: 5px; }
+  .ward-name { width: 88px; flex: none; font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .ward-count { width: 110px; flex: none; text-align: right; font-size: 12px; color: var(--text-faint); }
+</style>
+</head>
+<body data-active="bed-wards" data-title="Bed &amp; Wards">
+
+  <div class="stack">
+
+    <div class="grid grid-4">
+      <section class="card stat-card"><div class="stat-label">Total beds</div><div class="stat-value">326</div><div class="stat-delta">6 wards · 24 ICU</div></section>
+      <section class="card stat-card"><div class="stat-label">Occupied</div><div class="stat-value">225</div><div class="stat-delta up">68.9% occupancy</div></section>
+      <section class="card stat-card"><div class="stat-label">Available now</div><div class="stat-value" style="color:#047857;">77</div><div class="stat-delta">27 ready · 50 to clean</div></section>
+      <section class="card stat-card"><div class="stat-label">Blocked / private</div><div class="stat-value">24</div><div class="stat-delta">9 planned · 15 private</div></section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:2.4;">
+        <div class="card-head">
+          <div class="card-title">Bed map — today</div>
+          <div class="legend">
+            <span><i class="sq bed-occupied" style="border-radius:4px;"></i>Occupied</span>
+            <span><i class="sq bed-available" style="border-radius:4px;"></i>Available</span>
+            <span><i class="sq bed-cleaning" style="border-radius:4px;"></i>Cleaning</span>
+            <span><i class="sq bed-critical" style="border-radius:4px;"></i>Isolation</span>
+          </div>
+        </div>
+        <div class="ward-grid" id="bedgrid"></div>
+      </section>
+
+      <section class="card" style="flex:1;">
+        <div class="card-head"><div class="card-title">Housekeeping queue</div><span class="tag tag-orange">12 to clean</span></div>
+        <div class="alert-row"><span class="tag tag-gray tag-plain">B-14</span><div><div style="font-weight:600;">Ward B · post-op</div><div style="font-size:12.5px; color:var(--text);">Discharged 09:05 · ETA 12 min</div></div></div>
+        <div class="alert-row"><span class="tag tag-gray tag-plain">ICU-7</span><div><div style="font-weight:600;">ICU</div><div style="font-size:12.5px; color:var(--text);">Discharge cleaning · ETA 25 min</div></div></div>
+        <div class="alert-row"><span class="tag tag-gray tag-plain">C-31</span><div><div style="font-weight:600;">Ward C · maternity</div><div style="font-size:12.5px; color:var(--text);">Awaiting supervisor check · ETA 40 min</div></div></div>
+        <div class="card-head" style="margin-top:18px;"><div class="card-title">Transfers pending</div><span class="tag tag-blue">3</span></div>
+        <div class="alert-row"><span class="tag tag-gray tag-plain">P-1842</span><div><div style="font-weight:600;">Kristen D'Souza</div><div style="font-size:12.5px; color:var(--text);">Ward A → ICU · awaiting bed</div></div></div>
+      </section>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ward</th><th>Total beds</th><th>Occupied</th><th>Available</th><th>Occupancy</th><th>In-charge</th></tr></thead>
+        <tbody>
+          <tr><td><b>Ward A — General</b></td><td>96</td><td>79</td><td>17</td><td><div class="progress" style="width:120px;"><i style="width:82%; background:var(--orange);"></i></div></td><td class="weak">Sr. Meera Joshi</td></tr>
+          <tr><td><b>Ward B — Post-op</b></td><td>64</td><td>41</td><td>23</td><td><div class="progress" style="width:120px;"><i style="width:64%; background:var(--blue);"></i></div></td><td class="weak">Sr. Anil Vaz</td></tr>
+          <tr><td><b>Ward C — Maternity</b></td><td>48</td><td>23</td><td>25</td><td><div class="progress" style="width:120px;"><i style="width:47%; background:var(--blue);"></i></div></td><td class="weak">Sr. Fatima Khan</td></tr>
+          <tr><td><b>ICU</b></td><td>24</td><td>22</td><td>2</td><td><div class="progress" style="width:120px;"><i style="width:91%; background:var(--red);"></i></div></td><td class="weak">Dr. Kavya Iyer</td></tr>
+          <tr><td><b>Emergency</b></td><td>36</td><td>26</td><td>10</td><td><div class="progress" style="width:120px;"><i style="width:73%; background:var(--orange);"></i></div></td><td class="weak">Dr. Imran Sheikh</td></tr>
+          <tr><td><b>Day Care</b></td><td>58</td><td>44</td><td>11</td><td><div class="progress" style="width:120px;"><i style="width:76%; background:var(--orange);"></i></div></td><td class="weak">Sr. Ritu Sharma</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+  <script>
+    // deterministic pseudo-random bed map
+    const rnd = (seed) => { let s = seed; return () => (s = (s * 9301 + 49297) % 233280) / 233280; };
+    window.addEventListener("load", () => {
+      const wards = [["Ward A", 96], ["Ward B", 64], ["Ward C", 48], ["ICU", 24], ["ER", 36], ["Day Care", 58], ["HDU", 14], ["Private", 20]];
+      const rand = rnd(7);
+      const grid = document.getElementById("bedgrid");
+      wards.forEach(([ward, n]) => {
+        let occ = 0, rowHTML = "";
+        for (let i = 1; i <= n; i++) {
+          const r = rand();
+          const cls = r < 0.69 ? "occupied" : r < 0.78 ? "cleaning" : r < 0.82 ? "critical" : "available";
+          if (cls === "occupied") occ++;
+          rowHTML += `<span class="bed-cell bed-${cls}">${i}</span>`;
+        }
+        grid.insertAdjacentHTML("beforeend",
+          `<div class="ward-row"><span class="ward-name">${ward}</span>${rowHTML}<span class="ward-count">${occ}/${n} beds</span></div>`);
+      });
+    });
+  </script>
+</body>
+</html>

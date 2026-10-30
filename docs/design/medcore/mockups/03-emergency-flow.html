@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Emergency Flow</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .funnel-band { display: flex; align-items: center; gap: 14px; padding: 13px 0; }
+  .funnel-band + .funnel-band { border-top: 1px solid var(--line); }
+  .funnel-name { width: 118px; flex: none; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+  .funnel-count { width: 34px; font-size: 17px; font-weight: 700; text-align: left; }
+  .timer { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+</style>
+</head>
+<body data-active="emergency-flow" data-title="Emergency Flow">
+
+  <div class="stack">
+
+    <div class="grid grid-4">
+      <section class="card"><div class="stat-label">Door to triage</div><div class="timer" style="margin-top:6px;">4<span style="font-size:14px; color:var(--text);"> min</span></div><div class="stat-delta up">target ≤ 10 min</div></section>
+      <section class="card"><div class="stat-label">Door to doctor</div><div class="timer" style="margin-top:6px;">19<span style="font-size:14px; color:var(--text);"> min</span></div><div class="stat-delta down">target ≤ 30 min</div></section>
+      <section class="card"><div class="stat-label">Waiting in ER</div><div class="timer" style="margin-top:6px;">14<span style="font-size:14px; color:var(--text);"> patients</span></div><div class="stat-delta">2 red · 3 orange</div></section>
+      <section class="card"><div class="stat-label">Ambulances in bay</div><div class="timer" style="margin-top:6px;">2</div><div class="stat-delta">longest hold 11 min</div></section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1.15;">
+        <div class="card-head">
+          <div class="card-title">Triage by acuity</div>
+          <button class="btn small">Open board</button>
+        </div>
+        <div class="funnel-band">
+          <span class="funnel-name"><i class="dot" style="background:var(--red);"></i>Red — Resus</span>
+          <div class="progress" style="flex:1;"><i style="width:11%; background:var(--red);"></i></div>
+          <b class="funnel-count" style="padding-left:12px;">3</b><span style="width:84px; font-size:12px; color:var(--text-faint);">seen ≤ 5 min</span>
+        </div>
+        <div class="funnel-band">
+          <span class="funnel-name"><i class="dot" style="background:var(--orange);"></i>Orange — Emerg</span>
+          <div class="progress" style="flex:1;"><i style="width:23%; background:var(--orange);"></i></div>
+          <b class="funnel-count" style="padding-left:12px;">7</b><span style="width:84px; font-size:12px; color:var(--text-faint);">seen ≤ 10 min</span>
+        </div>
+        <div class="funnel-band">
+          <span class="funnel-name"><i class="dot" style="background:#eab308;"></i>Yellow — Urgent</span>
+          <div class="progress" style="flex:1;"><i style="width:38%; background:#eab308;"></i></div>
+          <b class="funnel-count" style="padding-left:12px;">12</b><span style="width:84px; font-size:12px; color:var(--text-faint);">seen ≤ 60 min</span>
+        </div>
+        <div class="funnel-band">
+          <span class="funnel-name"><i class="dot" style="background:var(--green);"></i>Green — Standard</span>
+          <div class="progress" style="flex:1;"><i style="width:66%; background:var(--green);"></i></div>
+          <b class="funnel-count" style="padding-left:12px;">21</b><span style="width:84px; font-size:12px; color:var(--text-faint);">seen ≤ 2 h</span>
+        </div>
+
+        <div class="card-head" style="margin-top:20px;">
+          <div class="card-title">Last 24 h inflow</div>
+        </div>
+        <div id="chart-inflow"></div>
+      </section>
+
+      <section class="card-stack" style="flex:1; display:flex; flex-direction:column; gap:20px;">
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title">Ambulance bay</div>
+            <button class="btn small">Log incoming</button>
+          </div>
+          <div class="alert-row">
+            <span class="tag tag-red">Red</span>
+            <div>
+              <div style="font-weight:600;">Case #ER-2912 · cardiac</div>
+              <div style="font-size:12.5px; color:var(--text);">Bay 1 · ETA 4 min · inbound 108 service</div>
+            </div>
+          </div>
+          <div class="alert-row">
+            <span class="tag tag-orange">Orange</span>
+            <div>
+              <div style="font-weight:600;">Case #ER-2913 · RTI</div>
+              <div style="font-size:12.5px; color:var(--text);">Bay 2 · holding 11 min · triage done</div>
+            </div>
+          </div>
+          <div class="alert-row">
+            <span class="tag tag-green">Green</span>
+            <div>
+              <div style="font-weight:600;">Case #ER-2914 · laceration</div>
+              <div style="font-size:12.5px; color:var(--text);">Bay 3 · private vehicle converted</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><div class="card-title">Bottlenecks</div></div>
+          <div style="font-size:13.5px; color:var(--text); display:flex; flex-direction:column; gap:12px;">
+            <div><span class="tag tag-orange" style="margin-right:8px;">Watch</span>Imaging queue 26 min — 2 portables out of service.</div>
+            <div><span class="tag tag-orange" style="margin-right:8px;">Watch</span>2 ICU transfers awaiting beds &gt; 30 min.</div>
+            <div><span class="tag tag-green" style="margin-right:8px;">OK</span>Pharmacy stat dispensing within SLA.</div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Case</th><th>Patient</th><th>Acuity</th><th>Arrived</th><th>Waited</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>#ER-2909</td><td><b>Suresh Pawar</b> · 61 · chest pain</td><td><span class="tag tag-red">Red</span></td><td>10:41</td><td>3 min</td><td class="weak">In resus bay</td></tr>
+          <tr><td>#ER-2910</td><td><b>Anita Rao</b> · 44 · SOB</td><td><span class="tag tag-orange">Orange</span></td><td>10:28</td><td>16 min</td><td class="weak">Awaiting doctor</td></tr>
+          <tr><td>#ER-2911</td><td><b>Deepak Joshi</b> · 8 · fever 104°</td><td><span class="tag tag-orange">Orange</span></td><td>10:19</td><td>25 min</td><td class="weak">Triage done</td></tr>
+          <tr><td>#ER-2908</td><td><b>Reema Kapoor</b> · 27 · ankle injury</td><td><span class="tag tag-gray tag-plain">Yellow</span></td><td>10:04</td><td>40 min</td><td class="weak">X-ray ordered</td></tr>
+          <tr><td>#ER-2907</td><td><b>Farhan Ali</b> · 33 · laceration</td><td><span class="tag tag-green">Green</span></td><td>09:52</td><td>52 min</td><td class="weak">Suturing</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+  <script src="../assets/charts.js" defer></script>
+  <script>
+    window.addEventListener("load", () => {
+      const hours = ["10","11","12","13","14","15","16","17","18","19","20","21"];
+      Charts.declineBars(document.getElementById("chart-inflow"), {
+        id: "inflow",
+        labels: hours,
+        values: [9, 14, 11, 8, 10, 12, 13, 7, 5, 4, 3, 2],
+      });
+    });
+  </script>
+</body>
+</html>

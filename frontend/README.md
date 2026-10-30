@@ -88,3 +88,24 @@ src/
   assets/
 e2e/           Playwright specs: smoke, full journey, login
 ```
+
+
+## Interface
+
+- The browser entry point and route composition are in [src](./src/README.md).
+- Shared Node utilities are documented in [scripts](./scripts/README.md).
+- `npm run dev`, `npm run build`, `npm run lint`, `npm test`, and `npm run probe:flows` are declared in `package.json`.
+
+## Invariants
+
+- API requests use the configured Axios client; authentication and tenant context are attached by its request interceptor when available.
+- Browser session details use `sessionStorage` through `useAuthStore`.
+
+## Side Effects
+
+- The app makes HTTP requests to the backend and stores auth state in browser `sessionStorage`.
+- Snapshot and flow tooling can write documentation artifacts or create backend records; see [scripts](./scripts/README.md).
+
+## Verification
+
+- Run: `npm test`

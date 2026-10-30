@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Help &amp; Supports</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .big-search {
+    background: var(--canvas);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .big-search input {
+    width: 100%; max-width: 560px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 11px 16px;
+    font: inherit;
+  }
+  .doc-link { display: flex; align-items: center; gap: 10px; padding: 11px 0; font-size: 14px; font-weight: 500; color: var(--text); }
+  .doc-link + .doc-link { border-top: 1px solid var(--line); }
+</style>
+</head>
+<body data-active="help-supports" data-title="Help &amp; Supports">
+
+  <div class="stack">
+
+    <div class="big-search">
+      <div class="card-title" style="margin-bottom:12px;">How can we help?</div>
+      <input type="search" placeholder="Search guides, keyboard shortcuts, policies…">
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1.6;">
+        <div class="card-head"><div class="card-title">Frequently asked</div></div>
+        <details class="accordion" open>
+          <summary>How do I assign a bed to an incoming patient?<span style="color:var(--text-faint);">−</span></summary>
+          <div class="a-body">Open <b>Bed &amp; Wards</b>, filter to the ward, click a green <b>Available</b> cell, then choose <b>Assign patient</b>. The bed moves to <i>Occupied</i> and writes an audit entry with your identity.</div>
+        </details>
+        <details class="accordion">
+          <summary>What do the forecast threshold lines mean?<span style="color:var(--text-faint);">+</span></summary>
+          <div class="a-body">Green = normal capacity, orange = warning band, red = critical. Thresholds are configured per hospital in <b>Settings → Hospitals</b> and applied to Bed Occupancy, ICU Demand and Oxygen forecasts.</div>
+        </details>
+        <details class="accordion">
+          <summary>Why can't I acknowledge a critical alert?<span style="color:var(--text-faint);">+</span></summary>
+          <div class="a-body">Only roles in the alert's escalation path can acknowledge. If the role is right but the button is disabled, the alert is already claimed by someone else — the trail shows who.</div>
+        </details>
+        <details class="accordion">
+          <summary>How is patient data encrypted?<span style="color:var(--text-faint);">+</span></summary>
+          <div class="a-body">Every identity field (name, contact, IDs) is encrypted per hospital with a tenant data-encryption key. Decryption requires your logged-in session and is always written to the audit trail.</div>
+        </details>
+        <details class="accordion">
+          <summary>Who do I call for a lab panic value?<span style="color:var(--text-faint);">+</span></summary>
+          <div class="a-body">The alert feed escalates automatically: floor → in-charge → HOD → medical superintendent. You never need to call manually — but Ext. 4021 reaches the lab console directly.</div>
+        </details>
+      </section>
+
+      <section class="card-stack" style="flex:1; display:flex; flex-direction:column; gap:20px;">
+        <section class="card">
+          <div class="card-head"><div class="card-title">Documentation</div></div>
+          <div class="doc-link" style="border-top:0;">📘 Quick start for duty nurses</div>
+          <div class="doc-link">🛏 Bed management playbook</div>
+          <div class="doc-link">🚨 Critical alert escalation SOP</div>
+          <div class="doc-link">⌨️ Keyboard shortcuts (⌘K stays for search)</div>
+          <div class="doc-link">🔒 Data protection &amp; DPDP consent guide</div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><div class="card-title">Contact support</div><span class="tag tag-green">Systems normal</span></div>
+          <div style="font-size:13.5px; color:var(--text); display:flex; flex-direction:column; gap:10px;">
+            <div><b style="color:var(--ink);">In-house helpdesk</b> · Ext. 4020 · 24 × 7</div>
+            <div><b style="color:var(--ink);">Email</b> · support@medcore.example · SLA 4 h</div>
+            <div><b style="color:var(--ink);">Raise a ticket</b> · routed to the shift engineer on call</div>
+          </div>
+          <button class="btn accent" style="margin-top:14px;">Open support request</button>
+        </section>
+      </section>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+</body>
+</html>

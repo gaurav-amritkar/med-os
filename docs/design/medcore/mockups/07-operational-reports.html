@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Operational Reports</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .report-card { display: flex; flex-direction: column; gap: 12px; }
+  .report-icon { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; }
+  .report-meta { font-size: 12.5px; color: var(--text-faint); }
+  .range-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+</style>
+</head>
+<body data-active="operational-reports" data-title="Operational Reports">
+
+  <div class="stack">
+
+    <div class="range-row">
+      <div class="filters" style="display:flex; gap:8px;">
+        <span class="chip is-active" style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line-strong); background:var(--ink); color:#fff; border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600;">All</span>
+        <span class="chip" style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line-strong); background:var(--surface); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600; color:var(--text);">Clinical</span>
+        <span class="chip" style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line-strong); background:var(--surface); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600; color:var(--text);">Finance</span>
+        <span class="chip" style="display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line-strong); background:var(--surface); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:600; color:var(--text);">Compliance</span>
+      </div>
+      <button class="btn primary">+ New report</button>
+    </div>
+
+    <div class="grid grid-3">
+      <section class="card report-card">
+        <div class="report-icon" style="background:#eaf3fd;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#1d4ed8;"><path d="M5 3h7l3 3v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 9h6M7 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div><div style="font-weight:650;">Daily bed occupancy</div><div class="report-meta">Clinical · generated nightly at 06:00 · CSV + PDF</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+
+      <section class="card report-card">
+        <div class="report-icon" style="background:#e7f8f1;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#047857;"><path d="M4 15.5 8 10l3 3 5-7.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div style="font-weight:650;">ER throughput &amp; wait times</div><div class="report-meta">Clinical · weekly · includes door-to-doctor percentiles</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+
+      <section class="card report-card">
+        <div class="report-icon" style="background:#fdf3e2;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#b45309;"><rect x="3.5" y="4" width="13" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 8h13M7.5 4v4.5" stroke="currentColor" stroke-width="1.5"/></svg></div>
+        <div><div style="font-weight:650;">Revenue by department</div><div class="report-meta">Finance · monthly · GST-compliant invoicing summary</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+
+      <section class="card report-card">
+        <div class="report-icon" style="background:#f3efff;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#6d28d9;"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l2.6 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div><div style="font-weight:650;">Audit trail extract</div><div class="report-meta">Compliance · on demand · signed, immutable export</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+
+      <section class="card report-card">
+        <div class="report-icon" style="background:#fdecec;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#b91c1c;"><path d="M10 3s3.5 3.9 3.5 7a3.5 3.5 0 0 1-7 0C6.5 6.9 10 3 10 3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 13c1 3 3.5 4 5 4s4-1 5-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div><div style="font-weight:650;">Critical alert SLA review</div><div class="report-meta">Compliance · weekly · ack/escalation performance</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+
+      <section class="card report-card">
+        <div class="report-icon" style="background:#f1f1f2;"><svg width="19" height="19" viewBox="0 0 20 20" style="color:#4b5563;"><circle cx="8" cy="8" r="4.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m11.4 11.4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <div><div style="font-weight:650;">Patient movement census</div><div class="report-meta">Clinical · configurable · admissions, transfers, discharges</div></div>
+        <div style="margin-top:auto; display:flex; gap:8px;"><button class="btn small">Run now</button><button class="btn small ghost">Schedule</button></div>
+      </section>
+    </div>
+
+    <div class="table-wrap">
+      <div class="card-head" style="padding: 16px 16px 0; margin-bottom: 0;">
+        <div class="card-title">Recent generations</div>
+      </div>
+      <table style="margin-top:10px;">
+        <thead><tr><th>Report</th><th>Range</th><th>Generated</th><th>By</th><th>Format</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><b>Daily bed occupancy</b></td><td class="weak">08 Feb 2026</td><td class="weak">Today 06:00</td><td class="weak">Scheduler</td><td class="weak">PDF + CSV</td><td><span class="tag tag-green">Ready</span></td></tr>
+          <tr><td><b>Revenue by department</b></td><td class="weak">Jan 2026</td><td class="weak">Yesterday 23:10</td><td class="weak">Ms. D. Fernandes</td><td class="weak">XLSX</td><td><span class="tag tag-green">Ready</span></td></tr>
+          <tr><td><b>ER throughput &amp; wait times</b></td><td class="weak">02–08 Feb 2026</td><td class="weak">Yesterday 08:00</td><td class="weak">Scheduler</td><td class="weak">PDF</td><td><span class="tag tag-green">Ready</span></td></tr>
+          <tr><td><b>Critical alert SLA review</b></td><td class="weak">02–08 Feb 2026</td><td class="weak">08 Feb 20:45</td><td class="weak">Dr. A. Raghavan</td><td class="weak">PDF</td><td><span class="tag tag-orange">Running</span></td></tr>
+          <tr><td><b>Audit trail extract</b></td><td class="weak">01–08 Feb 2026</td><td class="weak">08 Feb 18:12</td><td class="weak">Audit bot</td><td class="weak">Signed JSON</td><td><span class="tag tag-gray tag-plain">Failed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+</body>
+</html>

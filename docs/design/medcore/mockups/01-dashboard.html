@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Dashboard</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  @media (max-width: 1440px) { .kpi-row { grid-template-columns: 1fr 1fr; } }
+  .feed-item { display: flex; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .feed-item:first-child { border-top: 0; }
+  .feed-item .t { font-size: 13px; color: var(--text-faint); flex: none; width: 62px; }
+  .dept-ok { background: #e7f8f1; } .dept-warn { background: #fdf3e2; } .dept-crit { background: #fdecec; }
+</style>
+</head>
+<body data-active="dashboard" data-title="Dashboard">
+
+  <div class="stack">
+
+    <div class="kpi-row">
+      <section class="card stat-card">
+        <div class="stat-label">Active patients</div>
+        <div class="stat-value" id="kpi-patients">1,284</div>
+        <div class="stat-delta up">▲ 6.2% vs last week</div>
+      </section>
+      <section class="card stat-card">
+        <div class="stat-label">Bed occupancy</div>
+        <div class="stat-value">68.9%</div>
+        <div class="stat-delta up">▲ 3.1% vs last week</div>
+      </section>
+      <section class="card stat-card">
+        <div class="stat-label">ER waiting</div>
+        <div class="stat-value">14 <span style="font-size:15px; color:var(--text); font-weight:600;">patients</span></div>
+        <div class="stat-delta down">▼ 4 vs 2 hours ago</div>
+      </section>
+      <section class="card stat-card">
+        <div class="stat-label">Critical alerts open</div>
+        <div class="stat-value" style="color:#b91c1c;">7</div>
+        <div class="stat-delta">3 escalated · oldest 22 min</div>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1.9;">
+        <div class="card-head">
+          <div class="card-title">Admissions &amp; discharges</div>
+          <div class="legend">
+            <span><i class="dot" style="background:#3b82f6;"></i>Admissions</span>
+            <span><i class="dot" style="background:#10b981;"></i>Discharges</span>
+          </div>
+        </div>
+        <div id="chart-adm"></div>
+      </section>
+
+      <section class="card" style="flex:1;">
+        <div class="card-head">
+          <div class="card-title">Department load</div>
+          <span class="tag tag-gray tag-plain">live bed occupancy</span>
+        </div>
+        <div id="depts"></div>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1.9;">
+        <div class="card-head">
+          <div class="card-title">Today's activity</div>
+          <button class="btn small">View all</button>
+        </div>
+        <div class="feed-item"><span class="t">09:12</span><span><b>Priya Nair</b> admitted to Ward B — bed B-14 assigned by Dr. Imran Sheikh. <span class="tag tag-blue" style="margin-left:6px;">Admission</span></span></div>
+        <div class="feed-item"><span class="t">09:05</span><span>Lab panicked value for <b>Rohit Deshmukh</b>: Potassium 6.7 mmol/L. <span class="tag tag-red" style="margin-left:6px;">Critical</span></span></div>
+        <div class="feed-item"><span class="t">08:58</span><span><b>Alan Vaz</b> discharged from ICU-2, bed released to cleaning queue. <span class="tag tag-gray tag-plain" style="margin-left:6px;">Discharge</span></span></div>
+        <div class="feed-item"><span class="t">08:40</span><span>Ambulance IN — case #ER-2912 holding in bay 2, triage pending. <span class="tag tag-orange" style="margin-left:6px;">ER</span></span></div>
+        <div class="feed-item"><span class="t">08:31</span><span>Night shift handover completed for Ward C (coverage 100%). <span class="tag tag-green" style="margin-left:6px;">Staffing</span></span></div>
+      </section>
+
+      <section class="card" style="flex:1;">
+        <div class="card-head">
+          <div class="card-title">Ward status</div>
+        </div>
+        <div class="stack" style="gap:14px;">
+          <div><div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:7px;"><span>Ward A — General</span><b>82%</b></div><div class="progress"><i style="width:82%; background:var(--orange);"></i></div></div>
+          <div><div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:7px;"><span>Ward B — Post-op</span><b>64%</b></div><div class="progress"><i style="width:64%; background:var(--blue);"></i></div></div>
+          <div><div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:7px;"><span>Ward C — Maternity</span><b>47%</b></div><div class="progress"><i style="width:47%; background:var(--blue);"></i></div></div>
+          <div><div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:7px;"><span>ICU</span><b>91%</b></div><div class="progress"><i style="width:91%; background:var(--red);"></i></div></div>
+          <div><div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:7px;"><span>Emergency</span><b>73%</b></div><div class="progress"><i style="width:73%; background:var(--orange);"></i></div></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+  <script src="../assets/charts.js" defer></script>
+  <script>
+    window.addEventListener("load", () => {
+      const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      Charts.multiLine(document.getElementById("chart-adm"), {
+        labels: days,
+        series: [
+          { name: "Admissions", color: "#3b82f6", values: [42, 51, 47, 63, 58, 38, 34] },
+          { name: "Discharges", color: "#10b981", values: [30, 39, 44, 51, 62, 41, 28] },
+        ],
+      });
+      Charts.hBars(document.getElementById("depts"), [
+        { name: "General Medicine", value: 84 },
+        { name: "Paediatrics", value: 61 },
+        { name: "Orthopaedics", value: 55 },
+        { name: "Obstetrics & Gyn", value: 47 },
+        { name: "Cardiology", value: 38 },
+      ]);
+    });
+  </script>
+</body>
+</html>
