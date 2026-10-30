@@ -5,6 +5,7 @@ import com.medos.entity.*;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.repository.*;
+import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ public class InventoryService {
     private final MedicineBatchRepository medicineBatchRepository;
     private final StockTransactionRepository stockTransactionRepository;
     private final AuditLogger auditLogger;
+    private final CurrentUserProvider currentUserProvider;
 
     public MedicineCatalog createMedicine(MedicineCatalog med) {
         MedicineCatalog saved = medicineCatalogRepository.save(med);
@@ -47,6 +49,9 @@ public class InventoryService {
     @Transactional
     public MedicineBatch addStock(UUID medicineId, String batchNo, LocalDate expiryDate,
                                  int quantity, BigDecimal purchasePrice, String supplier) {
+        if (expiryDate == null || !expiryDate.isAfter(LocalDate.now())) {
+            throw new BusinessException("Batch expiry date must be after today");
+        }
         MedicineBatch batch = MedicineBatch.builder()
                 .medicineId(medicineId)
                 .batchNo(batchNo)
@@ -65,6 +70,7 @@ public class InventoryService {
                 .quantity(quantity)
                 .referenceNo("PUR-" + batchNo)
                 .notes("Stock in: batch " + batchNo)
+                .performedBy(currentUserProvider.getCurrentUserId())
                 .performedAt(LocalDateTime.now())
                 .build();
         stockTransactionRepository.save(txn);

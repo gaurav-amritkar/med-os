@@ -30,7 +30,8 @@ import static org.mockito.Mockito.when;
  * The SQL is the contract — we just need to confirm the service:
  *   1. Issues the right UPDATE
  *   2. Binds the patient id
- *   3. Requires an enclosing transaction (Propagation.MANDATORY)
+ *   3. Starts a new transaction (Propagation.REQUIRES_NEW) for the async
+ *      after-commit recalculation
  *
  * Verifying the math end-to-end belongs in an integration test against
  * Postgres (the V8 backfill is the canonical reference). This test pins

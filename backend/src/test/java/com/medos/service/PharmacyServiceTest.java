@@ -55,7 +55,7 @@ class PharmacyServiceTest {
 
     @BeforeEach
     void wireAuditLogger() {
-        lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(UUID.randomUUID());
+        lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(ACTOR_ID);
         lenient().when(userRepository.existsById(any(UUID.class))).thenReturn(true);
         auditLogger = new AuditLogger(auditLogRepository, userRepository, currentUserProvider);
         ReflectionTestUtils.setField(dispenseService, "auditLogger", auditLogger);
@@ -66,6 +66,7 @@ class PharmacyServiceTest {
     private static final UUID PATIENT_ID = UUID.randomUUID();
     private static final UUID ENCOUNTER_ID = UUID.randomUUID();
     private static final UUID RX_ID = UUID.randomUUID();
+    private static final UUID ACTOR_ID = UUID.randomUUID();
 
     private MedicineBatch batch(UUID id, LocalDate expiry, int qty) {
         return MedicineBatch.builder()
@@ -151,7 +152,9 @@ class PharmacyServiceTest {
         assertEquals(new BigDecimal("157.50"), charge.getTotalAmount());
         assertEquals(Charge.Status.unbilled, charge.getStatus());
 
-        verify(stockTransactionRepository, times(1)).save(any(StockTransaction.class));
+        ArgumentCaptor<StockTransaction> stockCaptor = ArgumentCaptor.forClass(StockTransaction.class);
+        verify(stockTransactionRepository, times(1)).save(stockCaptor.capture());
+        assertEquals(ACTOR_ID, stockCaptor.getValue().getPerformedBy());
         verify(auditLogRepository, atLeastOnce()).save(any(com.medos.entity.AuditLog.class));
         verify(eventPublisher, times(1)).publishEvent(any(com.medos.modules.billing.event.PatientBalanceEvent.class));
     }
@@ -271,6 +274,18 @@ class PharmacyServiceTest {
         assertEquals(50, txn.getQuantity());
         assertEquals("PUR-LOT-A", txn.getReferenceNo());
         assertEquals(medicineId, txn.getMedicineId());
+        assertEquals(ACTOR_ID, txn.getPerformedBy());
         verify(auditLogRepository).save(any(com.medos.entity.AuditLog.class));
+    }
+
+    @Test
+    void addStock_rejectsExpiryTodayOrEarlierBeforeWriting() {
+        for (LocalDate expiry : List.of(LocalDate.now(), LocalDate.now().minusDays(1))) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> inventoryService.addStock(UUID.randomUUID(), "EXPIRED", expiry,
+                            5, new BigDecimal("2.00"), "Supplier"));
+            assertEquals(400, ex.getStatus().value());
+        }
+        verifyNoInteractions(medicineBatchRepository, stockTransactionRepository);
     }
 }

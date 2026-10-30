@@ -225,8 +225,24 @@ export default function Billing() {
       {showInvoiceModal && (
         <Modal title="Generate Invoice" onClose={() => setShowInvoiceModal(false)}>
             <p style={{ marginBottom: 16, color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
-              Select charges to bill, then generate a GST-compliant invoice.
+              Select charges for {selectedPatient?.name}, then generate a GST-compliant invoice.
             </p>
+            <div role="group" aria-label="Charges to include" style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
+              {unbilledCharges.map((charge) => (
+                <label key={charge.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Include ${charge.description}`}
+                    checked={selectedCharges.includes(charge.id)}
+                    onChange={() => toggleCharge(charge.id)}
+                    style={{ width: 'auto' }}
+                  />
+                  <span style={{ flex: 1 }}>{charge.description}</span>
+                  <span>₹{charge.totalAmount}</span>
+                </label>
+              ))}
+              {unbilledCharges.length === 0 && <p>No unbilled charges available.</p>}
+            </div>
             <div className="form-group">
               <label>Discount (₹)</label>
               <input type="number" min={0} value={invoiceDiscount}
@@ -235,7 +251,7 @@ export default function Billing() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
               <span>{selectedCharges.length} charges selected</span>
               <span>
-                Total: ₹{unbilledCharges.filter(c => selectedCharges.includes(c.id)).reduce((s, c) => s + parseFloat(c.totalAmount), 0)}
+                Total: ₹{unbilledCharges.filter(c => selectedCharges.includes(c.id)).reduce((s, c) => s + parseFloat(c.totalAmount), 0).toFixed(2)}
               </span>
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>

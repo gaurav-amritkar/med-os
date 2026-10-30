@@ -5,6 +5,7 @@ import com.medos.entity.*;
 import com.medos.exception.BusinessException;
 import com.medos.exception.ResourceNotFoundException;
 import com.medos.repository.*;
+import com.medos.security.CurrentUserProvider;
 import com.medos.util.AuditLogger;
 import com.medos.util.MoneyUtil;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class DispenseService {
     private final PatientRepository patientRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final CurrentUserProvider currentUserProvider;
 
     @Transactional
     public void dispense(DispenseRequest request) {
@@ -89,6 +91,7 @@ public class DispenseService {
                     .patientId(request.getPatientId())
                     .prescriptionId(request.getPrescriptionId())
                     .notes(request.getNotes())
+                    .performedBy(currentUserProvider.getCurrentUserId())
                     .performedAt(LocalDateTime.now())
                     .build();
             stockTransactionRepository.save(txn);
