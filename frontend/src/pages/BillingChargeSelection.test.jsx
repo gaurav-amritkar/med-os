@@ -142,6 +142,24 @@ describe('Billing charge selection across a patient switch', () => {
     ));
   });
 
+  it('submits only the chosen subset of multiple charges', async () => {
+    const secondCharge = {
+      id: 'charge-a2', chargeType: 'ROOM', description: 'Consult room',
+      quantity: 1, amount: 80, gstPercent: 12, totalAmount: 89.6,
+    };
+    billingApi.getUnbilled.mockResolvedValue({ data: [...CHARGES_A, secondCharge] });
+    const user = userEvent.setup();
+    renderPage();
+    await pickPatient(user, PATIENT_A.name);
+    await user.click(screen.getByRole('button', { name: /^bill /i }));
+    await user.click(screen.getByRole('checkbox', { name: /amoxicillin/i }));
+    await user.click(screen.getByRole('button', { name: /^generate invoice$/i }));
+
+    await waitFor(() => expect(billingApi.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: PATIENT_A.id, chargeIds: ['charge-a1'] })
+    ));
+  });
+
   it('previews a flat discount against the selected charges GST base', async () => {
     const user = userEvent.setup();
     renderPage();
