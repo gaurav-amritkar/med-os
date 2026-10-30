@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Settings</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+<style>
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .form-grid { grid-template-columns: 1fr; } }
+  .setting-row { display: flex; justify-content: space-between; gap: 16px; padding: 15px 0; border-top: 1px solid var(--line); align-items: center; }
+  .setting-row:first-of-type { border-top: 0; }
+  .setting-row .t { font-weight: 600; font-size: 14px; }
+  .setting-row .d { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; }
+</style>
+</head>
+<body data-active="settings" data-title="Settings">
+
+  <div class="settings-body">
+    <aside>
+      <div class="nav-label" style="margin-left:2px;">Settings</div>
+      <a class="nav-item is-active" href="#" aria-current="page">Profile</a>
+      <a class="nav-item" href="#">Hospital</a>
+      <a class="nav-item" href="#">Notifications</a>
+      <a class="nav-item" href="#">Forecast thresholds</a>
+      <a class="nav-item" href="#">Roles &amp; access</a>
+      <a class="nav-item" href="#">Security</a>
+    </aside>
+
+    <div class="stack">
+      <section class="card">
+        <div class="card-head"><div class="card-title">Profile</div></div>
+        <div class="form-grid">
+          <div class="field"><label>Full name</label><input value="Dr. Aditi Raghavan" readonly><span class="hint">Managed by hospital admin</span></div>
+          <div class="field"><label>Role</label><input value="Medical Superintendent" readonly></div>
+          <div class="field"><label>Email</label><input value="aditi.r@medcore.example"></div>
+          <div class="field"><label>Mobile (OTP)</label><input value="+91 98••• ••072"></div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button class="btn primary">Save changes</button>
+          <button class="btn ghost">Discard</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div class="card-title">Hospital</div></div>
+        <div class="form-grid">
+          <div class="field"><label>Hospital name</label><input value="MedCore General Hospital" readonly></div>
+          <div class="field"><label>City</label><input value="Pune, Maharashtra" readonly></div>
+          <div class="field"><label>Beds</label><input value="326" readonly></div>
+          <div class="field"><label>Time zone</label><select><option selected>Asia/Kolkata</option></select></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div class="card-title">Notifications</div></div>
+        <div class="setting-row">
+          <div><div class="t">Critical alerts</div><div class="d">Push + SMS for unacknowledged criticals after 2 min</div></div>
+          <span class="switch on" role="switch" aria-checked="true"></span>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Forecast threshold crossings</div><div class="d">Email when a 7-day forecast enters the warning band</div></div>
+          <span class="switch on" role="switch" aria-checked="true"></span>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Daily occupancy digest</div><div class="d">One summary at 07:00 for HODs</div></div>
+          <span class="switch"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div class="card-title">Security</div></div>
+        <div class="setting-row">
+          <div><div class="t">Two-factor authentication</div><div class="d">Required for superintendent and admin roles</div></div>
+          <span class="switch on" role="switch" aria-checked="true"></span>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Session timeout</div><div class="d">Auto log-out after 15 min idle on shared terminals</div></div>
+          <span class="tag tag-blue">15 min</span>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Destructive action confirmation</div><div class="d">Type the record identifier to confirm irreversible actions</div></div>
+          <span class="switch on" role="switch" aria-checked="true"></span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+</body>
+</html>

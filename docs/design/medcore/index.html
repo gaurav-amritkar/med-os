@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore sample screens — MedOS design review</title>
+<link rel="stylesheet" href="assets/medcore.css">
+<style>
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 30px; letter-spacing: -0.6px; margin: 0 0 8px; }
+  .sub { color: var(--text); font-size: 15px; max-width: 640px; margin-bottom: 34px; }
+  .shot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 860px) { .shot-grid { grid-template-columns: 1fr; } }
+  a.tile { display: block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+  a.tile:hover { border-color: var(--accent); }
+  .num { font-size: 12px; color: var(--text-faint); font-weight: 600; }
+  .tile-title { font-size: 16px; font-weight: 650; margin: 8px 0 4px; }
+  .tile-desc { font-size: 13px; color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>MedCore sample screens</h1>
+    <p class="sub">Static design mockups for MedOS, based on
+      <a href="https://dribbble.com/shots/27345309-Medcore-Control-Center-Dashboard" target="_blank" rel="noopener"><u>Medcore Control Center Dashboard</u></a>
+      by Sayem (Dribbble). Open a tile to view the mockup; each has a companion spec under <code>screens/</code>.
+    </p>
+    <div class="shot-grid">
+      <a class="tile" href="mockups/01-dashboard.html"><span class="num">01</span><div class="tile-title">Dashboard</div><div class="tile-desc">KPIs, admissions &amp; discharges trend, department load, activity feed, ward status.</div></a>
+      <a class="tile" href="mockups/02-bed-and-wards.html"><span class="num">02</span><div class="tile-title">Bed &amp; Wards</div><div class="tile-desc">Live bed map, housekeeping queue, transfers, ward occupancy table.</div></a>
+      <a class="tile" href="mockups/03-emergency-flow.html"><span class="num">03</span><div class="tile-title">Emergency Flow</div><div class="tile-desc">Acuity funnel, door-to-triage/doctor timers, ambulance bay, bottleneck feed.</div></a>
+      <a class="tile" href="mockups/04-staff-management.html"><span class="num">04</span><div class="tile-title">Staff Management</div><div class="tile-desc">Headcount by role, 7-day shift coverage, today's roster, leave gaps.</div></a>
+      <a class="tile" href="mockups/05-critical-alerts.html"><span class="num">05</span><div class="tile-title">Critical Alerts</div><div class="tile-desc">Alert feed with ack/escalate, SLA trend, escalation matrix.</div></a>
+      <a class="tile" href="mockups/06-capacity-forecasts.html"><span class="num">06</span><div class="tile-title">Capacity Forecasts</div><div class="tile-desc">The Dribbble screen, recreated: bed occupancy, ICU demand, oxygen &amp; equipment, staff demand.</div></a>
+      <a class="tile" href="mockups/07-operational-reports.html"><span class="num">07</span><div class="tile-title">Operational Reports</div><div class="tile-desc">Report library, scheduled generation, run history.</div></a>
+      <a class="tile" href="mockups/08-help-supports.html"><span class="num">08</span><div class="tile-title">Help &amp; Supports</div><div class="tile-desc">Search, FAQ, documentation links, support contact.</div></a>
+      <a class="tile" href="mockups/09-settings.html"><span class="num">09</span><div class="tile-title">Settings</div><div class="tile-desc">Profile, hospital, notifications, forecast thresholds, security.</div></a>
+    </div>
+  </div>
+</body>
+</html>

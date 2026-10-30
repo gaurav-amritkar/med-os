@@ -508,3 +508,33 @@ Caddy may publish a port; no in-host `db`; no `*_PASSWORD_FILE` keys).
 
 CI does **not** scan application dependencies, run SAST/CodeQL, or scan for
 committed secrets.
+
+## Interface & Subdirectories
+
+- [Backend](./backend/README.md) — Spring Boot application, REST endpoints, domain services, persistence, authentication, and tenant-scoped security.
+- [Frontend](./frontend/README.md) — React and Vite user interface, API client, pages, shared components, state stores, and developer scripts.
+- [Database](./database/README.md) — PostgreSQL schema ownership and the Flyway migration history.
+- [Tools](./tools/README.md) — migration integrity, production-secret wiring, seeding, and operational scripts.
+- [Cache](./cache/README.md) — Redis runtime configuration and startup handling.
+- [Caddy](./caddy/README.md) — production reverse-proxy and TLS configuration.
+
+## Invariants
+
+- The backend is the application authority for authentication, tenant membership, and role checks; frontend route behavior does not replace server-side authorization. See [backend security contracts](./backend/src/main/java/com/medos/security/README.md).
+- `database/migrations/` owns schema changes, and released migrations remain immutable; the application validates rather than mutates the production schema. See [database contract](./database/README.md).
+- Production secrets are supplied through secret files and required values fail closed; development seed data is for development environments only. See [tools contract](./tools/README.md) and [backend contract](./backend/README.md).
+- Tenant data access and encryption key handling follow the tenant-scoped rules documented by the backend and database contracts.
+
+## Side Effects
+
+- Backend operations persist application and audit data in PostgreSQL and use Redis for cache and selected runtime coordination.
+- The migration job changes the PostgreSQL schema by applying versioned Flyway files.
+- The frontend sends HTTP requests to the backend; production Caddy terminates TLS and proxies application traffic.
+- Developer and operations scripts can seed local data, validate migration checksums, and inspect production secret wiring. Review each script before running it against a live environment.
+
+## System Verification
+
+- Backend: `cd backend && mvn test`
+- Frontend: `cd frontend && npm test`
+- Migration integrity: `./tools/verify-migrations.sh`
+- Production secret wiring: `./tools/verify-prod-secrets.sh`

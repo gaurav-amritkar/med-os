@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedCore — Staff Management</title>
+<link rel="stylesheet" href="../assets/medcore.css">
+</head>
+<body data-active="staff-management" data-title="Staff Management">
+
+  <div class="stack">
+
+    <div class="grid grid-4">
+      <section class="card stat-card"><div class="stat-label">On duty now</div><div class="stat-value">142</div><div class="stat-delta">of 168 rostered</div></section>
+      <section class="card stat-card"><div class="stat-label">Nurses on shift</div><div class="stat-value">58</div><div class="stat-delta up">coverage 100%</div></section>
+      <section class="card stat-card"><div class="stat-label">Doctors on shift</div><div class="stat-value">23</div><div class="stat-delta">4 on call · 2 on leave</div></section>
+      <section class="card stat-card"><div class="stat-label">Open leave requests</div><div class="stat-value" style="color:#b45309;">9</div><div class="stat-delta">3 need coverage plan</div></section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:1;">
+        <div class="card-head"><div class="card-title">Headcount by role</div></div>
+        <div id="roles"></div>
+      </section>
+
+      <section class="card" style="flex:1.6;">
+        <div class="card-head">
+          <div class="card-title">Shift coverage — next 7 days</div>
+          <div class="legend">
+            <span><i class="sq" style="background:var(--green);"></i>Full</span>
+            <span><i class="sq" style="background:var(--orange);"></i>Short</span>
+            <span><i class="sq" style="background:var(--red);"></i>Gap</span>
+          </div>
+        </div>
+        <div class="table-wrap" style="box-shadow: none; border: none; background: transparent;">
+          <table>
+            <thead><tr><th>Unit</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+            <tbody>
+              <tr><td><b>Ward A</b></td><td><span class="tag tag-green">6/5</span></td><td><span class="tag tag-green">6/5</span></td><td><span class="tag tag-orange">4/5</span></td><td><span class="tag tag-green">6/5</span></td><td><span class="tag tag-green">5/5</span></td><td><span class="tag tag-orange">4/5</span></td><td><span class="tag tag-orange">4/5</span></td></tr>
+              <tr><td><b>Ward B</b></td><td><span class="tag tag-green">5/4</span></td><td><span class="tag tag-green">5/4</span></td><td><span class="tag tag-green">5/4</span></td><td><span class="tag tag-red">3/4</span></td><td><span class="tag tag-green">4/4</span></td><td><span class="tag tag-green">4/4</span></td><td><span class="tag tag-orange">3/4</span></td></tr>
+              <tr><td><b>ICU</b></td><td><span class="tag tag-green">8/8</span></td><td><span class="tag tag-orange">7/8</span></td><td><span class="tag tag-green">8/8</span></td><td><span class="tag tag-green">8/8</span></td><td><span class="tag tag-red">6/8</span></td><td><span class="tag tag-green">8/8</span></td><td><span class="tag tag-green">8/8</span></td></tr>
+              <tr><td><b>Emergency</b></td><td><span class="tag tag-green">7/6</span></td><td><span class="tag tag-green">7/6</span></td><td><span class="tag tag-orange">5/6</span></td><td><span class="tag tag-green">6/6</span></td><td><span class="tag tag-green">6/6</span></td><td><span class="tag tag-orange">5/6</span></td><td><span class="tag tag-red">4/6</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card" style="flex:2;">
+        <div class="card-head">
+          <div class="card-title">Today's roster — morning shift</div>
+          <button class="btn small">Edit roster</button>
+        </div>
+        <div class="table-wrap" style="box-shadow:none; border:none;">
+          <table>
+            <thead><tr><th>Staff</th><th>Role</th><th>Unit</th><th>Shift</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><b>Dr. Kavya Iyer</b></td><td class="weak">Intensivist</td><td>ICU</td><td>07:00 – 19:00</td><td><span class="tag tag-blue">On duty</span></td></tr>
+              <tr><td><b>Dr. Imran Sheikh</b></td><td class="weak">ER Physician</td><td>Emergency</td><td>07:00 – 19:00</td><td><span class="tag tag-blue">On duty</span></td></tr>
+              <tr><td><b>Sr. Meera Joshi</b></td><td class="weak">Nurse — Ward A</td><td>Ward A</td><td>07:00 – 14:00</td><td><span class="tag tag-blue">On duty</span></td></tr>
+              <tr><td><b>Sr. Anil Vaz</b></td><td class="weak">Nurse — Ward B</td><td>Ward B</td><td>14:00 – 21:00</td><td><span class="tag tag-gray tag-plain">In later</span></td></tr>
+              <tr><td><b>Dr. Rahul Menon</b></td><td class="weak">Pediatrician</td><td>Ward C</td><td>—</td><td><span class="tag tag-orange">On leave</span></td></tr>
+              <tr><td><b>Tech. Sana Qureshi</b></td><td class="weak">Lab Tech</td><td>Lab</td><td>07:00 – 15:00</td><td><span class="tag tag-blue">On duty</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" style="flex:1;">
+        <div class="card-head"><div class="card-title">Leave &amp; coverage notes</div></div>
+        <div class="alert-row"><span class="tag tag-orange">Wed</span><div><div style="font-weight:600;">Ward A is 1 nurse short</div><div style="font-size:12.5px; color:var(--text);">Float pool has 1 available — assign?</div></div></div>
+        <div class="alert-row"><span class="tag tag-red">Thu</span><div><div style="font-weight:600;">Ward B has a gap</div><div style="font-size:12.5px; color:var(--text);">2 on leave same day — needs re-plan</div></div></div>
+        <div class="alert-row"><span class="tag tag-red">Fri</span><div><div style="font-weight:600;">ICU critical</div><div style="font-size:12.5px; color:var(--text);">2 vacancies Fri night shift</div></div></div>
+      </section>
+    </div>
+
+  </div>
+
+  <script src="../assets/shell.js" defer></script>
+  <script src="../assets/charts.js" defer></script>
+  <script>
+    window.addEventListener("load", () => {
+      Charts.hBars(document.getElementById("roles"), [
+        { name: "Nurses", value: 96 },
+        { name: " Doctors", value: 34 },
+        { name: "Technicians", value: 41 },
+        { name: "Admin", value: 27 },
+        { name: "Housekeeping", value: 38 },
+      ]);
+    });
+  </script>
+</body>
+</html>
