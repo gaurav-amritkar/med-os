@@ -3,6 +3,56 @@ import { billingApi, patientApi } from '../api';
 import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
+function toCents(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100);
+}
+
+function invoicePreview(charges, discountValue) {
+  const taxableBases = new Map();
+  charges.forEach((charge) => {
+    const rate = Number(charge.gstPercent) || 0;
+    taxableBases.set(rate, (taxableBases.get(rate) || 0) + toCents(charge.amount));
+  });
+  const groups = [...taxableBases.entries()]
+    .map(([rate, baseCents]) => ({ rate, baseCents }))
+    .sort((a, b) => a.rate - b.rate);
+  const subtotalCents = groups.reduce((sum, group) => sum + group.baseCents, 0);
+  const numericDiscount = Number(discountValue) || 0;
+  const discountCents = toCents(numericDiscount);
+  if (numericDiscount < 0 || discountCents > subtotalCents) {
+    return { subtotalCents, totalCents: 0, valid: false };
+  }
+  if (discountCents === 0) {
+    return {
+      subtotalCents,
+      totalCents: charges.reduce((sum, charge) => sum + toCents(charge.totalAmount), 0),
+      valid: true,
+    };
+  }
+
+  const denominator = BigInt(subtotalCents);
+  let allocatedCents = 0;
+  const shares = groups.map((group) => {
+    const numerator = BigInt(discountCents) * BigInt(group.baseCents);
+    const floorCents = Number(numerator / denominator);
+    allocatedCents += floorCents;
+    return { ...group, floorCents, remainder: numerator % denominator };
+  });
+  const remainingCents = discountCents - allocatedCents;
+  shares.sort((a, b) => a.remainder === b.remainder
+    ? a.rate - b.rate
+    : a.remainder > b.remainder ? -1 : 1);
+  const gstCents = shares.reduce((sum, share, index) => {
+    const allocatedDiscount = share.floorCents + (index < remainingCents ? 1 : 0);
+    const discountedBase = share.baseCents - allocatedDiscount;
+    const rateCents = BigInt(toCents(share.rate));
+    const taxNumerator = BigInt(discountedBase) * rateCents;
+    return sum + Number((taxNumerator + 5000n) / 10000n);
+  }, 0);
+
+  return { subtotalCents, totalCents: subtotalCents - discountCents + gstCents, valid: true };
+}
+
 export default function Billing() {
   const [patients, setPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -14,6 +64,8 @@ export default function Billing() {
   const [showPaymentModal, setShowPaymentModal] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentMethod: 'cash', transactionRef: '' });
   const addToast = useToastStore((s) => s.addToast);
+  const selectedChargeItems = unbilledCharges.filter((charge) => selectedCharges.includes(charge.id));
+  const preview = invoicePreview(selectedChargeItems, invoiceDiscount);
 
   useEffect(() => {
     patientApi.list().then(({ data }) => setPatients(data)).catch(() => {});
@@ -26,6 +78,7 @@ export default function Billing() {
     // invoices the wrong person — reachable by ordinary mis-clicking, and the
     // happy path looks fine, so it survives manual testing.
     setSelectedCharges([]);
+    setInvoiceDiscount(0);
     setShowInvoiceModal(false);
     try {
       const [unbilledRes, invRes] = await Promise.all([
@@ -45,6 +98,10 @@ export default function Billing() {
 
   const generateInvoice = async () => {
     if (!selectedPatient || selectedCharges.length === 0) return;
+    if (!preview.valid) {
+      addToast('Discount cannot exceed the selected charges subtotal', 'critical');
+      return;
+    }
     // Second guard: only charge ids that belong to the patient being billed. The
     // reset above should make this a no-op, but posting another patient's
     // charge id is the one mistake on this page that reaches the ledger.
@@ -244,22 +301,23 @@ export default function Billing() {
               {unbilledCharges.length === 0 && <p>No unbilled charges available.</p>}
             </div>
             <div className="form-group">
-              <label>Discount (₹)</label>
-              <input type="number" min={0} value={invoiceDiscount}
+              <label htmlFor="invoice-discount">Discount (₹)</label>
+              <input id="invoice-discount" type="number" min={0} max={(preview.subtotalCents / 100).toFixed(2)} step="0.01" value={invoiceDiscount}
                 onChange={(e) => setInvoiceDiscount(parseFloat(e.target.value) || 0)} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
               <span>{selectedCharges.length} charges selected</span>
-              <span>
-                Total: ₹{unbilledCharges.filter(c => selectedCharges.includes(c.id)).reduce((s, c) => s + parseFloat(c.totalAmount), 0).toFixed(2)}
-              </span>
+              <span>Total: ₹{(preview.totalCents / 100).toFixed(2)}</span>
             </div>
+            {!preview.valid && <p role="alert" style={{ color: 'var(--critical)', marginBottom: 12 }}>Discount cannot exceed the selected charges subtotal of ₹{(preview.subtotalCents / 100).toFixed(2)}.</p>}
+            {selectedCharges.length === 0 && <p style={{ color: 'var(--ink-faint)', marginBottom: 12 }}>Select at least one charge to generate an invoice.</p>}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button className="btn-ghost" onClick={() => { setSelectedCharges(unbilledCharges.map(c => c.id)); }}>
-                Select All
+                Select all {unbilledCharges.length} charges
               </button>
+              {selectedCharges.length > 0 && <button className="btn-ghost" onClick={() => setSelectedCharges([])}>Clear selection</button>}
               <button className="btn-primary" onClick={generateInvoice}
-                disabled={selectedCharges.length === 0}>
+                disabled={selectedCharges.length === 0 || !preview.valid}>
                 Generate Invoice
               </button>
             </div>
