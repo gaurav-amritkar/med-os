@@ -262,7 +262,7 @@ export default function LabOrders() {
 
 function FilterBarPlaceholder({ children, onApply, onClear }) {
   return (
-    <div className="filter-bar" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+    <div className="filter-bar filter-bar-inline">
       {children}
       <button type="button" className="btn-ghost btn-sm" onClick={onClear}>Clear</button>
       <button type="button" className="btn-primary btn-sm" onClick={onApply}>Apply</button>

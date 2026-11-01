@@ -1774,3 +1774,14 @@ select[aria-invalid='true'] {
   box-shadow: none;
   transform: none;
 }
+
+/* lab orders: inline filter bar on the lab orders page */
+.filter-bar-inline {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  margin-bottom: var(--s4);
+}
+.filter-bar-inline > button {
+  flex: 0 0 auto;
+}
