@@ -1,4 +1,4 @@
--- V10__lab_role.sql — add the dedicated LAB role (issue #63).
+-- V15__lab_role.sql — add the dedicated LAB role (issue #63).
 --
 -- lab_orders needs a role that can record results and update order status
 -- without being a doctor or a nurse. Reusing NURSE would over-privilege
