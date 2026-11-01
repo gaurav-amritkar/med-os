@@ -154,6 +154,54 @@ class JdbcDekReencryptorTest {
     }
 
     @Test
+    @DisplayName("legacy backfill converts unversioned ciphertext and plaintext to kv1.d1:")
+    void legacyBackfillConvertsUnversionedValues() {
+        UUID tenant = createTenant();
+        // One patient with versioned d1 ciphertext, one encounter with plaintext.
+        UUID patientId = addPatient(tenant, "Asha", "9876500011");
+        UUID encounterId = addEncounter(tenant, patientId, "fever", "viral");
+        TenantContext.clear();
+
+        // Corrupt one patient name field to plaintext to simulate a never-encrypted value.
+        jdbc.update(
+                "UPDATE patients SET name = ? WHERE id = ?",
+                "Plaintext Asha", patientId);
+
+        // Verify before backfill: unversioned values exist.
+        DekReencryptor.Verification before = reencryptor.verify(tenant, 1, false, true);
+        assertThat(before.notAtTarget()).isGreaterThan(0);
+        assertThat(before.passed()).isFalse();
+
+        DekRotationService.Result result = service().legacyBackfill(tenant);
+
+        assertThat(result.status()).isEqualTo(DekRotationService.Status.COMPLETED);
+        assertThat(result.rowsRewritten()).isGreaterThan(0);
+
+        // After backfill: no unversioned values remain.
+        DekReencryptor.Verification after = reencryptor.verify(tenant, 1, false, true);
+        assertThat(after.notAtTarget()).isZero();
+        assertThat(after.passed()).isTrue();
+
+        // Idempotent: re-running is a no-op.
+        DekRotationService.Result rerun = service().legacyBackfill(tenant);
+        assertThat(rerun.status()).isEqualTo(DekRotationService.Status.COMPLETED);
+        assertThat(rerun.rowsRewritten()).isZero();
+
+        // Data still decrypts through the entity path.
+        TenantContext.setTenantId(tenant);
+        try {
+            Patient patient = patientRepository.findById(patientId).orElseThrow();
+            assertThat(patient.getName()).isEqualTo("Plaintext Asha");
+            assertThat(patient.getPhone()).isEqualTo("9876500011");
+            Encounter encounter = encounterRepository.findById(encounterId).orElseThrow();
+            assertThat(encounter.getChiefComplaint()).isEqualTo("fever");
+            assertThat(encounter.getDiagnosis()).isEqualTo("viral");
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
     @DisplayName("writes are refused while a DEK rotation is in progress")
     void writesRefusedDuringRotation() {
         UUID tenant = createTenant();
@@ -235,7 +283,7 @@ class JdbcDekReencryptorTest {
 
         // One row per table: enough to leave the tenant genuinely half-rotated.
         DekReencryptor.Batch batch = reencryptor.reencryptBatch(
-                tenant, 2, false, DekReencryptor.Cursor.start(), 1);
+                tenant, 2, false, false, DekReencryptor.Cursor.start(), 1);
         assertThat(batch.hasMore()).isTrue();
         assertThat(countAtGeneration(tenant, "patients", "name", 1)).isEqualTo(1);
         assertThat(countAtGeneration(tenant, "patients", "name", 2)).isEqualTo(1);
@@ -251,13 +299,13 @@ class JdbcDekReencryptorTest {
         // Finish the scan; it must converge rather than revisit the same first row forever.
         DekReencryptor.Cursor cursor = batch.next();
         while (batch.hasMore()) {
-            batch = reencryptor.reencryptBatch(tenant, 2, false, cursor, 1);
+            batch = reencryptor.reencryptBatch(tenant, 2, false, false, cursor, 1);
             cursor = batch.next();
         }
 
         assertThat(countAtGeneration(tenant, "patients", "name", 1)).isZero();
         assertThat(countAtGeneration(tenant, "encounters", "chief_complaint", 1)).isZero();
-        assertThat(reencryptor.verify(tenant, 2, false).passed()).isTrue();
+        assertThat(reencryptor.verify(tenant, 2, false, false).passed()).isTrue();
     }
 
     @Test
@@ -284,7 +332,7 @@ class JdbcDekReencryptorTest {
                 .isNotEqualTo(oldIndex);
         assertThat(newIndex).isEqualTo(
                 BlindIndexUtil.indexName("Asha", holder.findBlindIndexKeyOrNull(tenant)));
-        assertThat(reencryptor.verify(tenant, 2, true).passed()).isTrue();
+        assertThat(reencryptor.verify(tenant, 2, true, false).passed()).isTrue();
 
         Boolean recorded = jdbc.queryForObject(
                 "SELECT bi_key_rotated FROM key_rotations WHERE tenant_id = ?", Boolean.class, tenant);
@@ -299,7 +347,7 @@ class JdbcDekReencryptorTest {
         addEncounter(tenant, patientId, "fever", "viral");
         TenantContext.clear();
 
-        DekReencryptor.Verification before = reencryptor.verify(tenant, 2, false);
+        DekReencryptor.Verification before = reencryptor.verify(tenant, 2, false, false);
         // Two non-null patient values (name, phone) and four encounter values.
         assertThat(before.notAtTarget()).isEqualTo(6);
         assertThat(before.passed()).isFalse();
@@ -308,7 +356,7 @@ class JdbcDekReencryptorTest {
         DekRotationService.Result result = service()
                 .rotate(tenant, "ops@example.test", backup(), false);
         assertThat(result.status()).isEqualTo(DekRotationService.Status.COMPLETED);
-        assertThat(reencryptor.verify(tenant, 2, false).passed()).isTrue();
+        assertThat(reencryptor.verify(tenant, 2, false, false).passed()).isTrue();
     }
 
     // ------------------------------------------------------------------ fixtures
@@ -337,7 +385,7 @@ class JdbcDekReencryptorTest {
             // The uncommitted insert is invisible to the batch scan and verification.
             assertThat(service().rotate(tenant, "ops", backup(), false).status())
                     .isEqualTo(DekRotationService.Status.COMPLETED);
-            assertThat(reencryptor.verify(tenant, 2, false).passed()).isTrue();
+            assertThat(reencryptor.verify(tenant, 2, false, false).passed()).isTrue();
             connection.commit();
         }
 
