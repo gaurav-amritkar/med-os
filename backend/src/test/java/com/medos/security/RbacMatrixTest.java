@@ -84,6 +84,7 @@ class RbacMatrixTest {
     private String receptionistToken;
     private String pharmacistToken;
     private String billingToken;
+    private String labToken;
 
     @BeforeEach
     void setUp() {
@@ -105,6 +106,7 @@ class RbacMatrixTest {
         createUser("reception", "reception", TenantUser.UserRole.receptionist);
         createUser("pharmacy", "pharmacy", TenantUser.UserRole.pharmacist);
         createUser("billing", "billing", TenantUser.UserRole.billing);
+        createUser("lab", "lab", TenantUser.UserRole.lab);
 
         adminToken = getToken("admin");
         doctorToken = getToken("doctor");
@@ -112,6 +114,7 @@ class RbacMatrixTest {
         receptionistToken = getToken("reception");
         pharmacistToken = getToken("pharmacy");
         billingToken = getToken("billing");
+        labToken = getToken("lab");
     }
 
     private void createUser(String username, String password, TenantUser.UserRole role) {
@@ -369,6 +372,45 @@ class RbacMatrixTest {
                 new com.medos.dto.PaymentRequest());
     }
 
+    // ============ LAB ORDERS ============
+
+    @Test
+    void rbac_lab_orders_post_create() throws Exception {
+        // admin, doctor: 201 | others: 403
+        testEndpoint("POST", "/api/v1/lab-orders",
+                new String[]{"admin", "doctor"},
+                new String[]{"nurse", "receptionist", "pharmacist", "billing", "lab"},
+                new com.medos.dto.CreateLabOrderRequest(
+                        UUID.randomUUID(), UUID.randomUUID(), "CBC", null, "normal"));
+    }
+
+    @Test
+    void rbac_lab_orders_get_list() throws Exception {
+        // all authenticated: 200
+        testEndpoint("GET", "/api/v1/lab-orders",
+                new String[]{"admin", "doctor", "nurse", "receptionist", "pharmacist", "billing", "lab"},
+                new String[]{},
+                null);
+    }
+
+    @Test
+    void rbac_lab_orders_patch_status() throws Exception {
+        // admin, lab: 200 | others: 403
+        testEndpoint("PATCH", "/api/v1/lab-orders/" + UUID.randomUUID() + "/status",
+                new String[]{"admin", "lab"},
+                new String[]{"doctor", "nurse", "receptionist", "pharmacist", "billing"},
+                new com.medos.dto.UpdateLabOrderStatusRequest("collected"));
+    }
+
+    @Test
+    void rbac_lab_orders_patch_result() throws Exception {
+        // admin, lab: 200 | others: 403
+        testEndpoint("PATCH", "/api/v1/lab-orders/" + UUID.randomUUID() + "/result",
+                new String[]{"admin", "lab"},
+                new String[]{"doctor", "nurse", "receptionist", "pharmacist", "billing"},
+                new com.medos.dto.RecordLabResultRequest("negative"));
+    }
+
     // ============ HELPER ============
 
     private void testEndpoint(String method, String url,
@@ -383,6 +425,7 @@ class RbacMatrixTest {
                 case "receptionist" -> receptionistToken;
                 case "pharmacist" -> pharmacistToken;
                 case "billing" -> billingToken;
+                case "lab" -> labToken;
                 default -> throw new IllegalArgumentException("Unknown role: " + role);
             };
 
@@ -407,6 +450,7 @@ class RbacMatrixTest {
                 case "receptionist" -> receptionistToken;
                 case "pharmacist" -> pharmacistToken;
                 case "billing" -> billingToken;
+                case "lab" -> labToken;
                 default -> throw new IllegalArgumentException("Unknown role: " + role);
             };
 

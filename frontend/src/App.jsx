@@ -10,6 +10,7 @@ import TokenQueue from './pages/TokenQueue';import Encounters from './pages/Enco
 import Pharmacy from './pages/Pharmacy';
 import Admissions from './pages/Admissions';
 import Billing from './pages/Billing';
+import LabOrders from './pages/LabOrders';
 import Users from './pages/Users';
 import Onboarding from './pages/Onboarding';
 import IconGallery from './pages/IconGallery';
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/enquiries" element={<ProtectedRoute roles={['ADMIN','RECEPTIONIST']}><EnquiryDesk /></ProtectedRoute>} />
           <Route path="/appointments" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><Appointments /></ProtectedRoute>} />
           <Route path="/appointments/queue" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','RECEPTIONIST']}><TokenQueue /></ProtectedRoute>} />          <Route path="/billing" element={<ProtectedRoute roles={['ADMIN','BILLING']}><Billing /></ProtectedRoute>} />
+          <Route path="/lab-orders" element={<ProtectedRoute roles={['ADMIN','DOCTOR','NURSE','LAB']}><LabOrders /></ProtectedRoute>} />
           <Route path="/staff" element={<ProtectedRoute roles={['ADMIN']}><Users /></ProtectedRoute>} />
         </Route>
 
