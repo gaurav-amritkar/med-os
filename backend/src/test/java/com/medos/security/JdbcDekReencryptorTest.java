@@ -1,8 +1,10 @@
 package com.medos.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.medos.entity.Encounter;
+import com.medos.entity.KeyRotation;
 import com.medos.entity.Patient;
 import com.medos.entity.Tenant;
 import com.medos.repository.EncounterRepository;
@@ -93,7 +95,7 @@ class JdbcDekReencryptorTest {
         // Rebuild the production pair against the real store. A unit test earlier in the
         // same JVM may have installed an in-memory holder, and a cached Spring context
         // never re-runs EncryptionConfig to undo it.
-        holder = new TenantKeyHolder(kekBase64, keyStore, txManager);
+        holder = new TenantKeyHolder(kekBase64, keyStore, txManager, rotations);
         TenantKeyHolder.setInstance(holder);
         TenantKeyResolverFactory.setInstance(holder);
         EncryptionUtil.init(kekBase64);
@@ -146,6 +148,72 @@ class JdbcDekReencryptorTest {
             Encounter encounter = encounterRepository.findById(encounterA).orElseThrow();
             assertThat(encounter.getChiefComplaint()).isEqualTo("fever");
             assertThat(encounter.getDiagnosis()).isEqualTo("viral");
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("writes are refused while a DEK rotation is in progress")
+    void writesRefusedDuringRotation() {
+        UUID tenant = createTenant();
+        addPatient(tenant, "Asha", "9876500011");
+        TenantContext.clear();
+
+        // Simulate a rotation in progress: an unfinished key_rotations row.
+        KeyRotation row = new KeyRotation();
+        row.setOperation("dek_rotation");
+        row.setTenantId(tenant);
+        row.setDekGeneration(2);
+        row.setStartedAt(LocalDateTime.now());
+        row.setStatus("in_progress");
+        row.setInitiatedBy("ops@example.test");
+        row.setBackupRef("pgdump://test/2026-10-24");
+        rotations.saveAndFlush(row);
+
+        // Resolving the DEK (which the write path does to encrypt) must be refused.
+        TenantContext.setTenantId(tenant);
+        try {
+            assertThatThrownBy(() -> holder.resolveDek(tenant))
+                    .isInstanceOf(IllegalStateException.class)
+                    .message().contains("rotation");
+        } finally {
+            TenantContext.clear();
+        }
+
+        // A completed rotation does not fence: the fence only covers unfinished rows.
+        row.setStatus("completed");
+        row.setCompletedAt(LocalDateTime.now());
+        rotations.saveAndFlush(row);
+
+        TenantContext.setTenantId(tenant);
+        try {
+            assertThat(holder.resolveDek(tenant)).hasSize(32);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("a crashed rotation does not block writes indefinitely")
+    void crashedRotationLiftsFenceAfterTtl() {
+        UUID tenant = createTenant();
+        TenantContext.clear();
+
+        KeyRotation row = new KeyRotation();
+        row.setOperation("dek_rotation");
+        row.setTenantId(tenant);
+        row.setDekGeneration(2);
+        row.setStartedAt(LocalDateTime.now().minusMinutes(31));
+        row.setStatus("in_progress");
+        row.setInitiatedBy("ops@example.test");
+        row.setBackupRef("pgdump://test/2026-10-24");
+        rotations.saveAndFlush(row);
+
+        // Older than the 30-minute TTL: treated as crashed, fence lifts.
+        TenantContext.setTenantId(tenant);
+        try {
+            assertThat(holder.resolveDek(tenant)).hasSize(32);
         } finally {
             TenantContext.clear();
         }

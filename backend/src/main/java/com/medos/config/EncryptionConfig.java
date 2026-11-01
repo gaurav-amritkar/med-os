@@ -1,5 +1,6 @@
 package com.medos.config;
 
+import com.medos.repository.KeyRotationRepository;
 import com.medos.security.TenantKeyHolder;
 import com.medos.security.TenantKeyResolverFactory;
 import com.medos.security.TenantKeyStore;
@@ -28,6 +29,7 @@ public class EncryptionConfig {
     private String piiEncryptionKey;
 
     private final TenantKeyStore tenantKeyStore;
+    private final KeyRotationRepository keyRotationRepository;
     private final org.springframework.transaction.PlatformTransactionManager txManager;
 
     @PostConstruct
@@ -37,7 +39,8 @@ public class EncryptionConfig {
                     "PII encryption key (medos.security.pii-encryption-key) is required. "
                             + "Generate with: openssl rand -base64 32");
         }
-        TenantKeyHolder holder = new TenantKeyHolder(piiEncryptionKey, tenantKeyStore, txManager);
+        TenantKeyHolder holder = new TenantKeyHolder(piiEncryptionKey, tenantKeyStore,
+                txManager, keyRotationRepository);
         TenantKeyHolder.setInstance(holder);
         // PiiCiphertextFormat resolves the acting tenant's DEK through the factory, so the
         // holder has to be registered there too. Setting only the holder leaves the factory

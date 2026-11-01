@@ -749,10 +749,45 @@ Known limitations, stated plainly:
   not luck (`TenantDekRotationTest` pins it). Correct labelling is not the same as
   permission to destroy a key; the retained archive is what closes the race above.
 
+### Write fence during rotation (#206)
+
+A new write resolves the tenant's DEK at encrypt time. If that DEK is generation N
+and a rotation archives N before the write commits, the committed row would carry
+`kv1.dN:` under a key the rotation may later destroy — permanently unreadable.
+
+To prevent this, **writes are refused while a tenant has an unfinished
+`dek_rotation` row** (`status` is `in_progress` or
+`reencryption_incomplete`). The check lives in `TenantKeyHolder.resolveDek`:
+instead of returning the DEK, it throws `IllegalStateException` with a message
+naming the rotation and the 30-minute crash TTL. Reads are unaffected — the old
+generation stays archived and its ciphertext remains readable.
+
+The rotation's own re-encryption is excluded from the fence: it needs to resolve
+DEKs to rewrite ciphertext, and it sets a short-lived flag for the duration of its
+batch loop so it does not fence itself.
+
+**Behaviour summary:**
+
+| Situation | Writes | Reads | Notes |
+|---|---|---|---|
+| No rotation row | allowed | allowed | Normal operation |
+| `in_progress` / `reencryption_incomplete`, under 30 min | refused | allowed | Rotation in progress |
+| Same status, over 30 min | allowed | allowed | Treated as crashed; fence lifts |
+| `completed` / `failed` | allowed | allowed | Rotation finished |
+
+A crashed rotation cannot block writes indefinitely: the 30-minute TTL on
+`started_at` means a row that never completes is treated as abandoned and the
+fence lifts. An operator can still rerun the same command to resume.
+
+**The backup gate is unchanged.** The fence prevents the race from happening; the
+verified backup recorded on the audit row remains the last-resort recovery path if
+a rotation is wrong.
+
 > **Fix for #206 (2026-10-29):** A completed rotation retains generation N in
-> `tenant_dek_history`. This is durable across restarts and has no guessed grace
-> period: a transaction that resolved N before the advance can commit later and its
-> `kv1.dN:` value remains readable. Key destruction is intentionally unavailable
+> `tenant_dek_history`. A transaction that resolved N before the advance can commit
+> later and its `kv1.dN:` value remains readable because the archive is retained.
+> In addition, new writes are refused during the rotation window so no transaction
+> can resolve N after the advance. Key destruction is intentionally unavailable
 > until a separate retirement operation can drain writes and re-verify safely.
 
 ---

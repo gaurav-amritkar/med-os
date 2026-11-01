@@ -223,33 +223,44 @@ public class DekRotationService {
         }
 
         int rowsRewritten = 0;
+        final TenantKeyHolder holder = resolver instanceof TenantKeyHolder h ? h : null;
+        final boolean reencrypting = holder != null;
+        if (reencrypting) {
+            holder.setRotationReencrypting(true);
+        }
         try {
-            DekReencryptor.Cursor cursor = DekReencryptor.Cursor.start();
-            while (true) {
-                DekReencryptor.Batch batch = reencryptor.reencryptBatch(
-                        tenantId, toGeneration, rebuildIndex, cursor, batchSize);
-                rowsRewritten += batch.rowsRewritten();
-                cursor = batch.next();
-                if (!batch.hasMore()) {
-                    break;
+            try {
+                DekReencryptor.Cursor cursor = DekReencryptor.Cursor.start();
+                while (true) {
+                    DekReencryptor.Batch batch = reencryptor.reencryptBatch(
+                            tenantId, toGeneration, rebuildIndex, cursor, batchSize);
+                    rowsRewritten += batch.rowsRewritten();
+                    cursor = batch.next();
+                    if (!batch.hasMore()) {
+                        break;
+                    }
+                }
+
+                DekReencryptor.Verification verification =
+                        reencryptor.verify(tenantId, toGeneration, rebuildIndex);
+                if (!verification.passed()) {
+                    return incomplete(row, fromGeneration, toGeneration, rowsRewritten,
+                            "verification found " + verification.notAtTarget() + " value(s) not at "
+                                    + "generation " + toGeneration + " and "
+                                    + verification.staleNameIndexes() + " stale name index(es); the old "
+                                    + "key was NOT destroyed — rerun the same command to resume");
+                }
+
+                // Do not destroy the archived generation here. Verification can only see
+                // committed rows; a transaction that encrypted under generation N before
+                // the advance may commit a dN value after this read-back. Retaining N keeps
+                // that late write readable across process restarts. Retirement is a separate
+                // future operation that must wait for transactions to drain and re-verify.
+            } finally {
+                if (reencrypting) {
+                    holder.setRotationReencrypting(false);
                 }
             }
-
-            DekReencryptor.Verification verification =
-                    reencryptor.verify(tenantId, toGeneration, rebuildIndex);
-            if (!verification.passed()) {
-                return incomplete(row, fromGeneration, toGeneration, rowsRewritten,
-                        "verification found " + verification.notAtTarget() + " value(s) not at "
-                                + "generation " + toGeneration + " and "
-                                + verification.staleNameIndexes() + " stale name index(es); the old "
-                                + "key was NOT destroyed — rerun the same command to resume");
-            }
-
-            // Do not destroy the archived generation here. Verification can only see
-            // committed rows; a transaction that encrypted under generation N before
-            // the advance may commit a dN value after this read-back. Retaining N keeps
-            // that late write readable across process restarts. Retirement is a separate
-            // future operation that must wait for transactions to drain and re-verify.
         } catch (RuntimeException e) {
             return incomplete(row, fromGeneration, toGeneration, rowsRewritten,
                     "re-encryption did not complete: " + e.getMessage()
