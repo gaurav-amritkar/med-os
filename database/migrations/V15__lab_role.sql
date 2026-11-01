@@ -5,14 +5,8 @@
 -- lab staff (they could sign encounters, prescribe, etc.), so a dedicated
 -- role is the honest model.
 --
--- Two CHECK constraints need updating: the users.role inline CHECK and
--- the tenant_users.role CHECK (if it exists from V5).
-
--- ---------------------------------------------------------------- users.role CHECK
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users
-    ADD CONSTRAINT users_role_check
-    CHECK (role IN ('admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'billing', 'lab'));
+-- role lives on tenant_users (per-membership), not on users (per-person),
+-- so only the tenant_users.role CHECK constraint needs updating.
 
 -- ---------------------------------------------------------------- tenant_users.role CHECK
 -- V5 named it tenant_users_role_check; if a prior migration already dropped it,
