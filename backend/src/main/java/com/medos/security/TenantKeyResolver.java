@@ -90,6 +90,19 @@ public interface TenantKeyResolver {
      */
     int destroyArchivedDek(UUID tenantId, int generation);
 
+    /**
+     * Whether writes for {@code tenantId} are currently fenced because a DEK rotation
+     * is between advancing the generation and destroying the old one.
+     *
+     * <p>While fenced, {@link #resolveDek(UUID)} refuses to return a DEK so no new
+     * write can encrypt under a generation the rotation may destroy. Reads are not
+     * fenced: the old generation stays archived and its ciphertext remains readable.
+     *
+     * @return true when an unfinished {@code dek_rotation} row exists for the tenant
+     *         and has not aged past the crash TTL.
+     */
+    boolean rotationFenced(UUID tenantId);
+
     /** Re-wrap all tenant key material under the current KEK. Requires previous KEK. */
     int rewrapAll();
 

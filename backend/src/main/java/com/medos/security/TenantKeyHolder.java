@@ -1,6 +1,8 @@
 package com.medos.security;
 
+import com.medos.entity.KeyRotation;
 import com.medos.entity.Tenant;
+import com.medos.repository.KeyRotationRepository;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.crypto.Cipher;
@@ -9,6 +11,9 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,11 +44,27 @@ public class TenantKeyHolder implements TenantKeyResolver {
     private static final int WRAP_IV_LENGTH = 12;
     private static final int WRAP_TAG_BITS = 128;
 
+    /**
+     * How long an unfinished rotation row keeps writes fenced before it is treated
+     * as crashed and the fence lifts. A rotation that crashes mid-run must not
+     * freeze writes forever; the row is resumable, so an operator can rerun it.
+     */
+    private static final long FENCE_TTL_MILLIS = Duration.ofMinutes(30).toMillis();
+
     private static volatile TenantKeyHolder instance;
 
     private final byte[] kek;
     private final TenantKeyStore keyStore;
-        private final SecureRandom random = new SecureRandom();
+    private final KeyRotationRepository keyRotationRepository;
+
+    /**
+     * True while the rotation's own re-encryption is running. The fence must not
+     * block the rotation from resolving DEKs to re-encrypt ciphertext; it only
+     * blocks new application writes.
+     */
+    private static final ThreadLocal<Boolean> ROTATION_REENCRYPTING = ThreadLocal.withInitial(() -> false);
+
+    private final SecureRandom random = new SecureRandom();
     // Package-private so the in-memory test subclass shares the same (dek, generation)
     // cache-pairing semantics without widening past the security package.
     final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -53,22 +74,30 @@ public class TenantKeyHolder implements TenantKeyResolver {
     private final org.springframework.transaction.support.TransactionTemplate txTemplate;
 
     public TenantKeyHolder(String base64Kek, TenantKeyStore keyStore) {
-        this(base64Kek, keyStore, DurationConst.DEK_CACHE_TTL_MILLIS, null);
+        this(base64Kek, keyStore, DurationConst.DEK_CACHE_TTL_MILLIS, null, null);
     }
 
     public TenantKeyHolder(String base64Kek, TenantKeyStore keyStore, long cacheTtlMillis) {
-        this(base64Kek, keyStore, cacheTtlMillis, null);
+        this(base64Kek, keyStore, cacheTtlMillis, null, null);
     }
 
     public TenantKeyHolder(String base64Kek, TenantKeyStore keyStore,
                            org.springframework.transaction.PlatformTransactionManager txManager) {
-        this(base64Kek, keyStore, DurationConst.DEK_CACHE_TTL_MILLIS, txManager);
+        this(base64Kek, keyStore, DurationConst.DEK_CACHE_TTL_MILLIS, txManager, null);
+    }
+
+    public TenantKeyHolder(String base64Kek, TenantKeyStore keyStore,
+                           org.springframework.transaction.PlatformTransactionManager txManager,
+                           KeyRotationRepository rotations) {
+        this(base64Kek, keyStore, DurationConst.DEK_CACHE_TTL_MILLIS, txManager, rotations);
     }
 
     public TenantKeyHolder(String base64Kek, TenantKeyStore keyStore, long cacheTtlMillis,
-                           org.springframework.transaction.PlatformTransactionManager txManager) {
+                           org.springframework.transaction.PlatformTransactionManager txManager,
+                           KeyRotationRepository rotations) {
         this.kek = decodeKek(base64Kek);
         this.keyStore = keyStore;
+        this.keyRotationRepository = rotations;
         this.cacheTtlMillis = cacheTtlMillis;
         this.txTemplate = txManager == null ? null
                 : new org.springframework.transaction.support.TransactionTemplate(txManager);
@@ -138,6 +167,13 @@ public class TenantKeyHolder implements TenantKeyResolver {
 
     public byte[] dekFor(UUID tenantId) {
         UUID acting = requireTenant(tenantId);
+        if (rotationFenced(acting)) {
+            throw new IllegalStateException(
+                    "A DEK rotation is in progress for tenant " + acting
+                            + ". Writes are refused until the rotation completes or the "
+                            + "rotation row ages out (" + FENCE_TTL_MILLIS / 1000
+                            + "s). The old DEK remains archived, so reads are unaffected.");
+        }
         long now = System.currentTimeMillis();
         CacheEntry cached = cache.get(acting);
         if (cached != null && cached.isFresh(now, cacheTtlMillis)) {
@@ -147,6 +183,46 @@ public class TenantKeyHolder implements TenantKeyResolver {
         byte[] dek = readStoredDek(acting);
         cache.put(acting, new CacheEntry(dek, generation, now));
         return dek;
+    }
+
+    /**
+     * Whether writes for the acting tenant are currently fenced because a DEK
+     * rotation is between advancing the generation and destroying the old one.
+     *
+     * <p>While fenced, {@link #resolveDek(UUID)} refuses to return a DEK so no new
+     * write can encrypt under a generation the rotation may destroy. Reads are not
+     * fenced: the old generation stays archived and its ciphertext remains readable.
+     *
+     * @return true when an unfinished {@code dek_rotation} row exists for the tenant
+     *         and has not aged past the crash TTL.
+     */
+    /**
+     * Call before re-encrypting ciphertext during a rotation, so the fence does not
+     * block the rotation's own DEK resolution. Cleared automatically by the caller.
+     */
+    public void setRotationReencrypting(boolean value) {
+        ROTATION_REENCRYPTING.set(value);
+    }
+
+    public boolean rotationFenced(UUID tenantId) {
+        if (ROTATION_REENCRYPTING.get()) {
+            return false; // the rotation's own re-encryption must not fence itself
+        }
+        if (keyRotationRepository == null) {
+            return false; // test holder without a rotation repository
+        }
+        UUID acting = requireTenant(tenantId);
+        List<KeyRotation> unfinished = keyRotationRepository
+                .findByOperationAndTenantIdOrderByStartedAtDesc("dek_rotation", acting);
+        if (unfinished.isEmpty()) {
+            return false;
+        }
+        KeyRotation latest = unfinished.get(0);
+        if (!List.of("in_progress", "reencryption_incomplete").contains(latest.getStatus())) {
+            return false;
+        }
+        long ageMillis = Duration.between(latest.getStartedAt(), LocalDateTime.now()).toMillis();
+        return ageMillis < FENCE_TTL_MILLIS;
     }
 
     /**
@@ -598,7 +674,7 @@ public class TenantKeyHolder implements TenantKeyResolver {
         private final Map<UUID, Map<Integer, byte[]>> archived = new ConcurrentHashMap<>();
 
         InMemoryTenantKeyHolder(String base64Kek) {
-            super(base64Kek, null, 60_000L, null);
+            super(base64Kek, null, 60_000L, null, null);
         }
 
         @Override
