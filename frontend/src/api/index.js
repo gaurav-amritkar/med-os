@@ -130,6 +130,18 @@ export const enquiryApi = {
   updateStatus: (id, data) => client.post(`/enquiries/${id}/status`, data),
 };
 
+/**
+ * Lab orders: order a test from an encounter; a lab role updates status and
+ * records results. Routes are role-gated on the server (DOCTOR/ADMIN create,
+ * LAB/ADMIN update status + result).
+ */
+export const labOrderApi = {
+  create: (data) => client.post('/lab-orders', data),
+  list: (params = {}) => client.get('/lab-orders', { params }),
+  updateStatus: (id, data) => client.patch(`/lab-orders/${id}/status`, data),
+  recordResult: (id, data) => client.patch(`/lab-orders/${id}/result`, data),
+};
+
 export const dashboardApi = {
   dashboard: () => client.get('/dashboard'),
   notifications: (unreadOnly) => client.get('/notifications', { params: { unreadOnly } }),

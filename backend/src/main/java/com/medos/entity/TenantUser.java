@@ -48,6 +48,6 @@ public class TenantUser {
     }
 
     public enum UserRole {
-        admin, doctor, nurse, receptionist, pharmacist, billing, super_admin
+        admin, doctor, nurse, receptionist, pharmacist, billing, super_admin, lab
     }
 }

@@ -17,6 +17,7 @@ const navItems = {
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
     { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/staff', label: 'Staff', icon: 'user' },
   ],
@@ -26,12 +27,14 @@ const navItems = {
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
   ],
   nurse: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/encounters', feature: 'encounters', label: 'Encounters', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'Admissions', icon: 'admissions' },
+    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
   ],
   receptionist: [
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
@@ -48,6 +51,11 @@ const navItems = {
     { to: '/', label: 'Dashboard', icon: 'dashboard' },
     { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
+  ],
+  lab: [
+    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/patients', label: 'Patients', icon: 'patients' },
+    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
   ],
 };
 
@@ -91,6 +99,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
+    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
     { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/staff', label: 'Staff', icon: 'user' },
   ];
