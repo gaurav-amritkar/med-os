@@ -397,7 +397,7 @@ class DekRotationServiceTest {
 
         @Override
         public Batch reencryptBatch(UUID tenantId, int toGeneration, boolean rebuildNameIndex,
-                                    Cursor cursor, int batchSize) {
+                                    boolean encryptPlaintext, Cursor cursor, int batchSize) {
             calls++;
             if (failOnBatch) {
                 throw new IllegalStateException("simulated crash while re-encrypting");
@@ -408,7 +408,8 @@ class DekRotationServiceTest {
         }
 
         @Override
-        public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt) {
+        public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt,
+                                   boolean encryptPlaintext) {
             return new Verification(10, notAtTarget, staleNameIndexes);
         }
     }

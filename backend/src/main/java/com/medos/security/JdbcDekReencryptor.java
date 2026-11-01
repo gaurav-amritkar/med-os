@@ -61,14 +61,14 @@ public class JdbcDekReencryptor implements DekReencryptor {
 
     @Override
     public Batch reencryptBatch(UUID tenantId, int toGeneration, boolean rebuildNameIndex,
-                                Cursor cursor, int batchSize) {
+                                boolean encryptPlaintext, Cursor cursor, int batchSize) {
         int size = batchSize <= 0 ? DEFAULT_BATCH_SIZE : batchSize;
         return inTransaction(() -> doBatch(tenantId, toGeneration, rebuildNameIndex,
-                cursor == null ? Cursor.start() : cursor, size));
+                encryptPlaintext, cursor == null ? Cursor.start() : cursor, size));
     }
 
     private Batch doBatch(UUID tenantId, int toGeneration, boolean rebuildNameIndex,
-                          Cursor cursor, int batchSize) {
+                          boolean encryptPlaintext, Cursor cursor, int batchSize) {
         PiiCiphertextFormat format = formatFor(tenantId, toGeneration);
         int rewritten = 0;
         long remaining = 0;
@@ -79,7 +79,8 @@ public class JdbcDekReencryptor implements DekReencryptor {
             UUID after = table.namesIndexed() ? afterPatients : afterEncounters;
             List<Row> rows = readRows(table, tenantId, after, batchSize);
             for (Row row : rows) {
-                if (rewriteRow(table, row, tenantId, toGeneration, rebuildNameIndex, format)) {
+                if (rewriteRow(table, row, tenantId, toGeneration, rebuildNameIndex,
+                        encryptPlaintext, format)) {
                     rewritten++;
                 }
             }
@@ -102,12 +103,12 @@ public class JdbcDekReencryptor implements DekReencryptor {
      */
     private boolean rewriteRow(EncryptedPiiTables.Table table, Row row, UUID tenantId,
                                int toGeneration, boolean rebuildNameIndex,
-                               PiiCiphertextFormat format) {
+                               boolean encryptPlaintext, PiiCiphertextFormat format) {
         Map<String, String> rewritten = new LinkedHashMap<>();
         boolean changed = false;
         for (String column : table.encryptedColumns()) {
             String stored = row.values().get(column);
-            String next = rewriteValue(stored, toGeneration, format);
+            String next = rewriteValue(stored, toGeneration, encryptPlaintext, format);
             rewritten.put(column, next);
             if (!Objects.equals(stored, next)) {
                 changed = true;
@@ -140,12 +141,17 @@ public class JdbcDekReencryptor implements DekReencryptor {
     /**
      * One value's move to the target generation.
      *
-     * <p>Already-current ciphertext and plaintext are returned unchanged. A value that
-     * names a generation newer than the target is refused: that means another rotation
+     * <p>Already-current ciphertext is left byte-identical. A value that names a
+     * generation newer than the target is refused: that means another rotation
      * overtook this one, and silently downgrading it would destroy data the newer key
      * protects.
+     *
+     * <p>When {@code encryptPlaintext} is true, values that carry no version prefix at
+     * all (never-encrypted plaintext) are also encrypted into {@code kv1.d<target>:
+     * } so no unversioned value remains after the backfill.
      */
-    private String rewriteValue(String stored, int toGeneration, PiiCiphertextFormat format) {
+    private String rewriteValue(String stored, int toGeneration, boolean encryptPlaintext,
+                                PiiCiphertextFormat format) {
         if (stored == null || stored.isBlank()) {
             return stored;
         }
@@ -162,14 +168,18 @@ public class JdbcDekReencryptor implements DekReencryptor {
             return format.encrypt(format.decrypt(stored));
         }
         if (!PiiCiphertextFormat.isLegacyCiphertext(stored)) {
-            // Pre-encryption plaintext, or a value that was never encrypted. Leave it.
+            // Pre-encryption plaintext, or a value that was never encrypted.
+            if (encryptPlaintext) {
+                return format.encrypt(stored);
+            }
             return stored;
         }
         return format.encrypt(format.decrypt(stored));
     }
 
     @Override
-    public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt) {
+    public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt,
+                               boolean encryptPlaintext) {
         PiiCiphertextFormat format = formatFor(tenantId, targetGeneration);
         long valuesChecked = 0;
         long notAtTarget = 0;
@@ -199,7 +209,11 @@ public class JdbcDekReencryptor implements DekReencryptor {
                             if (generation != targetGeneration) {
                                 notAtTarget++;
                             }
-                        } else if (PiiCiphertextFormat.isLegacyCiphertext(stored)) {
+                        } else if (encryptPlaintext
+                                || PiiCiphertextFormat.isLegacyCiphertext(stored)) {
+                            // Unversioned values (legacy ciphertext, or plaintext when
+                            // encryptPlaintext is set) must all be converted before the
+                            // legacy branch can be narrowed.
                             notAtTarget++;
                         }
                     }

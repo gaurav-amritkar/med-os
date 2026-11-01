@@ -233,7 +233,7 @@ public class DekRotationService {
                 DekReencryptor.Cursor cursor = DekReencryptor.Cursor.start();
                 while (true) {
                     DekReencryptor.Batch batch = reencryptor.reencryptBatch(
-                            tenantId, toGeneration, rebuildIndex, cursor, batchSize);
+                            tenantId, toGeneration, rebuildIndex, false, cursor, batchSize);
                     rowsRewritten += batch.rowsRewritten();
                     cursor = batch.next();
                     if (!batch.hasMore()) {
@@ -242,7 +242,7 @@ public class DekRotationService {
                 }
 
                 DekReencryptor.Verification verification =
-                        reencryptor.verify(tenantId, toGeneration, rebuildIndex);
+                        reencryptor.verify(tenantId, toGeneration, rebuildIndex, false);
                 if (!verification.passed()) {
                     return incomplete(row, fromGeneration, toGeneration, rowsRewritten,
                             "verification found " + verification.notAtTarget() + " value(s) not at "
@@ -281,6 +281,55 @@ public class DekRotationService {
                         + "committed after verification stays readable. Recovery backup: "
                         + row.getBackupRef(),
                 rowsRewritten);
+    }
+
+    /**
+     * Backfill legacy (unversioned) ciphertext and never-encrypted plaintext onto the
+     * {@code kv1.d1:} format for one tenant. Issue #90.
+     *
+     * <p>This is not a key rotation — no DEK is generated and no generation is advanced.
+     * It rewrites every unversioned value in {@code patients} and {@code encounters}
+     * into {@code kv1.d1:}, so the legacy-plaintext tolerance branch in
+     * {@code PiiCiphertextFormat.decrypt} can be narrowed once no unversioned values
+     * remain. Each batch runs in its own transaction and re-reading after a crash is
+     * idempotent: values already at {@code d1:} are left byte-identical.
+     *
+     * @param tenantId exactly one tenant; never a wildcard
+     * @return the number of rows rewritten and whether verification passed
+     */
+    public Result legacyBackfill(UUID tenantId) {
+        int fromGeneration = 1;
+        int toGeneration = 1;
+        int rowsRewritten = 0;
+
+        try {
+            DekReencryptor.Cursor cursor = DekReencryptor.Cursor.start();
+            while (true) {
+                DekReencryptor.Batch batch = reencryptor.reencryptBatch(
+                        tenantId, toGeneration, false, true, cursor, batchSize);
+                rowsRewritten += batch.rowsRewritten();
+                cursor = batch.next();
+                if (!batch.hasMore()) {
+                    break;
+                }
+            }
+
+            DekReencryptor.Verification verification =
+                    reencryptor.verify(tenantId, toGeneration, false, true);
+            if (!verification.passed()) {
+                return new Result(fromGeneration, toGeneration, Status.INCOMPLETE,
+                        "verification found " + verification.notAtTarget()
+                                + " unversioned value(s) still to convert; rerun "
+                                + "legacyBackfill to resume", rowsRewritten);
+            }
+
+            return new Result(fromGeneration, toGeneration, Status.COMPLETED,
+                    "every unversioned value was converted to kv1.d" + toGeneration + ":",
+                    rowsRewritten);
+        } catch (RuntimeException e) {
+            return new Result(fromGeneration, toGeneration, Status.FAILED,
+                    "backfill did not complete: " + e.getMessage(), rowsRewritten);
+        }
     }
 
     private Result incomplete(KeyRotation row, int fromGeneration, int toGeneration,

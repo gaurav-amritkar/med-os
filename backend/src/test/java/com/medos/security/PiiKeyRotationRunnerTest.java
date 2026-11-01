@@ -392,12 +392,13 @@ class PiiKeyRotationRunnerTest {
     private static final class NoopReencryptor implements DekReencryptor {
         @Override
         public Batch reencryptBatch(UUID tenantId, int toGeneration, boolean rebuildNameIndex,
-                                    Cursor cursor, int batchSize) {
+                                    boolean encryptPlaintext, Cursor cursor, int batchSize) {
             return new Batch(0, 0, cursor);
         }
 
         @Override
-        public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt) {
+        public Verification verify(UUID tenantId, int targetGeneration, boolean nameIndexRebuilt,
+                                   boolean encryptPlaintext) {
             return new Verification(0, 0, 0);
         }
     }
