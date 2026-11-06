@@ -165,20 +165,22 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{
-          marginTop: 28,
-          padding: 16,
-          borderRadius: 'var(--r-sm)',
-          background: 'var(--sunken)',
-          fontSize: '0.75rem',
-          color: 'var(--ink-faint)',
-          lineHeight: 1.7,
-        }}>
-          <strong style={{ color: 'var(--ink-muted)' }}>Local Login Setup:</strong><br />
-          Fresh database: sign in as <strong style={{ color: 'var(--ink-muted)' }}>admin</strong> with your
-          <strong style={{ color: 'var(--ink-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
-          Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--ink-muted)' }}>password</strong>.
-        </div>
+        {import.meta.env.DEV && (
+          <div style={{
+            marginTop: 28,
+            padding: 16,
+            borderRadius: 'var(--r-sm)',
+            background: 'var(--sunken)',
+            fontSize: '0.75rem',
+            color: 'var(--ink-faint)',
+            lineHeight: 1.7,
+          }}>
+            <strong style={{ color: 'var(--ink-muted)' }}>Development only — Local Login Setup:</strong><br />
+            Fresh database: sign in as <strong style={{ color: 'var(--ink-muted)' }}>admin</strong> with your
+            <strong style={{ color: 'var(--ink-muted)' }}> BOOTSTRAP_ADMIN_PASSWORD</strong>.<br />
+            Demo users: run <code>./tools/seed-dev.sh</code>, then use admin/doctor/nurse/reception/pharmacy/billing with password <strong style={{ color: 'var(--ink-muted)' }}>password</strong>.
+          </div>
+        )}
       </div>
     </div>
   );

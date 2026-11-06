@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import Login from './Login';
@@ -25,6 +25,8 @@ function renderLogin() {
 }
 
 describe('Login page', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
     sessionStorage.clear();
     localStorage.clear();
@@ -38,6 +40,23 @@ describe('Login page', () => {
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('hides local credential guidance outside development', () => {
+    vi.stubEnv('DEV', false);
+    renderLogin();
+    expect(screen.queryByText(/BOOTSTRAP_ADMIN_PASSWORD/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/seed-dev\.sh/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Demo users:/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('labels local credential guidance as development only', () => {
+    vi.stubEnv('DEV', true);
+    renderLogin();
+    expect(screen.getByText(/Development only/)).toBeInTheDocument();
+    expect(screen.getByText(/BOOTSTRAP_ADMIN_PASSWORD/)).toBeInTheDocument();
+    expect(screen.getByText(/seed-dev\.sh/)).toBeInTheDocument();
   });
 
   it('logs in successfully, stores the token and navigates to dashboard', async () => {

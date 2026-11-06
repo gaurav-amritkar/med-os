@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "check:production": "node scripts/check-production-build.mjs",
     "check:contrast": "node scripts/contrast-check.mjs",
     "preview": "vite preview",
     "probe:flows": "node scripts/probe-flows.mjs",
