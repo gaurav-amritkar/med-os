@@ -7,6 +7,7 @@ import com.medos.dto.DischargeSummaryAddendumDTO;
 import com.medos.entity.Admission;
 import com.medos.entity.DischargeSummary;
 import com.medos.entity.DischargeSummaryAddendum;
+import com.medos.entity.Prescription;
 import com.medos.entity.Room;
 import com.medos.entity.User;
 import com.medos.exception.BusinessException;
@@ -130,7 +131,46 @@ class AdmissionServiceDischargeSummaryTest {
     }
 
     @Test
+    void discharge_withNullOptionalRegimenFields_doesNotThrow() {
+        // DischargeSummaryAssembler built the medication line with List.of(...),
+        // which rejects null elements eagerly — so a valid prescription whose
+        // frequency or duration was never recorded crashed the whole discharge
+        // (#227). The fields are optional and must be tolerated.
+        Prescription rx = Prescription.builder()
+                .id(UUID.randomUUID())
+                .patientId(admission.getPatientId())
+                .medicineId(UUID.randomUUID())
+                .dosage("1-0-1")
+                .frequency(null)
+                .duration(null)
+                .status(Prescription.Status.pending)
+                .build();
+        when(prescriptionRepository.findByPatientId(admission.getPatientId())).thenReturn(List.of(rx));
+        when(medicineCatalogRepository.findById(rx.getMedicineId())).thenReturn(Optional.of(
+                com.medos.entity.MedicineCatalog.builder()
+                        .id(rx.getMedicineId()).name("Paracetamol").build()));
+
+        DischargeRequest request = new DischargeRequest();
+        request.setAdmissionId(admission.getId());
+        request.setPatientId(admission.getPatientId());
+        request.setDischargingClinicianId(clinicianId);
+        request.setDischargingClinicianName("Dr Anita Rao");
+        request.setAdmissionDiagnosis("Viral infection");
+        request.setDischargeDiagnosis("Recovered");
+        request.setConditionAtDischarge("Stable");
+
+        DischargeResultDTO result = admissionService.dischargePatient(admission.getId(), request);
+
+        assertThat(result.getAdmission().getStatus()).isEqualTo("discharged");
+        assertThat(result.getSummary()).isNotNull();
+    }
+
+    @Test
     void addAddendum_appendsCorrectionWithoutChangingSignedSummary() {
+        // An addendum corrects a SIGNED discharge summary, so the admission is
+        // already discharged. The service used to require `admitted`, which
+        // refused every legitimate addendum (#238).
+        admission.setStatus(Admission.Status.discharged);
         when(admissionRepository.findById(admission.getId())).thenReturn(Optional.of(admission));
         LocalDateTime originalSignedAt = LocalDateTime.now().minusHours(2);
         DischargeSummary summary = DischargeSummary.builder()

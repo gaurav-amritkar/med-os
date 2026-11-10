@@ -81,6 +81,20 @@ public class IdempotencyResponseWrapper extends HttpServletResponseWrapper {
         return bodyBuffer.toString();
     }
 
+    @Override
+    public void setContentType(String type) {
+        super.setContentType(type);
+    }
+
+    /**
+     * The content type the controller set, or {@code null} for a bodyless
+     * response. Preserved so a replay returns the same content type as the
+     * original call rather than a blanket {@code application/json}.
+     */
+    public String getContentType() {
+        return super.getContentType();
+    }
+
     public int getStatus() {
         return status;
     }

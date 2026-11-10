@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -194,27 +195,206 @@ class PharmacyServiceTest {
     }
 
     @Test
-    void dispense_insufficientStock_acrossBatchesThrows() {
+    void dispense_partialWhenStockInsufficient_dispensesAvailableAndMarksPartial() {
         LocalDate today = LocalDate.now();
         MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 5);
-        // With the pre-check fix (#32), total available is validated BEFORE any
-        // batch mutations — so b1 should remain unchanged when stock is insufficient.
-        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(pendingRx()));
+        // Only 5 units available but 20 requested: dispense what we can (5) and
+        // mark the prescription partially_dispensed instead of throwing.
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(20)
+                .dispensedQty(0)
+                .status(Prescription.Status.pending)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
         when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
         when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
                 .thenReturn(List.of(b1));
-        // Stock check happens before the medicine catalog lookup; this stub is unused.
-        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID)).thenReturn(Optional.of(med));
+        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID))
+                .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
+
+        dispenseService.dispense(dispenseRequest(20));
+
+        // All available stock deducted atomically.
+        assertEquals(0, b1.getRemainingQty());
+
+        ArgumentCaptor<Prescription> rxCaptor = ArgumentCaptor.forClass(Prescription.class);
+        verify(prescriptionRepository).save(rxCaptor.capture());
+        assertEquals(Prescription.Status.partially_dispensed, rxCaptor.getValue().getStatus());
+        assertEquals(5, rxCaptor.getValue().getDispensedQty());
+
+        ArgumentCaptor<Charge> chargeCaptor = ArgumentCaptor.forClass(Charge.class);
+        verify(chargeRepository).save(chargeCaptor.capture());
+        // Charged for what was actually dispensed (5), not what was requested (20).
+        assertEquals(5, chargeCaptor.getValue().getQuantity());
+        assertEquals(new BigDecimal("50.00"), chargeCaptor.getValue().getAmount());
+
+        ArgumentCaptor<StockTransaction> stockCaptor = ArgumentCaptor.forClass(StockTransaction.class);
+        verify(stockTransactionRepository, times(1)).save(stockCaptor.capture());
+        assertEquals(ACTOR_ID, stockCaptor.getValue().getPerformedBy());
+    }
+
+    @Test
+    void dispense_partialBelowTotal_marksPartiallyDispensed() {
+        LocalDate today = LocalDate.now();
+        MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 20);
+        // Prescription for 10 units, request 4 with ample stock: dispense 4 and
+        // mark partially_dispensed (6 units remain to be dispensed later).
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(10)
+                .dispensedQty(0)
+                .status(Prescription.Status.pending)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
+        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
+                .thenReturn(List.of(b1));
+        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID))
+                .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
+
+        dispenseService.dispense(dispenseRequest(4));
+
+        assertEquals(16, b1.getRemainingQty());
+
+        ArgumentCaptor<Prescription> rxCaptor = ArgumentCaptor.forClass(Prescription.class);
+        verify(prescriptionRepository).save(rxCaptor.capture());
+        assertEquals(Prescription.Status.partially_dispensed, rxCaptor.getValue().getStatus());
+        assertEquals(4, rxCaptor.getValue().getDispensedQty());
+    }
+
+    @Test
+    void dispense_secondDispenseCompletes_toDispensed() {
+        LocalDate today = LocalDate.now();
+        MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 20);
+        // Prescription for 10 units, 4 already dispensed (partially_dispensed).
+        // Dispense the remaining 6: cumulative reaches 10 -> dispensed.
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(10)
+                .dispensedQty(4)
+                .status(Prescription.Status.partially_dispensed)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
+        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
+                .thenReturn(List.of(b1));
+        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID))
+                .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
+
+        dispenseService.dispense(dispenseRequest(6));
+
+        assertEquals(14, b1.getRemainingQty());
+
+        ArgumentCaptor<Prescription> rxCaptor = ArgumentCaptor.forClass(Prescription.class);
+        verify(prescriptionRepository).save(rxCaptor.capture());
+        assertEquals(Prescription.Status.dispensed, rxCaptor.getValue().getStatus());
+        assertEquals(10, rxCaptor.getValue().getDispensedQty());
+    }
+
+    @Test
+    void dispense_requestExceedingRemaining_isCappedAtRemaining() {
+        LocalDate today = LocalDate.now();
+        MedicineBatch b1 = batch(UUID.randomUUID(), today.plusDays(30), 50);
+        // Prescribed 10, 8 already dispensed. A request for 10 must be capped at
+        // the 2 units still owed — honouring the full request would release 18
+        // units against a prescription for 10 (#160).
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(10)
+                .dispensedQty(8)
+                .status(Prescription.Status.partially_dispensed)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
+        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
+        when(medicineBatchRepository.findAvailableBatchesByFefoForUpdate(MEDICINE_ID, today))
+                .thenReturn(List.of(b1));
+        lenient().when(medicineCatalogRepository.findById(MEDICINE_ID))
+                .thenReturn(Optional.of(medicineWithPrice(new BigDecimal("10.00"))));
+
+        dispenseService.dispense(dispenseRequest(10));
+
+        assertEquals(48, b1.getRemainingQty(), "only the 2 units still owed leave stock");
+
+        ArgumentCaptor<Prescription> rxCaptor = ArgumentCaptor.forClass(Prescription.class);
+        verify(prescriptionRepository).save(rxCaptor.capture());
+        assertEquals(Prescription.Status.dispensed, rxCaptor.getValue().getStatus());
+        assertEquals(10, rxCaptor.getValue().getDispensedQty(),
+                "cumulative dispensed must never exceed the prescribed quantity");
+
+        ArgumentCaptor<Charge> chargeCaptor = ArgumentCaptor.forClass(Charge.class);
+        verify(chargeRepository).save(chargeCaptor.capture());
+        assertEquals(2, chargeCaptor.getValue().getQuantity());
+    }
+
+    @Test
+    void dispense_fullyDispensedPrescription_throwsBeforeTouchingStock() {
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(10)
+                .dispensedQty(10)
+                .status(Prescription.Status.partially_dispensed)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
+        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(anyPatient()));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> dispenseService.dispense(dispenseRequest(20)));
-        assertTrue(ex.getMessage().contains("Insufficient stock"));
-        verify(prescriptionRepository, never()).save(any(Prescription.class));
+                () -> dispenseService.dispense(dispenseRequest(5)));
+
+        assertThat(ex.getMessage()).contains("fully dispensed");
+        verify(medicineBatchRepository, never()).findAvailableBatchesByFefoForUpdate(any(), any());
         verify(chargeRepository, never()).save(any(Charge.class));
-        // Batch NOT mutated — pre-check prevents partial deduction (#32 fix).
-        assertEquals(5, b1.getRemainingQty());
-        // Medicine lookup happens only after stock is satisfied; assert it was never reached.
-        verify(medicineCatalogRepository, never()).findById(any(UUID.class));
+    }
+
+    @Test
+    void dispense_patientMismatch_rejectsBeforeAnyWrite() {
+        UUID otherPatient = UUID.randomUUID();
+        Prescription rx = Prescription.builder()
+                .id(RX_ID)
+                .encounterId(ENCOUNTER_ID)
+                .patientId(PATIENT_ID)
+                .medicineId(MEDICINE_ID)
+                .dosage("1-0-1")
+                .quantity(10)
+                .dispensedQty(0)
+                .status(Prescription.Status.pending)
+                .build();
+        when(prescriptionRepository.findByIdForUpdate(RX_ID)).thenReturn(Optional.of(rx));
+
+        DispenseRequest request = new DispenseRequest();
+        request.setPatientId(otherPatient);
+        request.setPrescriptionId(RX_ID);
+        request.setQuantity(5);
+
+        // The mismatch is detected from the prescription alone, before the
+        // requested patient is even looked up.
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> dispenseService.dispense(request));
+
+        assertThat(ex.getMessage()).contains("does not belong to this prescription");
+        verifyNoInteractions(medicineBatchRepository);
+        verify(chargeRepository, never()).save(any(Charge.class));
+        verify(stockTransactionRepository, never()).save(any(StockTransaction.class));
     }
 
     @Test

@@ -52,5 +52,40 @@ public final class EncryptedPiiTables {
             List.of("chief_complaint", "diagnosis", "clinical_notes", "ai_note"),
             false);
 
-    public static final List<Table> ALL = List.of(PATIENTS, ENCOUNTERS);
+    /**
+     * The signed discharge summary. Every clinical field is encrypted; the
+     * clinician name and the identifiers are not.
+     *
+     * <p>This table was missing from the registry, so a compromise rotation
+     * reported success while discharge content stayed under the superseded key
+     * (#225).
+     */
+    public static final Table DISCHARGE_SUMMARIES = new Table(
+            "discharge_summaries",
+            List.of("admission_diagnosis", "discharge_diagnosis", "clinical_course",
+                    "procedures_performed", "investigations_summary", "vitals_summary",
+                    "medications_at_discharge", "condition_at_discharge", "follow_up_advice"),
+            false);
+
+    /** A correction appended to a signed discharge summary. */
+    public static final Table DISCHARGE_SUMMARY_ADDENDA = new Table(
+            "discharge_summary_addenda",
+            List.of("text"),
+            false);
+
+    /**
+     * Lab results. The result text is clinical content and was stored in the
+     * clear until V17 (#237).
+     *
+     * <p>{@code test_name} and {@code test_code} are deliberately NOT listed:
+     * they name a catalogue test, not a patient's result, and they are the
+     * columns the lab list screen filters on.
+     */
+    public static final Table LAB_ORDERS = new Table(
+            "lab_orders",
+            List.of("result"),
+            false);
+
+    public static final List<Table> ALL =
+            List.of(PATIENTS, ENCOUNTERS, DISCHARGE_SUMMARIES, DISCHARGE_SUMMARY_ADDENDA, LAB_ORDERS);
 }

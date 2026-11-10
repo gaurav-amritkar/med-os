@@ -91,10 +91,17 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated();
             })
-            // Register the JWT filter first so it can serve as a positioned anchor;
-            // idempotency then runs after authentication (replay check is post-auth).
+            // Register the JWT filter first, then idempotency AFTER it.
+            //
+            // Order is a security property, not a style choice. Idempotency must
+            // run after authentication so that a cached response is only ever
+            // served to a caller who presented a valid token. It used to be
+            // registered with `addFilterBefore(idempotencyFilter, JwtAuthenticationFilter.class)`,
+            // which placed it BEFORE the JWT filter — so an unauthenticated caller
+            // who guessed a key could receive a stored financial response without
+            // any token at all (#221).
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(idempotencyFilter, JwtAuthenticationFilter.class);
+            .addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 

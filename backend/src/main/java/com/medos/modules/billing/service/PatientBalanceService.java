@@ -45,17 +45,33 @@ public class PatientBalanceService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recalculateBalance(UUID patientId) {
+        // The invoice is the authoritative receivable: it is what the hospital
+        // agreed to collect, and payments are capped against it. Summing gross
+        // charge amounts left phantom debt on every discounted invoice — a
+        // no-tax charge of 100 with a 20 discount and a full payment of 80
+        // showed 20 outstanding on a settled account (#226).
+        //
+        // So the receivable is the sum of invoice totals for billed/paid charges,
+        // plus the full amount of charges that were never invoiced. Allocating a
+        // discount back onto individual charges is unnecessary: the invoice
+        // already carries the net, and summing invoice totals reaches the same
+        // number without a proportional split that can lose a cent.
         entityManager.createNativeQuery("""
                 UPDATE patients p
                 SET outstanding = GREATEST(
                     COALESCE((
+                        SELECT SUM(inv.total_amount)
+                        FROM invoices inv
+                        WHERE inv.patient_id = p.id
+                          AND inv.status IN ('issued', 'partially_paid', 'paid')
+                    ), 0)
+                    + COALESCE((
                         SELECT SUM(c.total_amount)
                         FROM charges c
                         WHERE c.patient_id = p.id
-                          AND c.status IN ('billed', 'paid')
+                          AND c.status = 'unbilled'
                     ), 0)
-                    -
-                    COALESCE((
+                    - COALESCE((
                         SELECT SUM(pay.amount)
                         FROM payments pay
                         WHERE pay.patient_id = p.id

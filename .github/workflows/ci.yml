@@ -188,7 +188,29 @@ jobs:
           for name, svc in model["services"].items():
               for secret in svc.get("environment", {}).values():
                   assert "secret" not in str(secret).lower() or name == "migrate", name
-          print("production compose invariants hold: only caddy published, no in-host db, no ignored secret keys")
+
+          # Network topology (#229). The application tier must be able to reach
+          # the managed database, so medos-private cannot be internal: an
+          # internal bridge has no default route and those containers could
+          # neither resolve the pooler nor open a connection to it, which made
+          # the production stack undeployable as written. The edge network is
+          # internal and carries only Caddy.
+          nets = model["networks"]
+          # Compose omits `internal: false` from the resolved model because it is
+          # the default, so the property is absent rather than False. Asserting
+          # `is False` fails on a correct file; the requirement is "not internal".
+          assert nets["medos-private"].get("internal") is not True, \
+              "medos-private must have a default route to reach the managed database"
+          assert nets["medos-edge"].get("internal") is True, \
+              "medos-edge must not allow outbound connections"
+          on_edge = sorted(n for n, s in model["services"].items()
+                           if "medos-edge" in (s.get("networks") or []))
+          assert on_edge == ["caddy"], f"only Caddy belongs on the edge network, found {on_edge}"
+          for name in ("migrate", "backend", "frontend"):
+              assert "medos-private" in (model["services"][name].get("networks") or []), \
+                  f"{name} must be on medos-private"
+          print("production compose invariants hold: only caddy published, no in-host db, "
+                "no ignored secret keys, network topology correct")
           PYEOF
 
   # Image vulnerability scanning (#15).

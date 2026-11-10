@@ -1,5 +1,6 @@
 package com.medos.security;
 
+import com.medos.entity.TenantUser;
 import com.medos.repository.TenantRepository;
 import com.medos.repository.TenantUserRepository;
 import io.jsonwebtoken.Claims;
@@ -43,7 +44,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Claims claims = tokenProvider.parseToken(token);
                     String uid = claims.get("uid") != null ? claims.get("uid").toString() : claims.getSubject();
                     UUID userId = UUID.fromString(uid);
-                    String role = claims.get("role").toString();
 
                     // A token lives 10 hours, so enforcing state only at login would
                     // leave a deboarded person working for the rest of that window.
@@ -55,18 +55,36 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // and they must keep working, or a fresh install cannot be
                     // administered.
                     boolean admitted = true;
+                    UUID tenantId = null;
+                    TenantUser.UserRole currentRole = null;
                     if (claims.get("tenantId") != null) {
-                        UUID tenantId = UUID.fromString(claims.get("tenantId").toString());
-                        if (isTenantActive(tenantId) && isMembershipActive(userId, tenantId)) {
-                            TenantContext.setTenantId(tenantId);
+                        tenantId = UUID.fromString(claims.get("tenantId").toString());
+                        if (isTenantActive(tenantId)) {
+                            TenantUser membership = findMembership(userId, tenantId);
+                            if (membership != null && membership.isActive()) {
+                                TenantContext.setTenantId(tenantId);
+                                // The authority comes from the membership as it is
+                                // NOW, not from the role stamped into the token.
+                                // Trusting the claim let a demoted admin keep ADMIN
+                                // until the token expired (#236).
+                                currentRole = membership.getRole();
+                            } else {
+                                admitted = false;
+                                log.warn("Rejected token for deactivated membership on {} {}",
+                                        request.getMethod(), request.getRequestURI());
+                            }
                         } else {
                             admitted = false;
-                            log.warn("Rejected token for deactivated tenant {} or membership on {} {}",
+                            log.warn("Rejected token for deactivated tenant {} on {} {}",
                                     tenantId, request.getMethod(), request.getRequestURI());
                         }
                     }
 
                     if (admitted) {
+                        // Platform sessions have no membership and no tenant-bound
+                        // role to resolve; the token's role claim is the only
+                        // authority there.
+                        String role = currentRole != null ? currentRole.name() : claims.get("role").toString();
                         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                 uid, null,
                                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
@@ -103,31 +121,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Whether this person may still act at this hospital.
+     * The person's current membership at this hospital, or {@code null} if there
+     * is none or it has been deactivated.
      *
      * <p>Deactivating someone on the staff page ends one person's access to one
      * hospital. Enforced at login only, the removal would hold until their token
      * expired — up to ten hours of continued access to patient records after
      * they were off the roster.
      *
+     * <p>The role is read from this row rather than from the token, so a demotion
+     * takes effect on the next request instead of after the token expires.
+     *
      * <p>A missing row counts as not a member, for the same reason a missing
      * tenant counts as inactive: for a value that was never written, the safe
      * reading is the closed one.
      */
-    private boolean isMembershipActive(UUID userId, UUID tenantId) {
+    private TenantUser findMembership(UUID userId, UUID tenantId) {
         if (tenantUserRepository == null) {
-            return true; // not wired (some slice/test profile)
+            return null; // not wired (some slice/test profile)
         }
         try {
             return tenantUserRepository.findByUserIdAndTenantId(userId, tenantId)
-                    .map(m -> Boolean.TRUE.equals(m.getActive()))
-                    .orElse(false);
+                    .filter(m -> Boolean.TRUE.equals(m.getActive()))
+                    .orElse(null);
         } catch (Exception e) {
             // Fail closed: an unavailable membership store must not become an
             // open door. The request proceeds unauthenticated and gets a 401.
             log.warn("Membership lookup failed for user {} at tenant {}; refusing",
                     userId, tenantId);
-            return false;
+            return null;
         }
     }
 

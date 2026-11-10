@@ -46,6 +46,17 @@ public class LabOrder implements TenantOwned {
     @Column(length = 32)
     private Status status = Status.ordered;
 
+    /**
+     * The recorded result. Clinical content, so it is encrypted at rest like
+     * every other clinical free-text column (#237).
+     *
+     * <p>Existing plaintext rows are readable: {@link EncryptionUtil}'s decrypt
+     * path accepts a value with no version prefix as legacy plaintext and
+     * returns it unchanged, so the upgrade does not require a stop-the-world
+     * backfill before the new build starts. Rows are converted to ciphertext on
+     * the next write, and V17 records which ones were backfilled.
+     */
+    @Convert(converter = com.medos.util.EncryptionUtil.class)
     @Column(columnDefinition = "TEXT")
     private String result;
 

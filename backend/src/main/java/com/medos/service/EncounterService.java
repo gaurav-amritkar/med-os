@@ -207,14 +207,25 @@ public class EncounterService {
         if (prescriber == null) {
             throw new BusinessException("Authenticated user required");
         }
+        // The patient comes from the authorized parent record, not from the
+        // request. Copying request.patientId let a prescription for one patient
+        // be attached to another patient's encounter (#222).
+        UUID patientId = encounter.getPatientId() != null
+                ? encounter.getPatientId()
+                : request.getPatientId();
+        if (patientId != null && !patientId.equals(request.getPatientId())) {
+            throw new BusinessException("Patient " + request.getPatientId()
+                    + " does not belong to this encounter");
+        }
         Prescription rx = Prescription.builder()
                 .encounterId(request.getEncounterId())
-                .patientId(request.getPatientId())
+                .patientId(patientId)
                 .medicineId(request.getMedicineId())
                 .dosage(request.getDosage())
                 .frequency(request.getFrequency())
                 .duration(request.getDuration())
                 .instructions(request.getInstructions())
+                .quantity(request.getQuantity())
                 .status(Prescription.Status.pending)
                 .prescribedBy(prescriber)
                 .build();

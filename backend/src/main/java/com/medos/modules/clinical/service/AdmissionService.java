@@ -30,6 +30,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -130,7 +131,14 @@ public class AdmissionService {
                 .collect(Collectors.toMap(MedicineCatalog::getId,
                         Function.identity()));
         List<Encounter> encounters = encounterRepository.findByPatientId(admission.getPatientId());
+        // `prescribedAt` is set by @PrePersist, so it is normally present — but a
+        // prescription built without persisting (a fixture, a legacy row, or a
+        // future import path) has null, and dereferencing it here threw an NPE
+        // that failed the whole discharge (#227). A prescription with no
+        // timestamp cannot be shown to fall inside the admission, so it is
+        // excluded rather than assumed in range.
         List<Prescription> admissionPrescriptions = prescriptions.stream()
+                .filter(p -> p.getPrescribedAt() != null)
                 .filter(p -> p.getPrescribedAt().isAfter(admission.getAdmissionDate()) &&
                         p.getPrescribedAt().isBefore(now))
                 .toList();
@@ -149,7 +157,12 @@ public class AdmissionService {
 
         dischargeSummaryRepository.save(summary);
 
-        auditLogger.log("DISCHARGE", "DischargeSummary", admission.getId().toString(), null, request.getClinicalCourse());
+        auditLogger.log("DISCHARGE", "DischargeSummary", admission.getId().toString(),
+                // The clinical course is the signed content of the summary and is
+                // stored encrypted there. Copying it into the audit row duplicates
+                // clinical text into a plaintext table (#224) — record the fact of
+                // the discharge, not its content.
+                null, "room=" + room.getRoomNumber() + " days=" + daysAdmitted);
 
         room.setOccupied(false);
         roomRepository.save(room);
@@ -186,8 +199,15 @@ public class AdmissionService {
     public DischargeSummaryAddendumDTO addDischargeSummaryAddendum(UUID admissionId, DischargeSummaryAddendumRequest request) {
         Admission admission = admissionRepository.findById(admissionId)
                 .orElseThrow(() -> new BusinessException("Admission not found"));
-        if (admission.getStatus() != Admission.Status.admitted) {
-            throw new BusinessException("Admission must be admitted to add discharge summary addendum");
+
+        // An addendum is a correction to a signed discharge summary, so the
+        // admission must already be discharged — not still admitted. Requiring
+        // `admitted` here made the normal completed discharge unreachable: the
+        // summary exists only after discharge, so every legitimate addendum was
+        // refused (#238).
+        if (admission.getStatus() != Admission.Status.discharged) {
+            throw new BusinessException(
+                    "Admission must be discharged before a discharge summary addendum can be added");
         }
 
         DischargeSummary summary = dischargeSummaryRepository.findByAdmissionId(admissionId)
@@ -232,5 +252,50 @@ public class AdmissionService {
 
     public List<Room> getAvailableRooms() {
         return roomRepository.findByOccupied(false);
+    }
+
+    /**
+     * Creates a room for the acting tenant.
+     *
+     * <p>Only the request fields are copied. The id, tenant, occupancy flag and
+     * version are set here, so a client cannot supply its own primary key, move a
+     * room into another tenant, or create an already-occupied room (#56).
+     *
+     * <p>Ward names are normalised so "ICU", "icu" and "I.C.U." do not become
+     * three different wards.
+     */
+    @Transactional
+    public Room createRoom(com.medos.dto.RoomRequest request) {
+        UUID tenantId = com.medos.security.TenantContext.getTenantId().orElseThrow();
+        String ward = normaliseWard(request.getWard());
+        if (roomRepository.findByRoomNumber(request.getRoomNumber()).isPresent()) {
+            throw new BusinessException("Room number already exists: " + request.getRoomNumber());
+        }
+        Room room = Room.builder()
+                .tenantId(tenantId)
+                .roomNumber(request.getRoomNumber().trim())
+                .ward(ward)
+                .roomType(request.getRoomType())
+                .dailyRate(request.getDailyRate())
+                .capacity(request.getCapacity())
+                .occupied(false)
+                .floor(request.getFloor() == null ? 1 : request.getFloor())
+                .notes(request.getNotes())
+                .build();
+        Room saved = roomRepository.save(room);
+        auditLogger.log("ROOM_CREATED", "Room", saved.getId().toString(),
+                null, "roomNumber=" + saved.getRoomNumber() + " ward=" + saved.getWard());
+        return saved;
+    }
+
+    /**
+     * Trims, collapses internal whitespace and upper-cases a ward name.
+     *
+     * <p>The schema stores a free-text ward, so normalisation happens on write
+     * rather than by adding a ward table: it fixes the case-splitting that made
+     * "ICU" and "icu" distinct without a migration or a mandatory redesign.
+     */
+    private String normaliseWard(String ward) {
+        return ward.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
     }
 }

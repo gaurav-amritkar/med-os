@@ -11,4 +11,13 @@ if [ -f /run/secrets/redis-password ]; then
   exec redis-server /tmp/redis-runtime.conf
 fi
 
+# Also support REDIS_PASSWORD from environment variable
+if [ -n "${REDIS_PASSWORD}" ]; then
+  umask 077
+  cp /usr/local/etc/redis/redis.conf /tmp/redis-runtime.conf
+  printf '\nrequirepass %s\n' "$REDIS_PASSWORD" >> /tmp/redis-runtime.conf
+  unset REDIS_PASSWORD
+  exec redis-server /tmp/redis-runtime.conf
+fi
+
 exec redis-server /usr/local/etc/redis/redis.conf

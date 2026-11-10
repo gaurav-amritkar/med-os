@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 @Component
 public class DischargeSummaryAssembler {
@@ -50,15 +51,15 @@ public class DischargeSummaryAssembler {
                 .dischargingClinicianId(clinicianId)
                 .dischargingClinicianName(valueOrNotRecorded(clinicianName))
                 .admissionDiagnosis(prefer(request.getAdmissionDiagnosis(), join(admissionEncounters, Encounter::getDiagnosis)))
-                .dischargeDiagnosis(request.getDischargeDiagnosis().trim())
+                .dischargeDiagnosis(valueOrNotRecorded(request.getDischargeDiagnosis()))
                 .clinicalCourse(prefer(request.getClinicalCourse(), join(admissionEncounters, Encounter::getClinicalNotes)))
                 .proceduresPerformed(valueOrNotRecorded(request.getProceduresPerformed()))
                 .investigationsSummary(prefer(request.getInvestigationsSummary(), summarizeLabs(admissionLabs)))
                 .vitalsSummary(join(admissionEncounters, Encounter::getVitalsJson))
                 .medicationsAtDischarge(prefer(request.getMedicationsAtDischarge(),
                         summarizeMedications(admissionPrescriptions, medicines)))
-                .conditionAtDischarge(request.getConditionAtDischarge().trim())
-                .followUpAdvice(request.getFollowUpAdvice().trim())
+                .conditionAtDischarge(valueOrNotRecorded(request.getConditionAtDischarge()))
+                .followUpAdvice(valueOrNotRecorded(request.getFollowUpAdvice()))
                 .nextReviewDate(request.getNextReviewDate())
                 .signedAt(signedAt)
                 .build();
@@ -87,7 +88,7 @@ public class DischargeSummaryAssembler {
                 .map(p -> {
                     MedicineCatalog medicine = medicines.get(p.getMedicineId());
                     String name = medicine == null ? "Medicine not recorded" : medicine.getName();
-                    String regimen = List.of(p.getDosage(), p.getFrequency(), p.getDuration()).stream()
+                    String regimen = Stream.of(p.getDosage(), p.getFrequency(), p.getDuration())
                             .filter(Objects::nonNull)
                             .map(String::trim)
                             .filter(value -> !value.isEmpty())
