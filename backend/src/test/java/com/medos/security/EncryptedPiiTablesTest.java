@@ -2,7 +2,10 @@ package com.medos.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.medos.entity.DischargeSummary;
+import com.medos.entity.DischargeSummaryAddendum;
 import com.medos.entity.Encounter;
+import com.medos.entity.LabOrder;
 import com.medos.entity.Patient;
 import com.medos.util.EncryptionUtil;
 
@@ -30,14 +33,30 @@ import org.junit.jupiter.api.Test;
 class EncryptedPiiTablesTest {
 
     @Test
-    @DisplayName("the registry covers exactly the encrypted columns on Patient and Encounter")
+    @DisplayName("the registry covers exactly the encrypted columns on every encrypted entity")
     void registryMatchesTheEntityModel() {
         assertTable(Patient.class, EncryptedPiiTables.PATIENTS);
         assertTable(Encounter.class, EncryptedPiiTables.ENCOUNTERS);
+        assertTable(DischargeSummary.class, EncryptedPiiTables.DISCHARGE_SUMMARIES);
+        assertTable(DischargeSummaryAddendum.class, EncryptedPiiTables.DISCHARGE_SUMMARY_ADDENDA);
+        assertTable(LabOrder.class, EncryptedPiiTables.LAB_ORDERS);
 
         assertThat(EncryptedPiiTables.ALL)
                 .extracting(EncryptedPiiTables.Table::name)
-                .containsExactly("patients", "encounters");
+                .containsExactly("patients", "encounters",
+                        "discharge_summaries", "discharge_summary_addenda", "lab_orders");
+    }
+
+    @Test
+    @DisplayName("a new encrypted entity column fails this suite until it is registered")
+    void everyEncryptedEntityIsRegistered() {
+        // Discharge records and lab results were the omissions this guard now
+        // closes (#225, #237): the registry only knew patients and encounters,
+        // so a rotation reported success while signed discharge content and lab
+        // results stayed under the old key.
+        assertThat(EncryptedPiiTables.ALL)
+                .extracting(EncryptedPiiTables.Table::name)
+                .contains("discharge_summaries", "discharge_summary_addenda", "lab_orders");
     }
 
     @Test

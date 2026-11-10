@@ -16,6 +16,11 @@
 #     PII_ENCRYPTION_KEY stops startup rather than falling back to a published key.
 #   * Log rotation is bounded. An unbounded json-file log on a single host fills
 #     the disk, which takes the application down.
+#   * Network isolation is deliberate, not blanket. `medos-private` carries the
+#     backend, migrate and Redis and is NOT `internal: true` — it must reach the
+#     managed database and DNS (#229). `medos-edge` is `internal: true` and only
+#     Caddy is attached to it, so the edge cannot initiate outbound connections.
+#     Nothing is reachable from outside the host except through Caddy.
 #
 # Before first use:
 #   1. Create the Supabase project with a SPECIFIC region of ap-south-1 (Mumbai).
@@ -28,6 +33,8 @@
 #      Caddy can obtain a publicly-trusted certificate. There is deliberately no
 #      `tls internal` fallback: a self-signed certificate is not TLS.
 #   5. Change the bootstrap admin password after the first successful boot.
+#   6. Restrict host egress to the database endpoint (see docs/operations.md).
+#      Compose cannot express a firewall; this is an operator control.
 
 name: medos-prod
 
@@ -90,6 +97,9 @@ services:
 
   # Cache and rate-limit counters. Never authoritative (ADR-0007): losing it costs
   # a cold cache, not data. In-host, and never published.
+  #
+  # Deliberately NOT attached to medos-edge: Redis is reachable only from
+  # medos-private, so there is no path from the TLS terminator to the cache.
   redis:
     build:
       context: ./cache
@@ -191,9 +201,30 @@ services:
     <<: *default-restart
 
 networks:
-  medos-edge: {}
-  medos-private:
+  # Edge-facing network. Only Caddy is attached, and only Caddy publishes a
+  # port. Nothing on this network can initiate outbound connections to the
+  # internet, so a compromised edge container cannot exfiltrate or be used as
+  # a pivot.
+  medos-edge:
     internal: true
+
+  # Application network. NOT internal: the backend and the one-shot migrate job
+  # must reach the managed PostgreSQL pooler and DNS (#229). A bridge network
+  # marked `internal: true` has no default route, so those containers could not
+  # resolve or connect to anything outside the host — the deployment was
+  # undeployable as written.
+  #
+  # The exposure this opens is deliberate and bounded: outbound egress only, no
+  # published ports, and no inbound path except through Caddy. The private
+  # endpoint ADR-0001 asks for belongs to the *database* — the runtime role must
+  # have no public reachability — not to the application containers. Redis
+  # remains unreachable from outside the host.
+  #
+  # Egress is restricted at the host firewall to the database endpoint; see
+  # docs/operations.md for the required rules. Compose cannot express that, so
+  # it is an operator control, not a descriptor property.
+  medos-private:
+    internal: false
 
 volumes:
   medos-redis-data:

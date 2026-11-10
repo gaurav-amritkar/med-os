@@ -49,14 +49,49 @@ public class DispenseService {
     public void dispense(DispenseRequest request) {
         Prescription rx = prescriptionRepository.findByIdForUpdate(request.getPrescriptionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription", request.getPrescriptionId().toString()));
-        if (rx.getStatus() != Prescription.Status.pending) {
+        if (rx.getStatus() != Prescription.Status.pending
+                && rx.getStatus() != Prescription.Status.partially_dispensed) {
             throw new BusinessException("Prescription is already " + rx.getStatus());
+        }
+
+        // The patient on the request must be the patient the prescription belongs
+        // to. Checking only that the requested patient exists is not enough: it
+        // lets stock leave against one patient and the charge land on another,
+        // which is both a clinical record and a financial integrity defect (#222).
+        if (rx.getPatientId() != null && !rx.getPatientId().equals(request.getPatientId())) {
+            throw new BusinessException("Patient " + request.getPatientId()
+                    + " does not belong to this prescription");
         }
 
         patientRepository.findById(request.getPatientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", request.getPatientId().toString()));
 
+        // The quantity is capped three ways, in order of authority:
+        //
+        //   1. what the caller asked for,
+        //   2. what the prescription has left to give — quantity minus what has
+        //      already been dispensed,
+        //   3. what stock actually exists.
+        //
+        // The second bound is the one that was missing (#160): prescribed 10,
+        // already dispensed 8, a request for 10 was honoured in full, so 18 units
+        // left the pharmacy against a prescription for 10. Stock is checked after
+        // this, not instead of it.
+        //
+        // It is resolved before the batch query, so a prescription that has
+        // nothing left to give costs no locked read.
         int requiredQty = request.getQuantity();
+        Integer prescribedQty = rx.getQuantity();
+        int alreadyDispensed = rx.getDispensedQty() == null ? 0 : rx.getDispensedQty();
+
+        int authorizedQty = requiredQty;
+        if (prescribedQty != null) {
+            int remaining = prescribedQty - alreadyDispensed;
+            if (remaining <= 0) {
+                throw new BusinessException("Prescription is already fully dispensed");
+            }
+            authorizedQty = Math.min(authorizedQty, remaining);
+        }
 
         // FEFO with row-level locking: fetch batches with PESSIMISTIC_WRITE lock.
         List<MedicineBatch> batches = medicineBatchRepository
@@ -68,13 +103,17 @@ public class DispenseService {
 
         int totalAvailable = batches.stream().mapToInt(MedicineBatch::getRemainingQty).sum();
 
-        // Validate total availability BEFORE mutating any batches — prevents partial
-        // stock deduction when the last batch has insufficient stock (#32).
-        if (totalAvailable < requiredQty) {
-            throw new BusinessException("Insufficient stock: required " + requiredQty + ", available " + totalAvailable);
+        // Partial dispensing: dispense up to the authorized quantity, limited by
+        // what stock is available. Never throw just because the full request
+        // cannot be fulfilled — dispense what we can and mark the prescription
+        // accordingly. Atomicity is preserved: we never fail partway through
+        // the batch loop.
+        int toDispense = Math.min(authorizedQty, totalAvailable);
+        if (toDispense <= 0) {
+            throw new BusinessException("No stock available for medicine");
         }
 
-        int remaining = requiredQty;
+        int remaining = toDispense;
 
         for (MedicineBatch batch : batches) {
             if (remaining <= 0) break;
@@ -97,27 +136,40 @@ public class DispenseService {
             stockTransactionRepository.save(txn);
         }
 
-        // With the pre-check above, remaining should always be 0 here.
-        assert remaining == 0 : "Expected all stock to be deducted; remaining=" + remaining;
+        // `remaining` is 0 once the available stock is exhausted.
+        assert remaining == 0 : "Expected all available stock to be deducted; remaining=" + remaining;
 
         // Auto-generate charge for billing.
         MedicineCatalog med = medicineCatalogRepository.findById(rx.getMedicineId())
                 .orElseThrow(() -> new ResourceNotFoundException("Medicine", rx.getMedicineId().toString()));
 
         BigDecimal unitPrice = med.getUnitPrice();
-        BigDecimal[] lineItem = MoneyUtil.calculateLineItem(unitPrice, requiredQty, MoneyUtil.GST_RATE_PHARMACY);
+        BigDecimal[] lineItem = MoneyUtil.calculateLineItem(unitPrice, toDispense, MoneyUtil.GST_RATE_PHARMACY);
 
-        // Mark prescription as dispensed.
-        rx.setStatus(Prescription.Status.dispensed);
+        // Update cumulative dispensed quantity and transition status.
+        Integer totalQty = rx.getQuantity();
+        int dispensedQty = (rx.getDispensedQty() == null ? 0 : rx.getDispensedQty()) + toDispense;
+        rx.setDispensedQty(dispensedQty);
         rx.setDispensedAt(LocalDateTime.now());
+
+        if (totalQty != null && dispensedQty >= totalQty) {
+            rx.setStatus(Prescription.Status.dispensed);
+        } else if (totalQty != null) {
+            rx.setStatus(Prescription.Status.partially_dispensed);
+        }
+        // Legacy prescriptions (no quantity set) keep the previous behaviour.
+        else {
+            rx.setStatus(Prescription.Status.dispensed);
+        }
+
         prescriptionRepository.save(rx);
 
         Charge charge = Charge.builder()
                 .patientId(request.getPatientId())
                 .encounterId(rx.getEncounterId())
                 .chargeType(Charge.ChargeType.pharmacy)
-                .description(med.getName() + " x" + requiredQty + " (" + rx.getDosage() + ")")
-                .quantity(requiredQty)
+                .description(med.getName() + " x" + toDispense + " (" + rx.getDosage() + ")")
+                .quantity(toDispense)
                 .unitPrice(unitPrice)
                 .amount(lineItem[0])
                 .gstPercent(MoneyUtil.GST_RATE_PHARMACY)
@@ -131,6 +183,6 @@ public class DispenseService {
         eventPublisher.publishEvent(new com.medos.modules.billing.event.PatientBalanceEvent(request.getPatientId()));
 
         auditLogger.log("DISPENSE", "Prescription", request.getPrescriptionId().toString(),
-                "pending", "dispensed qty=" + requiredQty);
+                "pending", "dispensed qty=" + toDispense);
     }
 }

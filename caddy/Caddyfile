@@ -23,12 +23,29 @@
 	}
 }
 
+# Plain HTTP. Caddy serves this block only on port 80 and never over TLS, so
+# this redirect is a one-way HTTP -> HTTPS hop and cannot loop.
+#
+# The previous configuration put an unconditional `redir https://{host}{uri}`
+# inside the HTTPS site block. That block is served over HTTPS, so the target
+# was the site's own URL: every request — including the API and /manage/health
+# — was answered with a redirect to itself (#228). The redirect now lives only
+# here, and HSTS is applied to the response so the browser records the policy
+# on the way up rather than only after the first successful HTTPS response.
+:80 {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# The redirect response carries no content and must not be cached as if
+		# it were the page. Only the 308 itself is cacheable.
+		Cache-Control "no-store"
+	}
+	redir https://{host}{uri} permanent
+}
+
+# The canonical HTTPS site. Automatic HTTPS obtains and renews the certificate
+# for this name; there is deliberately no redirect here.
 {$MEDOS_DOMAIN} {
 	encode zstd gzip
-
-	# Managed by Caddy: obtains and renews the certificate. Redirecting HTTP
-	# here means a plain request never reaches the application.
-	redir https://{host}{uri} permanent
 
 	header {
 		# Removed: the backend sets its own framing, and these break the
@@ -56,9 +73,9 @@
 	}
 }
 
-# Reject requests for any other Host. Without this the server answers on any
-# name it is reached by, which is a host-header confusion risk in front of an
-# application holding patient records.
-:80 {
+# Reject requests for any other Host, on either listener. Without this the
+# server answers on any name it is reached by, which is a host-header confusion
+# risk in front of an application holding patient records.
+:8080 {
 	abort
 }

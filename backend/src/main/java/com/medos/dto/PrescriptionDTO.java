@@ -32,4 +32,10 @@ public class PrescriptionDTO {
     private String status;
     private UUID prescribedBy;
     private LocalDateTime prescribedAt;
+
+    // Total units prescribed (null for legacy prescriptions).
+    private Integer quantity;
+
+    // Cumulative units dispensed.
+    private Integer dispensedQty;
 }

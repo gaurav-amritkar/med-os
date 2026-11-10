@@ -1,5 +1,7 @@
 # Multi-stage build for MedOS Frontend
-FROM node:20-alpine AS builder
+# Node 22, matching the CI runtime. Node 20 is end-of-life, and building on a
+# different runtime than CI tested on is a build-chain mismatch (#158).
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Build-time API URL

@@ -70,10 +70,21 @@ public class LabOrderService {
                     "Cannot order a lab test on a signed encounter");
         }
 
+        // The patient comes from the encounter, not from the request. Accepting an
+        // independent patientId let a lab order for one patient be attached to
+        // another patient's encounter (#222).
+        UUID patientId = encounter.getPatientId() != null
+                ? encounter.getPatientId()
+                : request.patientId();
+        if (patientId != null && !patientId.equals(request.patientId())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN,
+                    "Patient " + request.patientId() + " does not belong to this encounter");
+        }
+
         LabOrder order = LabOrder.builder()
                 .tenantId(encounter.getTenantId())
                 .encounterId(request.encounterId())
-                .patientId(request.patientId())
+                .patientId(patientId)
                 .doctorId(actingUser)
                 .testName(request.testName().trim())
                 .testCode(request.testCode() == null ? null : request.testCode().trim())
@@ -169,7 +180,10 @@ public class LabOrderService {
         order.setResultAt(LocalDateTime.now());
         LabOrder saved = labOrderRepository.save(order);
         auditLogger.log("LAB_RESULT_RECORDED", "LabOrder", saved.getId().toString(),
-                null, "result=" + saved.getResult());
+                // The result text is clinical content. Recording it in the audit
+                // row duplicates it into a plaintext table (#224): record that a
+                // result was recorded, and who recorded it, not what it says.
+                null, "recorded=true length=" + (saved.getResult() == null ? 0 : saved.getResult().length()));
         return LabOrderDTO.from(saved);
     }
 

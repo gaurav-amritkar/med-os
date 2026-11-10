@@ -13,38 +13,11 @@ import java.util.UUID;
 public class PatientOnboardingService {
     private final PatientRepository patientRepository;
 
-    public Patient onboardPatient(UUID tenantId, String name, Integer age, String gender,
-                                  String phone, String email, String address, String bloodGroup,
-                                  Boolean dpdpConsent) {
-        // Create the tenant's data key before the entity reaches the persistence
-        // context. Creating it from inside the converter would issue the key INSERT
-        // while Hibernate is flushing, and reads must never write: an insert made
-        // while decrypting a query result is discarded, leaving the tenant
-        // permanently keyless.
-        if (com.medos.security.TenantKeyHolder.isInitialised()) {
-            com.medos.security.TenantKeyHolder.get().ensureDekExists();
-        }
-        // The name index needs its own key, created on the write path for the same
-        // reason as the data key: deriving it during a read would issue a write
-        // inside a query. Ordered after ensureDekExists() because the index key
-        // is stored on the same tenant_keys row.
-        if (com.medos.security.TenantKeyHolder.isInitialised()) {
-            com.medos.security.TenantKeyHolder.get().ensureBlindIndexKeyExists();
-        }
-        Patient patient = Patient.builder()
-                .tenantId(tenantId)
-                .name(name)
-                .age(age)
-                .gender(gender)
-                .phone(phone)
-                .email(email)
-                .address(address)
-                .bloodGroup(bloodGroup)
-                .dpdpConsent(dpdpConsent)
-                .uhid(generateUhid(tenantId))
-                .build();
-        return patientRepository.save(patient);
-    }
+    // Registration is not offered here. This service previously had a second
+    // registration implementation, reachable with no role guard, that wrote the
+    // patient row without the canonical DPDP consent event or the registration
+    // audit entry. It is removed (#223); registration goes through
+    // PatientService, which enforces RECEPTIONIST/ADMIN and writes both.
 
     public List<Patient> getPatientsByTenant(UUID tenantId) {
         return patientRepository.findByTenantId(tenantId);
@@ -52,10 +25,5 @@ public class PatientOnboardingService {
 
     public Optional<Patient> getPatientByUhid(UUID tenantId, String uhid) {
         return patientRepository.findByTenantIdAndUhid(tenantId, uhid);
-    }
-
-    private String generateUhid(UUID tenantId) {
-        Long seq = patientRepository.getNextPatientSeq();
-        return tenantId.toString().substring(0, 8) + "-" + String.format("%08d", seq);
     }
 }

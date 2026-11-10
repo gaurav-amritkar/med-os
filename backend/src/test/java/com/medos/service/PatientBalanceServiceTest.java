@@ -66,16 +66,24 @@ class PatientBalanceServiceTest {
         assertNotNull(sql);
         assertEquals(true, sql.contains("UPDATE patients"),
                 "must update the patients table");
+        assertEquals(true, sql.contains("invoices"),
+                "the invoice is the authoritative receivable: it must be aggregated");
         assertEquals(true, sql.contains("charges"),
-                "must aggregate charges");
+                "charges that were never invoiced are owed at their full amount");
         assertEquals(true, sql.contains("payments"),
                 "must aggregate payments");
-        assertEquals(true, sql.contains("'billed', 'paid'"),
-                "must include billed and paid charge statuses");
+        assertEquals(true, sql.contains("unbilled"),
+                "only charges that were never invoiced contribute their gross amount");
         assertEquals(true, sql.contains("'success'"),
                 "must include only successful payments");
         assertEquals(true, sql.contains("GREATEST"),
                 "must clamp the result to non-negative");
+
+        // The receivable must be the invoice total, not the sum of gross charge
+        // amounts. Payments are capped against invoice.total_amount, so summing
+        // gross charges left phantom debt on every discounted invoice (#226).
+        assertEquals(false, sql.contains("c.total_amount") && sql.contains("c.status IN ('billed', 'paid')"),
+                "billed charges must contribute through their invoice, not at gross value");
 
         verify(query).setParameter("patientId", patientId);
         verify(query).executeUpdate();

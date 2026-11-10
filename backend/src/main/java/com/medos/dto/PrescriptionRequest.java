@@ -1,5 +1,7 @@
 package com.medos.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -23,4 +25,10 @@ public class PrescriptionRequest {
     private String frequency;
     private String duration;
     private String instructions;
+
+    // Total units prescribed; enables partial dispensing. Optional so legacy
+    // prescriptions keep the previous behaviour.
+    @Min(1)
+    @Max(10000)
+    private Integer quantity;
 }

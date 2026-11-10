@@ -53,6 +53,30 @@ View: https://github.com/gaurav-amritkar/med-os/issues?q=is%3Aissue+is%3Aopen
 
 > **All P0 release blockers are closed as of 2026-10-22.** Phase 1 has no open
 > items.
+>
+> **November audit follow-up (2026-11-10).** The 8 November review
+> (`docs/reviews/2026-11-08-production-readiness-review.md`) returned **NO GO**
+> and raised 45 tracked tasks under issue #219. The following audit findings are
+> now fixed on `main`, each with a regression test:
+>
+> | Finding | Issue | Fix |
+> |---|---|---|
+> | R01 Idempotency replay before authentication | #221 | `IdempotencyFilter` moved after the JWT filter; the filter refuses to run without an authenticated principal; the key is bound to a SHA-256 fingerprint of the request body, so a changed payload is a 409 rather than a replay; replays preserve the original status and content type. |
+> | R02 Role demotion survives in the token | #236 | `JwtAuthenticationFilter` resolves the authority from the current membership row instead of the token's `role` claim. |
+> | R03 Patient IDs could disagree | #222 | Prescribing, lab ordering and dispensing derive the patient from the parent record and reject a mismatch before any write. |
+> | R04 Partial dispensing could oversupply | #160 | The dispensed quantity is capped at prescribed minus already dispensed, before the batch query; the prescription quantity is validated positive. |
+> | R05 Alternate registration path | #223 | The unguarded duplicate registration endpoint is removed; all registration goes through `PatientService`. |
+> | R06 Clinical text in plaintext audit rows | #224 | Discharge clinical course and lab result text are no longer copied into `audit_logs`. |
+> | R07 Rotation omitted discharge records | #225 | `EncryptedPiiTables` now inventories discharge summaries, addenda and lab results; the guard test checks every encrypted entity. |
+> | R09 Discharge NPE + unreachable addendum | #227/#238 | `DischargeSummaryAssembler` no longer dereferences optional fields; an addendum now requires a discharged admission. |
+> | R10 Caddy redirected HTTPS to itself | #228 | The redirect moved to the plain-HTTP listener only; HSTS is applied to the redirect response too. |
+> | R11 Production DB unreachable from an internal network | #229 | `medos-private` is no longer `internal: true`; `medos-edge` is internal and carries only Caddy. |
+> | — Lab results stored in the clear | #237 | `lab_orders.result` carries the envelope-encryption converter (V17). |
+> | — Node 20 build runtime | #158 | `frontend/Dockerfile` builds on Node 22, matching CI. |
+>
+> **Still open and not addressed here:** R08 (discounted invoice balances),
+> R12/R13 (deployment and CI evidence), and the wider pilot-scope and UAT
+> gates. See #219 for the tracker and the remaining acceptance evidence.
 
 > **Done (commit `ae92e5c`):** JWT_SECRET required + validated, demo accounts
 > removed from Flyway (V3), admin bootstrap, actuator → `/manage`, WebSocket token

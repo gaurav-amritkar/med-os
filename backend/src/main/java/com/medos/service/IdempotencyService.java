@@ -23,6 +23,10 @@ import java.util.concurrent.TimeUnit;
  * let two concurrent requests with the same key both miss and both execute,
  * which is the double-charge the feature exists to prevent: only the caller
  * that wins the claim runs the operation.
+ *
+ * <p>Since #221 the stored entry also carries the fingerprint of the request
+ * body it was created for. A retry that changes the payload is a conflict, not
+ * a replay.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,17 +42,20 @@ public class IdempotencyService {
      */
     private static final Duration IN_FLIGHT_TTL = Duration.ofMinutes(2);
 
-    /** A stored response, with the status the original call returned. */
-    public record CachedResponse(int status, String body) implements java.io.Serializable {
+    /**
+     * A stored response, with the status and content type the original call
+     * returned, plus the fingerprint of the request body it answered.
+     */
+    public record CachedResponse(int status, String contentType, String body, String fingerprint)
+            implements java.io.Serializable {
+
+        /** Returns a copy carrying the fingerprint of the request that produced it. */
+        public CachedResponse withFingerprint(String newFingerprint) {
+            return new CachedResponse(status, contentType, body, newFingerprint);
+        }
     }
 
-    /**
-     * The outcome of trying to take ownership of an idempotency key.
-     *
-     * <p>Three states rather than a boolean, because "someone else is running it
-     * right now" and "it already finished" need different responses: the first
-     * is a retry, the second is a replay.
-     */
+    /** A stored entry: either a completed response or an in-flight marker. */
     public sealed interface Claim {
 
         /** This caller owns the operation and should execute it. */
@@ -62,19 +69,33 @@ public class IdempotencyService {
         /** Another caller holds the claim and has not finished. Retry shortly. */
         record InFlight() implements Claim {
         }
+
+        /**
+         * The key exists for this principal but was created for a different
+         * request body. Neither replay nor execution is correct.
+         */
+        record FingerprintMismatch(String storedFingerprint) implements Claim {
+        }
     }
 
     /**
      * Attempts to take ownership of {@code (endpoint, key)} for one principal.
      *
-     * @param tenantId the acting tenant, or null for a platform-level session
-     * @param userId   the acting user
+     * @param tenantId       the acting tenant, or null for a platform-level session
+     * @param userId         the acting user
+     * @param fingerprint    SHA-256 of the request body, or null if it could not be read
      */
-    public Claim claim(String endpoint, String idempotencyKey, UUID tenantId, UUID userId) {
+    public Claim claim(String endpoint, String idempotencyKey, UUID tenantId, UUID userId, String fingerprint) {
         String key = buildKey(endpoint, idempotencyKey, tenantId, userId);
 
         Object existing = redisTemplate.opsForValue().get(key);
         if (existing instanceof CachedResponse cached) {
+            // A completed entry for the same principal. If the body fingerprint
+            // differs, this is a different operation reusing a key.
+            if (fingerprint != null && !fingerprint.equals(cached.fingerprint())) {
+                log.warn("Idempotency key {} reused with a different payload", key);
+                return new Claim.FingerprintMismatch(cached.fingerprint());
+            }
             log.debug("Idempotency replay for {}", key);
             return new Claim.Replay(cached);
         }
@@ -89,6 +110,9 @@ public class IdempotencyService {
         // finished, replay; otherwise they are still running.
         Object now = redisTemplate.opsForValue().get(key);
         if (now instanceof CachedResponse raced) {
+            if (fingerprint != null && !fingerprint.equals(raced.fingerprint())) {
+                return new Claim.FingerprintMismatch(raced.fingerprint());
+            }
             return new Claim.Replay(raced);
         }
         return new Claim.InFlight();
@@ -102,9 +126,10 @@ public class IdempotencyService {
 
     /** Records a successful outcome so later retries replay it. */
     public void complete(String endpoint, String idempotencyKey, UUID tenantId, UUID userId,
-                         CachedResponse response) {
+                         String fingerprint, CachedResponse response) {
         String key = buildKey(endpoint, idempotencyKey, tenantId, userId);
-        redisTemplate.opsForValue().set(key, response, TTL.toMillis(), TimeUnit.MILLISECONDS);
+        redisTemplate.opsForValue().set(key, response.withFingerprint(fingerprint),
+                TTL.toMillis(), TimeUnit.MILLISECONDS);
         log.debug("Idempotency completed for {}", key);
     }
 

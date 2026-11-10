@@ -3,6 +3,7 @@ package com.medos.controller;
 import com.medos.dto.AdmissionRequest;
 import com.medos.dto.DischargeRequest;
 import com.medos.dto.DischargeResultDTO;
+import com.medos.dto.RoomRequest;
 import com.medos.entity.Admission;
 import com.medos.entity.Room;
 import com.medos.modules.clinical.service.AdmissionService;
@@ -66,5 +67,12 @@ public class AdmissionController {
     public ResponseEntity<List<Room>> getAvailableRooms() {
         featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
         return ResponseEntity.ok(admissionService.getAvailableRooms());
+    }
+
+    @PostMapping("/rooms")
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    public ResponseEntity<Room> createRoom(@Valid @RequestBody RoomRequest request) {
+        featureFlags.require(com.medos.security.TenantContext.getTenantId().orElse(null), "admissions");
+        return ResponseEntity.status(HttpStatus.CREATED).body(admissionService.createRoom(request));
     }
 }

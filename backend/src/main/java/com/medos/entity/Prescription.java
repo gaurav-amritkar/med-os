@@ -57,10 +57,17 @@ public class Prescription implements TenantOwned {
     @Column(name = "dispensed_at")
     private LocalDateTime dispensedAt;
 
+    @Column(name = "quantity")
+    private Integer quantity;
+
+    @Column(name = "dispensed_qty")
+    private Integer dispensedQty;
+
     @PrePersist
     protected void onCreate() {
         if (prescribedAt == null) prescribedAt = LocalDateTime.now();
         if (status == null) status = Status.pending;
+        if (dispensedQty == null) dispensedQty = 0;
     }
 
     public enum Status {
