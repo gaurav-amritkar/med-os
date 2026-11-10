@@ -147,12 +147,15 @@ class ProdNetworkTopologyGuardTest {
 
         // The network itself must not be internal: an internal bridge cannot
         // reach the managed pooler or resolve external DNS.
+        //
+        // Compose omits `internal: false` from the resolved model because it is
+        // the default, so the requirement is "not internal", not "is False".
         Map<String, Object> networks = (Map<String, Object>) compose().get("networks");
         Object internal = ((Map<String, Object>) networks.getOrDefault("medos-private", Map.of()))
                 .get("internal");
         assertThat(internal)
                 .as("medos-private must have a default route to the managed database")
-                .isEqualTo(false);
+                .isNotEqualTo(true);
     }
 
     @Test

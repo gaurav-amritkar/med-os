@@ -196,7 +196,10 @@ jobs:
           # the production stack undeployable as written. The edge network is
           # internal and carries only Caddy.
           nets = model["networks"]
-          assert nets["medos-private"].get("internal") is False, \
+          # Compose omits `internal: false` from the resolved model because it is
+          # the default, so the property is absent rather than False. Asserting
+          # `is False` fails on a correct file; the requirement is "not internal".
+          assert nets["medos-private"].get("internal") is not True, \
               "medos-private must have a default route to reach the managed database"
           assert nets["medos-edge"].get("internal") is True, \
               "medos-edge must not allow outbound connections"
