@@ -94,36 +94,7 @@ export default function Login() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--canvas)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute',
-        top: '-20%',
-        left: '-10%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-20%',
-        right: '-10%',
-        width: '400px',
-        height: '400px',
-        background: 'radial-gradient(circle, var(--info-tint), transparent 70%)',
-        borderRadius: '50%',
-        pointerEvents: 'none',
-      }} />
-
+    <div className="login-screen">
       <div className="card login-card">
         <div className="login-header">
           <div className="login-wordmark">

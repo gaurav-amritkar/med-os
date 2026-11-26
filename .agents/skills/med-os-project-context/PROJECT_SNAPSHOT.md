@@ -1,96 +1,165 @@
 # MedOS Project Snapshot
 
-Optimized for quick agent orientation. Treat as a starting point, then verify
-targeted files before edits. **The code is the source of truth — this snapshot
-and `docs/roadmap.md` have both been stale in the past.**
+Optimised for quick agent orientation. Treat as a starting point; verify targeted
+files before edits. **The code is the source of truth** — this snapshot and
+`docs/roadmap.md` have both been stale in the past.
 
 ## Top-level layout
-- `backend/` — Spring Boot backend (Java 17, Maven, Spring Boot 3.5.x)
-- `frontend/` — React 19 + Vite frontend
-- `database/migrations/` — **Flyway SQL migrations — the single schema owner.**
-  This is the one path agents most often get wrong: there is **no**
-  `backend/src/main/resources/db/migration/`. Migrations are owned by the
-  dedicated `migrate` container (`database/migrations.Dockerfile`), enforced by
-  `tools/verify-migrations.sh` (ADR-0005). Never edit an applied migration.
-- `cache/` — Redis image + `redis.conf` + entrypoint
-- `caddy/` — TLS terminator (`Caddyfile`, `Dockerfile`); production only
-- `docker-compose.yml` — local/dev stack (includes an in-host `db`)
-- `docker-compose.prod.yml` — production stack (**no** `db`; managed Postgres)
-- `docs/adr/` — architecture decision records (0001–0010, all Accepted)
-- `docs/operations.md` — runbooks, incl. §7d PII key rotation
-- `tools/` — migration gate, dev seeder, Trivy baseline
-- `.github/workflows/ci.yml` — CI (4 required jobs)
+
+```
+backend/            Java 17 / Spring Boot 3.5.x (Maven)
+frontend/           React 19 + Vite 8
+database/
+  migrations/       V1–V17 Flyway SQL files — the ONLY schema owner (17 files, 31 tables)
+  Dockerfile        Dev PostgreSQL 16 image
+  migrations.Dockerfile  Versioned Flyway migration job
+cache/              Redis 7.4 image + redis.conf + entrypoint
+caddy/              Production TLS reverse proxy (Caddyfile + Dockerfile)
+docs/
+  adr/              10 ADRs (all Accepted; 0001–0010)
+  requirements/     BRD_v4.md, PRD_v4.md (v3 PDFs retained for provenance only — do NOT read v3)
+  superpowers/specs/ Design specs (discharge summary, partial dispensing, MedWorks parity)
+  gap-analysis-2026-10-13.md  Full gap inventory with current status
+  operations.md     Runbooks incl. §7d KEK rotation, §7e DEK rotation
+tools/              verify-migrations.sh, verify-prod-secrets.sh, seed-dev.sh, Trivy baseline
+.agents/skills/med-os-project-context/  This skill
+.kiro/steering/     Kiro-native always-on context (project.md, security.md, database.md, frontend.md)
+CLAUDE.md           Full LLM context — read this first
+AGENTS.md           Agent working rules — read this second
+docker-compose.yml      Dev stack (in-host db, no TLS)
+docker-compose.prod.yml Production stack (Supabase, Caddy, secrets as files)
+.github/workflows/ci.yml  4 required CI jobs: backend, frontend, containers, security
+```
 
 ## Backend quick map
-- Build config: `backend/pom.xml`
-- App code: `backend/src/main/java/com/medos/`
-  - `config/`, `controller/`, `dto/`, `entity/`, `exception/`, `mapper/`,
-    `modules/` (billing, clinical, pharmacy, payment), `repository/`,
-    `security/`, `service/`, `util/`
-- Config: `backend/src/main/resources/application.yml`, `application-prod.yml`
-- Tests: `backend/src/test/java/com/medos/` — ~41 test classes
 
-### PII encryption (easy to get wrong — verify before claiming anything)
-`PII_ENCRYPTION_KEY` is the **KEK**, not the data key. It wraps a **per-tenant
-DEK** stored in `tenant_keys.wrapped_dek`.
+```
+backend/src/main/java/com/medos/
+  config/           Spring beans (SecurityConfig, EncryptionConfig, RedisConfig, WebSocketConfig)
+  controller/       REST controllers
+  dto/              Request / Response DTOs — the API surface
+  entity/           JPA entities (1:1 with Flyway tables)
+  exception/        GlobalExceptionHandler + typed exceptions
+  mapper/           MapStruct entity ↔ DTO
+  modules/          Feature packages (see below)
+  repository/       Spring Data JPA repos
+  security/         JWT, TenantContext, KeyHolder, KeyWrapCipher, LoginRateLimiter, DekRotationService
+  service/          Cross-cutting: AuthService, PatientService, TenantService, UserService,
+                    NotificationService, IdempotencyService
+  util/             PiiCiphertextFormat, BlindIndexUtil, AuditLogger
+backend/src/main/resources/
+  application.yml, application-prod.yml
+backend/src/test/java/com/medos/   ~41 test classes
+```
 
-| Concern | Where |
+### Modules (backend/src/main/java/com/medos/modules/)
+
+| Package | Domain |
 |---|---|
-| Wiring / startup init | `config/EncryptionConfig.java` |
-| KEK owner, DEK resolution, 5-min cache | `security/TenantKeyHolder.java` |
-| AES-256-GCM KEK↔DEK wrap/unwrap | `security/KeyWrapCipher.java` |
+| `appointment` | Scheduling, OPD queue, check-in/out |
+| `billing` | GST invoices, charges (idempotency-keyed) |
+| `clinical` | Encounters, admissions, discharge summaries, lab orders |
+| `enquiry` | Enquiry desk + status history |
+| `payment` | Payments: cash/card/UPI/insurance (idempotency-keyed) |
+| `pharmacy` | Medicine catalog, stock batches, FEFO dispense, prescriptions |
+
+### PII encryption (high error rate — read carefully)
+
+`PII_ENCRYPTION_KEY` = **KEK** (key-encryption key), not the data key.
+
+| Concern | File |
+|---|---|
+| KEK wraps per-tenant DEK; 5-min cache | `security/TenantKeyHolder.java` |
+| AES-256-GCM wrap/unwrap | `security/KeyWrapCipher.java` |
 | Ciphertext `kv1.d<gen>:<b64>` + legacy read | `util/PiiCiphertextFormat.java` |
 | Blind index (independent key) | `util/BlindIndexUtil.java`, `security/BlindIndexKeyService.java` |
-| KEK re-wrap (dry-run/apply/verify) | `security/KeyRewrapService.java`, `security/PiiKeyRotationRunner.java` |
-| Acting-tenant `ThreadLocal` | `security/TenantContext.java` |
+| KEK rotation (dry-run/apply/verify) | `security/KeyRewrapService.java`, `security/PiiKeyRotationRunner.java` |
+| DEK rotation (per-tenant) | `security/DekRotationService.java` |
+| Acting-tenant ThreadLocal | `security/TenantContext.java` |
 
-Nine encrypted columns: 5 on `Patient`, 4 on `Encounter`.
-25 tables total. 7 roles (`super_admin` is easy to forget).
+Encrypted columns: 5 on `Patient`, 4 on `Encounter`, 1 on `LabOrder` (result — added V17).
 
-**Implemented:** per-tenant DEK, versioned ciphertext, independent blind-index
-key, KEK re-wrap + runbook.
-**Not implemented:** per-tenant DEK rotation (`dek_rotation`) — `currentGeneration()`
-hardcodes `1`; blind-index key rotation has no operator surface.
+**Implemented:** per-tenant DEK, versioned ciphertext, independent blind-index key,
+KEK re-wrap + runbook, per-tenant DEK rotation, blind-index key rotation.
 
 ## Frontend quick map
-- Build config/scripts: `frontend/package.json`
-- App code: `frontend/src/` — `api/`, `components/`, `pages/`, `store/`, `test/`
-- E2E: `frontend/e2e/` (Playwright; needs `E2E_PASSWORD`), `probe:flows` script
-- Runtime proxy/hardening: `frontend/nginx.conf`
 
-## Known hotspots
-- Security/auth: `config/SecurityConfig.java`, `security/*`, `service/AuthService.java`
-- Tenant isolation: `TenantStatementInspector.java` — **`SELECT` root-`FROM` only;
-  writes rely on services setting `tenantId` explicitly**
-- Error contract: `exception/*`, `controller/*`
-- Prod deploy: `docker-compose.prod.yml`, `caddy/Caddyfile`, `secrets/*`
-  (gitignored — never read values, only presence)
+```
+frontend/src/
+  api/          Axios client + domain modules
+  components/   Layout, Sidebar, Header, Modal (note: 7+ hand-rolled copies — G38 open)
+  pages/        Login, Dashboard, Patients, Encounters, Pharmacy, Admissions,
+                Billing, Appointments, Lab, Staff
+  store/        Zustand: authStore, toastStore
+  test/         Vitest unit tests
+frontend/e2e/   Playwright (smoke, full, login, staff, appointments) — need E2E_PASSWORD
+```
+
+## Database (31 tables, 17 migrations)
+
+V1 (23 tables) + V2 PII key lifecycle + V3 staff + V4 super-admin/feature-flags +
+V5 super_admin role + V6 DEK history + V7 enquiry desk + V8 appointments deepening +
+V9 foreign keys + V10 tenant active not-null + V11 tenant user permissions +
+V12 consent tenant scope + V13 DEK rotation evidence + V14 discharge summaries +
+V15 lab role + V16 prescription quantity + **V17 lab result encrypted**
+
+**Next migration = V18.**
 
 ## Open blockers worth knowing before you start
-- `/api/v1/users/me` no longer returns the password hash — fixed (#108); the
-  Playwright assertion is green. Formerly P0.
-- Consent is a precondition of patient registration (`PatientService.java:51`),
-  recorded as a P0 DPDP defect; the parity programme's Wave 0 decouples it.
-- Observability (#9) is at zero: no Prometheus, no JSON logs, no correlation IDs.
 
-## Recommended default commands
-From `backend/`:
-- `mvn clean test`   (use `clean` — stale reports in `target/` misreport results)
-- `mvn -DskipTests package`
+**P0 races (block prod launch):**
+- G09 Double-dispense: prescription row unlocked in `DispenseService`
+- G10 Double-discharge: admission row unlocked in `AdmissionService`
+- G11 Double-invoice: charges not atomically claimed in `BillingService`
 
-From `frontend/`:
-- `npm run lint`
-- `npm test`
-- `npm run build`
+**P1:**
+- G06 No auth-event auditing (login/failure/lockout in `audit_log`)
+- G07 No rate limit on `/api/v1/onboarding/register`
+- G12 No container memory/CPU limits in either compose file
+- G17 Name search decrypts up to 5,000 rows in Java (dies at scale)
 
-From repo root:
-- `docker compose config --quiet`
-- `docker compose build`
-- `./tools/verify-migrations.sh` — run this after any migration change
+**November audit #219 — still open:** R08 (discounted invoice balance), R12/R13 (pilot deployment evidence)
+
+Full list: `docs/gap-analysis-2026-10-13.md`
+
+## Validation commands (use these, not others)
+
+```bash
+# Backend — always use `clean`; stale Surefire XML misreports results
+cd backend && mvn clean test
+cd backend && mvn -DskipTests package
+
+# Frontend
+cd frontend && npm run lint
+cd frontend && npm test
+cd frontend && npm run build
+cd frontend && npm run check:contrast
+
+# Infrastructure
+docker compose config --quiet
+./tools/verify-migrations.sh           # run after any migration change
+./tools/verify-prod-secrets.sh
+
+# E2E (requires running stack + E2E_PASSWORD)
+cd frontend && E2E_PASSWORD='<pw>' npx playwright test e2e/smoke.spec.js
+cd frontend && E2E_PASSWORD='<pw>' npx playwright test e2e/full.spec.js
+```
 
 ## Token-saving playbook
-1. Read `docs/roadmap.md` + one relevant config file first.
-2. Locate the exact target with `grep`/`glob` scoped to `backend/**` or
-   `frontend/**`.
+
+1. Read `CLAUDE.md` (architecture + invariants) then `docs/roadmap.md` (priorities).
+2. Locate the target with `grep`/`glob` scoped to `backend/**` or `frontend/**`.
 3. Read only the needed file sections.
-4. Validate with the smallest relevant command, then broaden only if needed.
+4. Run the smallest relevant validation command, then broaden only if needed.
+5. Never scan `node_modules/`, `dist/`, or `target/`.
+
+## Common mistakes agents make in this repo
+
+1. Creating `backend/src/main/resources/db/migration/` — wrong path.
+2. Editing an applied migration — causes Flyway checksum failure.
+3. Storing plaintext PII — use the column converter.
+4. Querying a tenant table without `tenant_id` predicate.
+5. Skipping `mvn clean` — stale reports give false green.
+6. Reading v3 BRD (Node/SQLite) as current — it is not.
+7. Trusting `X-Forwarded-For` for rate limiting.
+8. Publishing a port other than Caddy in `docker-compose.prod.yml`.

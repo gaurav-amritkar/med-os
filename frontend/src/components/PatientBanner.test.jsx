@@ -57,18 +57,18 @@ describe('PatientBanner', () => {
     expect(screen.getByText('No consent')).toBeInTheDocument();
   });
 
-  it('falls back to a not-admitted location rather than an empty cell', () => {
+  it('labels an unknown location explicitly', () => {
     usePatientBannerStore.getState().setPatient({ ...PATIENT, location: undefined });
     render(<PatientBanner />);
-    expect(screen.getByText('Not admitted')).toBeInTheDocument();
+    expect(screen.getByText('Location unconfirmed')).toBeInTheDocument();
   });
 
-  it('defaults an unrecognised acuity to normal rather than rendering a broken modifier', () => {
+  it('uses a neutral banner when acuity is unknown', () => {
     usePatientBannerStore
       .getState()
       .setPatient({ ...PATIENT, acuity: 'disastrous' });
     const { container } = render(<PatientBanner />);
-    expect(container.querySelector('.banner--normal')).toBeInTheDocument();
+    expect(container.querySelector('.banner--neutral')).toBeInTheDocument();
     expect(container.querySelector('.banner--disastrous')).toBeNull();
   });
 });

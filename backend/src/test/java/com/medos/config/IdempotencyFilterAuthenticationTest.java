@@ -81,6 +81,15 @@ class IdempotencyFilterAuthenticationTest {
     }
 
     @Test
+    void downstreamReceivesTheOriginalFinancialRequest() throws Exception {
+        authenticated();
+        when(service.claim(anyString(), anyString(), any(), any(), any()))
+                .thenReturn(new IdempotencyService.Claim.Acquired());
+        filter.doFilter(request(), new MockHttpServletResponse(), (request, response) ->
+                assertThat(request.getInputStream().readAllBytes()).isEqualTo(BODY.getBytes()));
+    }
+
+    @Test
     @DisplayName("an unauthenticated caller is refused even with a known key")
     void unauthenticatedCallerIsRefused() throws Exception {
         // The stored entry exists and matches the key: this is exactly the

@@ -1,0 +1,25 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]: MEDOS
+    - generic [ref=e7]: Hospital Management System v3.0
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: Username
+      - textbox "Username" [active] [ref=e11]:
+        - /placeholder: Enter username
+    - generic [ref=e12]:
+      - generic [ref=e13]: Password
+      - textbox "Password" [ref=e14]:
+        - /placeholder: Enter password
+    - button "Sign In →" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - strong [ref=e17]: "Local Login Setup:"
+    - text: "Fresh database: sign in as"
+    - strong [ref=e18]: admin
+    - text: with your
+    - strong [ref=e19]: BOOTSTRAP_ADMIN_PASSWORD
+    - text: ".Demo users: run"
+    - code [ref=e20]: ./tools/seed-dev.sh
+    - text: ", then use admin/doctor/nurse/reception/pharmacy/billing with password"
+    - strong [ref=e21]: password
+    - text: .

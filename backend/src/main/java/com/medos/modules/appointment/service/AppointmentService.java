@@ -214,13 +214,18 @@ public class AppointmentService {
      * token-queue module: it filters by optional {@code status} and pages.
      */
     public PageResponse<AppointmentDTO> queueToday(String status, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size,
+        validateFilters(status, null, null);
+        LocalDate tokenDate = LocalDate.now();
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Order.asc("tokenDate"), Sort.Order.asc("tokenNo")));
         Specification<Appointment> spec = (root, q, cb) -> {
             List<jakarta.persistence.criteria.Predicate> preds = new java.util.ArrayList<>();
             preds.add(cb.isNotNull(root.get("tokenNo")));
+            preds.add(cb.equal(root.get("tokenDate"), tokenDate));
             if (status != null && !status.isBlank()) {
                 preds.add(cb.equal(root.get("status"), Appointment.Status.valueOf(status.trim().toLowerCase(Locale.ROOT))));
+            } else {
+                preds.add(root.get("status").in(Appointment.Status.checked_in, Appointment.Status.in_consultation));
             }
             return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };

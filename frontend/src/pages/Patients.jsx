@@ -1,23 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { patientApi, encounterApi, billingApi } from '../api';
 import Modal from '../components/Modal';
 import useAuthStore from '../store/authStore';
+import usePatientBannerStore from '../store/patientBannerStore';
 import useToastStore from '../store/toastStore';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import DataTable from '../components/DataTable.jsx';
 import CounterRow from '../components/CounterRow.jsx';
 import FilterBar from '../components/FilterBar.jsx';
 
 export default function Patients() {
+  const { id } = useParams();
+  const tenant = useAuthStore(s => s.tenantId);
+  const user = useAuthStore(s => s.user?.username);
+  return <PatientWorkspace key={JSON.stringify([tenant, user, id])} id={id} />;
+}
+
+function PatientWorkspace({ id }) {
+  const navigate = useNavigate();
+  const [profileError, setProfileError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [historyError, setHistoryError] = useState(false);
+
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [registering, setRegistering] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [patientEncounters, setPatientEncounters] = useState([]);
-  const [patientInvoices, setPatientInvoices] = useState([]);
+  const [patientEncounters, setPatientEncounters] = useState(null);
+  const [patientInvoices, setPatientInvoices] = useState(null);
   const [profileTab, setProfileTab] = useState('encounters');
   const [page, setPage] = useState(0);
+  const listRequest = useRef(0);
   const [pageMeta, setPageMeta] = useState(null);
   // Hub state: the counter rail and the parity-spec cohort/blood filters.
   const [summary, setSummary] = useState(null);
@@ -41,20 +56,11 @@ export default function Patients() {
     address: '', bloodGroup: '', consent: { treatment: false, billing: false, research: false, purpose: { treatment: '', billing: '', research: '' } },
   });
 
-  // Helper to update nested consent fields cleanly
-  const setConsent = (path, value) => setForm(p => {
-    const parts = path.split('.');
-    let obj = p.consent;
-    for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
-    obj[parts[parts.length - 1]] = value;
-    return {...p};
-  });
-
-  useEffect(() => { fetchSummary(); }, []);
+  useEffect(() => { if (!id) fetchSummary(); }, [id]);
 
   // Filter changes are a different result set — back to page 0. This effect
   // also performs the initial load, so mount fetches the list exactly once.
-  useEffect(() => { fetchPatients(currentSearchTerm(), 0); }, [typeFilter, bloodFilter]);
+  useEffect(() => { if (!id) fetchPatients(currentSearchTerm(), 0); }, [id, typeFilter, bloodFilter]);
 
   const fetchSummary = async () => {
     try {
@@ -68,6 +74,7 @@ export default function Patients() {
   // an explicit page change, because a search or a new registration is a
   // different result set.
   const fetchPatients = async (q, nextPage = 0) => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const { data, meta } = await patientApi.list({
@@ -76,11 +83,13 @@ export default function Patients() {
         bloodGroup: bloodFilter || undefined,
         page: nextPage,
       });
+      if (request !== listRequest.current) return;
       setPatients(data);
       setPageMeta(meta);
       setPage(nextPage);
       setLoadError(null);
     } catch (err) {
+      if (request !== listRequest.current) return;
       // Reporting this as "No patients found" tells a clinician the record does not exist,
       // when in fact nothing was known: the server failed. Keep the two apart.
       setPatients([]);
@@ -90,7 +99,7 @@ export default function Patients() {
           ? `Could not load patients: ${err.response.data.message}`
           : 'Could not load patients. The server did not respond as expected.'
       );
-    } finally { setLoading(false); }
+    } finally { if (request === listRequest.current) setLoading(false); }
   };
 
   const currentSearchTerm = () => (search.length > 2 ? search : undefined);
@@ -143,8 +152,8 @@ export default function Patients() {
     { key: 'outstanding', label: 'Outstanding', align: 'right', render: (p) => `₹${p.outstanding || 0}` },
     {
       key: 'actions', label: '',
-      render: (p) => (
-        <Link to={`/patients/${p.id}`} className="btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+      render: (p) => role !== 'billing' && (
+        <Link onClick={event => event.stopPropagation()} to={`/patients/${p.id}`} className="btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
           View
         </Link>
       ),
@@ -163,12 +172,23 @@ export default function Patients() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (registering) return;
+    setRegistering(true);
     try {
+      const { consent, ...patient } = form;
+      const purposes = ['Treatment', 'Billing', 'Research']
+        .filter(label => consent[label.toLowerCase()])
+        .map(label => {
+          const explanation = consent.purpose[label.toLowerCase()].trim();
+          return explanation ? `${label}: ${explanation}` : label;
+        });
       const { data } = await patientApi.register({
-        ...form,
-        age: parseInt(form.age),
-        consent: form.consent,
+        ...patient,
+        age: Number(form.age),
+        dpdpConsent: purposes.length > 0,
+        consentPurpose: purposes.length ? purposes.join('; ') : undefined,
       });
+      setFormErrors({});
       addToast(`Patient ${data.name} registered. UHID: ${data.uhid}`, 'success');
       setShowRegister(false);
       setForm({ name: '', age: '', gender: 'male', phone: '', email: '', address: '', bloodGroup: '', consent: { treatment: false, billing: false, research: false, purpose: { treatment: '', billing: '', research: '' } } });
@@ -183,21 +203,49 @@ export default function Patients() {
         setFormErrors({});
         addToast(err.response?.data?.message || 'Registration failed', 'critical');
       }
+    } finally {
+      setRegistering(false);
     }
   };
 
-  const openPatientProfile = async (p) => {
-    setSelectedPatient(p);
-    setProfileTab('encounters');
-    try {
-      const [encRes, invRes] = await Promise.all([
-        encounterApi.listByPatient(p.id),
-        billingApi.getInvoices(p.id),
-      ]);
-      setPatientEncounters(encRes.data || []);
-      setPatientInvoices(invRes.data || []);
-    } catch {}
-  };
+  useEffect(() => {
+    if (!id) return;
+    let current = true;
+    setProfileError('');
+    patientApi.get(id).then(({ data }) => {
+      if (current) setSelectedPatient(data);
+    }).catch(err => {
+      const status = err.response?.status;
+      if (current) setProfileError(status === 404 ? 'Patient not found.' :
+        status === 403 ? 'Access to this patient was denied.' : 'Patient profile unavailable.');
+    });
+    return () => { current = false; };
+  }, [id, attempt]);
+
+  useLayoutEffect(() => {
+    if (!selectedPatient) return;
+    const { setPatient, clearPatient } = usePatientBannerStore.getState();
+    setPatient({ ...selectedPatient, sex: selectedPatient.gender });
+    return clearPatient;
+  }, [selectedPatient]);
+
+  const selectedId = selectedPatient?.id;
+  const [historyAttempt, setHistoryAttempt] = useState(0);
+  useEffect(() => {
+    if (!selectedId || profileTab === 'history') return;
+    let current = true;
+    const encounters = profileTab === 'encounters';
+    const setRows = encounters ? setPatientEncounters : setPatientInvoices;
+    setRows(null);
+    setHistoryError(false);
+    const request = encounters ? encounterApi.listByPatient(selectedId) : billingApi.getInvoices(selectedId);
+    request.then(({ data }) => {
+      if (current) setRows(data);
+    }).catch(() => {
+      if (current) setHistoryError(true);
+    });
+    return () => { current = false; };
+  }, [selectedId, profileTab, historyAttempt]);
 
   // A consent change is a new event, not a field edit: the API appends a row and
   // returns the patient with its cache updated. Replacing the row in the list
@@ -238,6 +286,16 @@ export default function Patients() {
     }
   };
 
+  if (id && !selectedPatient) {
+    return (
+      <section aria-label="Patient profile">
+        <p role={profileError ? 'alert' : 'status'}>{profileError || 'Loading patient profile…'}</p>
+        {profileError && <button className="btn-secondary" onClick={() => setAttempt(n => n + 1)}>Retry profile</button>}
+        <Link to="/patients">Back to patients</Link>
+      </section>
+    );
+  }
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -245,9 +303,10 @@ export default function Patients() {
           <h1>Patients</h1>
           <p>Search, register, and manage patients</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowRegister(true)}>+ Register Patient</button>
+        {!id && canManageConsent && <button className="btn-primary" onClick={() => setShowRegister(true)}>+ Register Patient</button>}
       </div>
 
+      {!id && <>
       <FilterBar
         search={{
           label: filterActive ? 'Search by UHID' : 'Search patients',
@@ -294,6 +353,7 @@ export default function Patients() {
       </FilterBar>
 
       <CounterRow counters={counters} />
+      </>}
 
       {selectedPatient ? (
         <div className="card">
@@ -328,7 +388,7 @@ export default function Patients() {
                 ))}
               </div>
             </div>
-            <button className="btn-ghost btn-sm" onClick={() => setSelectedPatient(null)}>← Back</button>
+            <button className="btn-ghost btn-sm" onClick={() => navigate('/patients')}>← Back</button>
           </div>
 
           <div className="tabs">
@@ -340,7 +400,14 @@ export default function Patients() {
             ))}
           </div>
 
-          {profileTab === 'encounters' && (
+          {profileTab !== 'history' && historyError && (
+            <div role="alert"><span>{profileTab === 'encounters' ? 'Encounters unavailable.' : 'Invoices unavailable.'}</span>
+              <button className="btn-secondary" onClick={() => setHistoryAttempt(n => n + 1)}>Retry</button>
+            </div>
+          )}
+          {!historyError && ((profileTab === 'encounters' && !patientEncounters) || (profileTab === 'invoices' && !patientInvoices)) &&
+            <p role="status">Loading records…</p>}
+          {profileTab === 'encounters' && patientEncounters && (
             <table>
               <thead><tr><th>Date</th><th>Doctor</th><th>Complaint</th><th>Status</th></tr></thead>
               <tbody>
@@ -357,7 +424,7 @@ export default function Patients() {
             </table>
           )}
 
-          {profileTab === 'invoices' && (
+          {profileTab === 'invoices' && patientInvoices && (
             <table>
               <thead><tr><th>Invoice #</th><th>Date</th><th>Total</th><th>Paid</th><th>Status</th></tr></thead>
               <tbody>
@@ -388,7 +455,7 @@ export default function Patients() {
               columns={columns}
               rows={patients}
               rowKey={(p) => p.id}
-              onRowClick={openPatientProfile}
+              onRowClick={role === 'billing' ? undefined : p => navigate(`/patients/${p.id}`)}
               emptyMessage="No patients found. Register a new patient."
               error={loadError}
               pageMeta={pageMeta}
@@ -426,8 +493,8 @@ export default function Patients() {
         <Modal title="Register New Patient" onClose={() => setShowRegister(false)}>
             <form onSubmit={handleRegister}>
               <div className="form-group">
-                <label>Full Name *</label>
-                <input
+                <label htmlFor="register-name">Full Name *</label>
+                <input id="register-name"
                   aria-invalid={!!formErrors.name}
                   aria-describedby={formErrors.name ? 'err-name' : undefined}
                   className={formErrors.name ? 'input-error' : ''}
@@ -436,13 +503,13 @@ export default function Patients() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Age *</label>
-                  <input type="number" min={0} max={150} aria-invalid={!!formErrors.age} aria-describedby={formErrors.age ? 'err-age' : undefined} className={formErrors.age ? 'input-error' : ''} value={form.age} onChange={(e) => { setForm({...form, age: e.target.value}); setFormErrors(p => ({...p, age: undefined})); }} required />
+                  <label htmlFor="register-age">Age *</label>
+                  <input id="register-age" type="number" min={0} max={150} aria-invalid={!!formErrors.age} aria-describedby={formErrors.age ? 'err-age' : undefined} className={formErrors.age ? 'input-error' : ''} value={form.age} onChange={(e) => { setForm({...form, age: e.target.value}); setFormErrors(p => ({...p, age: undefined})); }} required />
                   {formErrors.age && <span id="err-age" className="form-error" role="alert">{formErrors.age}</span>}
                 </div>
                 <div className="form-group">
-                  <label>Gender</label>
-                  <select value={form.gender} onChange={(e) => setForm({...form, gender: e.target.value})}>
+                  <label htmlFor="register-gender">Gender</label>
+                  <select id="register-gender" value={form.gender} onChange={(e) => setForm({...form, gender: e.target.value})}>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                     <option value="other">Other</option>
@@ -451,20 +518,20 @@ export default function Patients() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Phone *</label>
-                  <input aria-invalid={!!formErrors.phone} aria-describedby={formErrors.phone ? 'err-phone' : undefined} className={formErrors.phone ? 'input-error' : ''} value={form.phone} onChange={(e) => { setForm({...form, phone: e.target.value}); setFormErrors(p => ({...p, phone: undefined})); }} required />
+                  <label htmlFor="register-phone">Phone *</label>
+                  <input id="register-phone" aria-invalid={!!formErrors.phone} aria-describedby={formErrors.phone ? 'err-phone' : undefined} className={formErrors.phone ? 'input-error' : ''} value={form.phone} onChange={(e) => { setForm({...form, phone: e.target.value}); setFormErrors(p => ({...p, phone: undefined})); }} required />
                   {formErrors.phone && <span id="err-phone" className="form-error" role="alert">{formErrors.phone}</span>}
                 </div>
                 <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" aria-invalid={!!formErrors.email} aria-describedby={formErrors.email ? 'err-email' : undefined} className={formErrors.email ? 'input-error' : ''} value={form.email} onChange={(e) => { setForm({...form, email: e.target.value}); setFormErrors(p => ({...p, email: undefined})); }} />
+                  <label htmlFor="register-email">Email</label>
+                  <input id="register-email" type="email" aria-invalid={!!formErrors.email} aria-describedby={formErrors.email ? 'err-email' : undefined} className={formErrors.email ? 'input-error' : ''} value={form.email} onChange={(e) => { setForm({...form, email: e.target.value}); setFormErrors(p => ({...p, email: undefined})); }} />
                   {formErrors.email && <span id="err-email" className="form-error" role="alert">{formErrors.email}</span>}
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Blood Group</label>
-                  <select value={form.bloodGroup} onChange={(e) => setForm({...form, bloodGroup: e.target.value})}>
+                  <label htmlFor="register-blood-group">Blood Group</label>
+                  <select id="register-blood-group" value={form.bloodGroup} onChange={(e) => setForm({...form, bloodGroup: e.target.value})}>
                     <option value="">Select</option>
                     <option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option>
                     <option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option>
@@ -472,55 +539,41 @@ export default function Patients() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Address</label>
-                  <input value={form.address} onChange={(e) => setForm({...form, address: e.target.value})} />
+                  <label htmlFor="register-address">Address</label>
+                  <input id="register-address" value={form.address} onChange={(e) => setForm({...form, address: e.target.value})} />
                 </div>
               </div>
-              <div className="form-group">
-                {/* Independent consent purposes per DPDP Act §6(2) */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ width: 'auto' }}
-                    checked={form.consent.treatment}
-                    onChange={(e) => setConsent('consent.treatment', e.target.checked)} />
-                  Treatment
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ width: 'auto' }}
-                    checked={form.consent.billing}
-                    onChange={(e) => setForm(p => ({...p, consent: {...p.consent, billing: e.target.checked}}))} />
-                  Billing
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" style={{ width: 'auto' }}
-                    checked={form.consent.research}
-                    onChange={(e) => setForm(p => ({...p, consent: {...p.consent, research: e.target.checked}}))} />
-                  Research
-                </label>
+              <div className="form-group consent">
+                {['Treatment', 'Billing', 'Research'].map(label => {
+                  const key = label.toLowerCase();
+                  return (
+                    <div key={key}>
+                      <label className="consent__row">
+                        <input type="checkbox" checked={form.consent[key]} onChange={event => {
+                          const checked = event.target.checked;
+                          setForm(prev => ({ ...prev, consent: { ...prev.consent, [key]: checked } }));
+                        }} />
+                        {label}
+                      </label>
+                      {form.consent[key] && (
+                        <div className="form-group">
+                          <label htmlFor={`register-purpose-${key}`}>Purpose ({key})</label>
+                          <input id={`register-purpose-${key}`} value={form.consent.purpose[key]} onChange={event => {
+                            const value = event.target.value;
+                            setForm(prev => ({
+                              ...prev,
+                              consent: { ...prev.consent, purpose: { ...prev.consent.purpose, [key]: value } },
+                            }));
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              {form.consent.treatment && (
-                <div className="form-group">
-                  <label>Purpose (treatment)</label>
-                  <input value={form.consent.purpose?.treatment || ''}
-                    onChange={(e) => setConsent('consent.purpose.treatment', e.target.value)} />
-                </div>
-              )}
-              {form.consent.billing && (
-                <div className="form-group">
-                  <label>Purpose (billing)</label>
-                  <input value={form.consent.purpose?.billing || ''}
-                    onChange={(e) => setConsent('consent.purpose.billing', e.target.value)} />
-                </div>
-              )}
-              {form.consent.research && (
-                <div className="form-group">
-                  <label>Purpose (research)</label>
-                  <input value={form.consent.purpose?.research || ''}
-                    onChange={(e) => setConsent('consent.purpose.research', e.target.value)} />
-                </div>
-              )}
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
                 <button type="button" className="btn-ghost" onClick={() => setShowRegister(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Register Patient</button>
+                <button type="submit" disabled={registering} className="btn-primary">{registering ? 'Registering…' : 'Register Patient'}</button>
               </div>
             </form>
         </Modal>

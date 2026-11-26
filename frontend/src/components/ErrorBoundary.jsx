@@ -17,7 +17,7 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ error, errorInfo });
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    if (import.meta.env.DEV) console.error('MedOS rendering failed', errorInfo.componentStack);
   }
 
   resetErrorBoundary = () => {

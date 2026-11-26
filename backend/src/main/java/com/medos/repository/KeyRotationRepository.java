@@ -10,6 +10,12 @@ import java.util.UUID;
 @Repository
 public interface KeyRotationRepository extends JpaRepository<KeyRotation, UUID> {
 
+    // Encryption converters invoke this lookup during Hibernate flush. A nested
+    // auto-flush would modify the action queue while the original flush iterates it.
+    @org.springframework.data.jpa.repository.QueryHints(
+            @jakarta.persistence.QueryHint(name = "org.hibernate.flushMode", value = "COMMIT"))
+    java.util.Optional<KeyRotation> findFirstByOperationAndTenantIdOrderByStartedAtDesc(String operation, UUID tenantId);
+
     /**
      * Every run for one tenant, newest first. A DEK rotation is resumable, so the
      * service reads this to find an unfinished run before starting a new one; two

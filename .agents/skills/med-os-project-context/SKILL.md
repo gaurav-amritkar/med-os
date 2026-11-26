@@ -11,12 +11,15 @@ Use this skill at the start of MedOS work to get high-confidence context quickly
 Build enough repo understanding for accurate edits **without expensive full-repo exploration**.
 
 ## Read order (minimal)
-1. `README.md` (high-level architecture and domain model).
-2. `docs/roadmap.md` (current production-readiness roadmap and priorities; all
-   docs now live under `docs/` — see its `docs/README.md` index).
-3. `docs/superpowers/specs/2026-10-19-medworks-parity-design.md` and
-   `docs/adr/0010-product-module-scope.md` (the active design programme).
+1. `CLAUDE.md` — full architecture, invariants, module map, open gaps, ADR summary. **Read this first.**
+2. `AGENTS.md` — working rules, validation commands, do-not-do list.
+3. `docs/roadmap.md` — current priorities and production-readiness status.
 4. `PROJECT_SNAPSHOT.md` (this skill's compact structure and command map).
+
+Task-dependent extras:
+- `docs/superpowers/specs/` — design specs for discharge, partial dispensing, MedWorks parity
+- `docs/adr/0010-product-module-scope.md` — module scope decision (27-module parity)
+- `docs/requirements/MedOS_Business_Requirements_Document_v4.md` — BRD v4 (do NOT read v3)
 
 If task is backend-specific, then read only:
 - `backend/pom.xml`

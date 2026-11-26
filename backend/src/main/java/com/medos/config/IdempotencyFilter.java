@@ -100,7 +100,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         // different operation succeeded.
         UUID tenantId = com.medos.security.TenantContext.getTenantId().orElse(null);
         String endpointId = getEndpointId(path);
-        String fingerprint = requestFingerprint.fingerprint(request);
+        CachedBodyHttpServletRequest cached = CachedBodyHttpServletRequest.wrap(request, RequestFingerprint.MAX_BODY_BYTES);
+        if (cached == null) {
+            response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "Request body unavailable or too large");
+            return;
+        }
+        String fingerprint = requestFingerprint.fingerprint(cached);
 
         IdempotencyService.Claim claim = idempotencyService.claim(
                 endpointId, idempotencyKey, tenantId, principal, fingerprint);
@@ -157,7 +162,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         IdempotencyResponseWrapper wrappedResponse = new IdempotencyResponseWrapper(response);
 
         try {
-            filterChain.doFilter(request, wrappedResponse);
+            filterChain.doFilter(cached, wrappedResponse);
 
             // Cache successful responses (2xx), including empty bodies so that retrying
             // a void operation (e.g. dispense) replays the success instead of re-executing it

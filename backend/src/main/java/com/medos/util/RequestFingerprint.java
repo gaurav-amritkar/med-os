@@ -27,7 +27,7 @@ import java.util.Base64;
 public class RequestFingerprint {
 
     /** 64 KiB is far above any legitimate payment/invoice/dispense body. */
-    static final int MAX_BODY_BYTES = 64 * 1024;
+    public static final int MAX_BODY_BYTES = 64 * 1024;
 
     /**
      * Computes a SHA-256 digest over the request body, or {@code null} if the
