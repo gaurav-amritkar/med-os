@@ -1,0 +1,4 @@
+{
+  "body": "## Goal\nStrengthen DPDP alignment before government/enterprise deployments.\n\n## Scope\n- Full consent lifecycle: record, version, revoke; enforce consent checks wherever patient data is touched.\n- Add data_principal_request endpoints (export / delete) honoring patient rights; pseudonymize instead of hard-delete medical records.\n- Define retention windows per entity + archival job with audit trail.\n- Clinical safety: AI advisor stays decision-support-only; add visible non-prescriptive disclaimer and doctor sign-off requirement.\n\n## Acceptance Criteria\n- Consent lifecycle implemented and testable.\n- Data-export/delete endpoint exists with documented behavior.\n- Retention policy documented and enforced by a scheduled job.",
+  "title": "Compliance: DPDP consent lifecycle, data principal requests, retention"
+}
