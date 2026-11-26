@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { authApi } from '../api';
 import Icon from './icons';
@@ -9,7 +9,7 @@ const navItems = {
     { to: '/onboarding', label: 'Register Hospital', icon: 'user' },
   ],
   admin: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
     { to: '/appointments', label: 'Appointments', icon: 'encounters' },
@@ -22,39 +22,42 @@ const navItems = {
     { to: '/staff', label: 'Staff', icon: 'user' },
   ],
   doctor: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
     { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
+    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
   ],
   nurse: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/encounters', feature: 'encounters', label: 'Encounters', icon: 'encounters' },
     { to: '/admissions', feature: 'admissions', label: 'Admissions', icon: 'admissions' },
     { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
+    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
   ],
   receptionist: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
     { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
     { to: '/appointments', label: 'Appointments', icon: 'encounters' },
+    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
   ],
   pharmacist: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
-    { to: '/billing', feature: 'billing', label: 'Ledger', icon: 'billing' },
   ],
   billing: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
     { to: '/patients', label: 'Patients', icon: 'patients' },
   ],
   lab: [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/patients', label: 'Patients', icon: 'patients' },
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
   ],
 };
@@ -70,11 +73,10 @@ function ClockWidget() {
 }
 
 export default function Sidebar({ isOpen, onClose }) {
-  const location = useLocation();
   const user = useAuthStore((s) => s.user);
-  const role = user?.role?.toLowerCase() || 'admin';
+  const role = user?.role?.toLowerCase();
   const [tenantFeatures, setTenantFeatures] = useState(null);
-  const [userPermissions, setUserPermissions] = useState(null);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -82,41 +84,16 @@ export default function Sidebar({ isOpen, onClose }) {
       .then(({ data }) => {
         if (!cancelled) {
           if (Array.isArray(data?.features)) setTenantFeatures(data.features);
-          if (data?.permissions) setUserPermissions(data.permissions);
         }
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [role]);
 
-  const items = navItems[role] || navItems.admin;
-  const allPossibleItems = [
-    { to: '/', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/patients', label: 'Patients', icon: 'patients' },
-    { to: '/enquiries', label: 'Enquiry Desk', icon: 'enquiry' },
-    { to: '/appointments', label: 'Appointments', icon: 'encounters' },
-    { to: '/appointments/queue', label: 'Token Queue', icon: 'encounters' },
-    { to: '/encounters', feature: 'encounters', label: 'OPD', icon: 'encounters' },
-    { to: '/admissions', feature: 'admissions', label: 'IPD / Wards', icon: 'admissions' },
-    { to: '/pharmacy', feature: 'pharmacy', label: 'Pharmacy', icon: 'pharmacy' },
-    { to: '/lab-orders', label: 'Lab Orders', icon: 'laborders' },
-    { to: '/billing', feature: 'billing', label: 'Billing', icon: 'billing' },
-    { to: '/staff', label: 'Staff', icon: 'user' },
-  ];
-
-  let combinedItems = [...items];
-  if (userPermissions && role !== 'admin' && role !== 'super_admin') {
-    const permList = userPermissions.split(',').map((p) => p.trim());
-    allPossibleItems.forEach((ai) => {
-      if (permList.includes(ai.to) && !combinedItems.some((ci) => ci.to === ai.to)) {
-        combinedItems.push(ai);
-      }
-    });
-  }
-
+  const items = navItems[role] || [];
   const visibleItems = tenantFeatures === null
-    ? combinedItems
-    : combinedItems.filter((item) => !item.feature || tenantFeatures.includes(item.feature));
+    ? items
+    : items.filter(item => !item.feature || tenantFeatures.includes(item.feature));
 
   return (
     <>
@@ -144,20 +121,12 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         <nav className="rail__nav" aria-label="Primary">
-          {visibleItems.map((item) => {
-            const active = location.pathname === item.to;
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`rail__link ${active ? 'active' : ''}`}
-                onClick={onClose}
-              >
-                <Icon name={item.icon} size={20} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {visibleItems.map(item => (
+            <NavLink key={item.to} to={item.to} end={item.to !== '/patients'} className="rail-item" onClick={onClose}>
+              <Icon name={item.icon} size={20} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
         </nav>
 
         <ClockWidget />

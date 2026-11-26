@@ -50,6 +50,21 @@ class BillingInvoiceDiscountTest {
     @InjectMocks private BillingService billingService;
 
     @Test
+    void rejectsAStaleChargeSelectionBeforeCreatingAnyInvoice() {
+        Charge available = charge("100.00", "18.00", "18.00", "118.00");
+        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(new Patient()));
+        when(chargeRepository.findByPatientIdAndStatusForUpdate(PATIENT_ID, Charge.Status.unbilled))
+                .thenReturn(List.of(available));
+        InvoiceRequest request = new InvoiceRequest();
+        request.setPatientId(PATIENT_ID);
+        request.setChargeIds(List.of(available.getId(), UUID.randomUUID()));
+
+        assertThrows(BusinessException.class, () -> billingService.generateInvoice(request));
+        verify(chargeRepository).findByPatientIdAndStatusForUpdate(PATIENT_ID, Charge.Status.unbilled);
+        verify(invoiceRepository, never()).save(any());
+    }
+
+    @Test
     void generateInvoice_appliesFlatDiscountAcrossTaxBasesAndPersistsTotals() {
         Charge serviceCharge = charge("100.00", "18.00", "18.00", "118.00");
         Charge medicineCharge = charge("100.00", "5.00", "5.00", "105.00");

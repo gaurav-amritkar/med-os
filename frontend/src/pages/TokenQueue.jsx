@@ -9,7 +9,7 @@
  * the header says it in words so the desk never has to remember the rule.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DataTable from '../components/DataTable.jsx';
 import CounterRow from '../components/CounterRow.jsx';
 import useToastStore from '../store/toastStore';
@@ -42,46 +42,68 @@ export default function TokenQueue() {
   const [loading, setLoading] = useState(true);
   const role = useAuthStore((s) => s.role);
   const addToast = useToastStore((s) => s.addToast);
-  const timer = useRef(null);
+  const [page, setPage] = useState(0);
+  const [active, setActive] = useState(null);
+  const [error, setError] = useState('');
+  const generation = useRef(0);
+  const pending = useRef(new Set());
+  const [saving, setSaving] = useState(new Set());
 
-  async function load() {
+  const load = useCallback(async () => {
+    const request = ++generation.current;
     setLoading(true);
     try {
-      const [queueRes, sumRes] = await Promise.all([
-        appointmentApi.queue(undefined, 0),
+      const [queueRes, sumRes, activeRes] = await Promise.all([
+        appointmentApi.queue(undefined, page),
         appointmentApi.summary(),
+        appointmentApi.queue('in_consultation', 0),
       ]);
+      if (request !== generation.current) return;
+      if (page > 0 && queueRes.meta && page >= queueRes.meta.totalPages) {
+        setPage(Math.max(0, queueRes.meta.totalPages - 1));
+        return;
+      }
+      setError('');
+      setActive(activeRes.data.find(row => row.status === 'in_consultation') ?? null);
       setRows(queueRes.data || []);
       setPageMeta(queueRes.meta);
       setSummary(sumRes.data);
-    } catch (e) {
-      addToast(e?.response?.data?.message || 'Failed to load the queue', 'critical');
+    } catch {
+      if (request !== generation.current) return;
+      setError('Queue unavailable. Refresh to try again.');
+      setRows([]);
+      setPageMeta(null);
+      setSummary(null);
+      setActive(null);
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
-  }
+  }, [page]);
 
+  const latestLoad = useRef(load);
   useEffect(() => {
+    latestLoad.current = load;
     load();
-    timer.current = setInterval(load, 20000);
-    return () => clearInterval(timer.current);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const timer = setInterval(load, 20000);
+    return () => { clearInterval(timer); generation.current++; latestLoad.current = () => {}; };
+  }, [load]);
 
   /** Owns its own failure like the board's act() — never an unhandled rejection. */
   async function act(row, next) {
+    if (pending.current.has(row.id)) return;
+    pending.current.add(row.id);
+    setSaving(new Set(pending.current));
     try {
       await appointmentApi.updateStatus(row.id, { status: next });
       addToast(`${row.patientName} marked ${next === 'in_consultation' ? 'in consultation' : 'completed'}`, 'success');
-      load();
     } catch (err) {
       addToast(err?.response?.data?.message || `Could not move ${row.patientName} to ${next === 'in_consultation' ? 'consultation' : 'completed'}`, 'critical');
-      load();
+    } finally {
+      latestLoad.current();
+      pending.current.delete(row.id);
+      setSaving(new Set(pending.current));
     }
   }
-
-  const inConsultation = rows
-    .filter((r) => r.status === 'in_consultation')
-    .sort((a, b) => b.tokenNo - a.tokenNo)[0];
 
   const counters = summary ? [
     { label: 'Checked-in', value: summary.checkedIn, tone: 'warning' },
@@ -118,12 +140,12 @@ export default function TokenQueue() {
         }
         return r.status === 'checked_in' ? (
           <button type="button" className="btn btn-primary btn-sm"
-            onClick={() => act(r, 'in_consultation')}>
+            disabled={saving.has(r.id)} onClick={() => act(r, 'in_consultation')}>
             Start
           </button>
         ) : (
           <button type="button" className="btn btn-success btn-sm"
-            onClick={() => act(r, 'completed')}>
+            disabled={saving.has(r.id)} onClick={() => act(r, 'completed')}>
             Complete
           </button>
         );
@@ -144,12 +166,12 @@ export default function TokenQueue() {
       <CounterRow counters={counters} />
 
       <div className="queue-now" role="status">
-        {inConsultation ? (
+        {error ? error : loading ? 'Updating queue…' : active ? (
           <div className="queue-now-servng">
             <span className="queue-now-kicker">Now serving</span>
-            <span className="queue-now-token">{`Token ${inConsultation.tokenNo}`}</span>
-            <span className="queue-now-patient">{inConsultation.patientName}</span>
-            <span className="queue-now-doctor">{inConsultation.doctorName}</span>
+            <span className="queue-now-token">{`Token ${active.tokenNo}`}</span>
+            <span className="queue-now-patient">{active.patientName}</span>
+            <span className="queue-now-doctor">{active.doctorName}</span>
           </div>
         ) : (
           <div className="queue-now-servng">
@@ -166,6 +188,8 @@ export default function TokenQueue() {
           .sort((a, b) => a.tokenNo - b.tokenNo)}
         rowKey={(r) => r.id}
         pageMeta={pageMeta}
+        onPageChange={setPage}
+        error={error}
         loading={loading}
         loadingLabel="Loading the queue…"
         emptyMessage="No tokens today. A token appears when a patient is checked in."

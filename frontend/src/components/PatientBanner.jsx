@@ -18,7 +18,7 @@ export default function PatientBanner() {
   const patient = usePatientBannerStore((s) => s.patient);
   if (!patient) return null;
 
-  const acuity = ACUITY.has(patient.acuity) ? patient.acuity : 'normal';
+  const acuity = ACUITY.has(patient.acuity) ? patient.acuity : 'neutral';
 
   return (
     <section
@@ -52,14 +52,14 @@ export default function PatientBanner() {
       <div className="banner__foot">
         <p className="banner__loc">
           <Icon name="admissions" size={16} />
-          {patient.location || 'Not admitted'}
+          {patient.location || 'Location unconfirmed'}
         </p>
-        {patient.allergy && (
+        {patient.allergy ? (
           <p className="banner__allergy">
             <Icon name="alert" size={16} />
             Allergy: {patient.allergy}
           </p>
-        )}
+        ) : <p>Allergy status unknown</p>}
       </div>
     </section>
   );

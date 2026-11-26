@@ -74,7 +74,7 @@ public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
             return existing;
         }
         try {
-            byte[] body = request.getInputStream().readAllBytes();
+            byte[] body = request.getInputStream().readNBytes(maxBytes + 1);
             if (body.length > maxBytes) {
                 // Too large to fingerprint; leave the attribute unset so a later
                 // read is not fooled into thinking this body was cached.

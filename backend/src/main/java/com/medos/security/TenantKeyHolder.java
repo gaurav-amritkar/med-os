@@ -212,12 +212,9 @@ public class TenantKeyHolder implements TenantKeyResolver {
             return false; // test holder without a rotation repository
         }
         UUID acting = requireTenant(tenantId);
-        List<KeyRotation> unfinished = keyRotationRepository
-                .findByOperationAndTenantIdOrderByStartedAtDesc("dek_rotation", acting);
-        if (unfinished.isEmpty()) {
-            return false;
-        }
-        KeyRotation latest = unfinished.get(0);
+        KeyRotation latest = keyRotationRepository
+                .findFirstByOperationAndTenantIdOrderByStartedAtDesc("dek_rotation", acting).orElse(null);
+        if (latest == null) return false;
         if (!List.of("in_progress", "reencryption_incomplete").contains(latest.getStatus())) {
             return false;
         }

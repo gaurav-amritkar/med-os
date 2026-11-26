@@ -91,3 +91,14 @@ describe('Token Queue board', () => {
     await screen.findByText('New Patient');
   });
 });
+
+it('shows an active consultation outside the visible page and requests the next page', async () => {
+  appointmentApi.queue.mockImplementation(async (status, page) => ({
+    data: status ? [QUEUE[1]] : [page === 0 ? QUEUE[0] : QUEUE[2]],
+    meta: { ...META, page, totalPages: 2, size: 1, totalElements: 2 },
+  }));
+  renderPage();
+  expect(await screen.findByText('Suresh Reddy')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', {name: 'Next page'}));
+  expect(await screen.findByText('Kavita Nair')).toBeVisible();
+});

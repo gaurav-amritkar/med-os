@@ -3,38 +3,56 @@ import { dashboardApi } from '../api';
 import useAuthStore from '../store/authStore';
 import { Link } from 'react-router-dom';
 
-export default function Dashboard() {
-  const [stats, setStats] = useState(null);
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const user = useAuthStore((s) => s.user);
-
+function useDashboardResource(load) {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState({ loading: true });
   useEffect(() => {
-    fetchData();
-  }, []);
+    let current = true;
+    load().then(({ data }) => {
+      if (current) setResult({ data });
+    }).catch(() => {
+      if (current) setResult({ failed: true });
+    });
+    return () => { current = false; };
+  }, [load, attempt]);
+  function retry() {
+    setResult({ loading: true });
+    setAttempt(value => value + 1);
+  }
+  return { ...result, retry };
+}
 
-  const fetchData = async () => {
-    try {
-      const [statsRes, notifRes] = await Promise.all([
-        dashboardApi.dashboard(),
-        dashboardApi.notifications(false),
-      ]);
-      setStats(statsRes.data);
-      setNotifications((notifRes.data || []).slice(0, 5));
-    } catch (err) {
-      console.error('Dashboard fetch error', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const loadNotifications = () => dashboardApi.notifications(false);
+const loadCounts = () => dashboardApi.dashboard();
+
+const quickActions = [
+  { to: '/patients', label: 'View patients', roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'BILLING'] },
+  { to: '/encounters', label: 'View OPD encounters', roles: ['ADMIN', 'DOCTOR', 'NURSE'] },
+  { to: '/admissions', label: 'View wards', roles: ['ADMIN', 'DOCTOR', 'NURSE'] },
+  { to: '/pharmacy', label: 'View pharmacy stock', roles: ['ADMIN', 'DOCTOR', 'PHARMACIST'] },
+  { to: '/billing', label: 'View billing', roles: ['ADMIN', 'BILLING'] },
+  { to: '/lab-orders', label: 'View lab orders', roles: ['LAB', 'ADMIN', 'DOCTOR', 'NURSE'] },
+];
+
+export default function Dashboard() {
+  const user = useAuthStore(s => s.user);
+  const tenant = useAuthStore(s => s.tenantId);
+  return <HospitalOverview key={JSON.stringify([tenant, user?.username])} user={user} />;
+}
+
+function HospitalOverview({ user }) {
+  const counts = useDashboardResource(loadCounts);
+  const alerts = useDashboardResource(loadNotifications);
+  const stats = counts.data;
+  const notifications = alerts.data;
 
   const statCards = [
-    { label: 'Active Admissions', value: stats?.activeAdmissions || 0, desc: 'Currently in care', color: 'var(--info)' },
-    { label: 'Today VIP Appts', value: stats?.todayAppointments || 0, desc: 'Scheduled for today', color: 'var(--normal)' },
-    { label: 'Open Encounters', value: stats?.openEncounters || 0, desc: 'Pending physician sign-off', color: 'var(--urgent)' },
-    { label: 'Total Patients', value: stats?.totalPatients || 0, desc: 'All registered patients', color: 'var(--action)' },
-    { label: 'Pending Invoices', value: stats?.pendingInvoices || 0, desc: 'Awaiting payment', color: 'var(--critical)' },
-    { label: 'Expiring Stock', value: stats?.expiringStockCount || 0, desc: 'Items expiring in 30d', color: 'var(--urgent)' },
+    { label: 'Active Admissions', value: stats?.activeAdmissions ?? '—', desc: 'Currently in care', color: 'var(--info)' },
+    { label: 'Today’s appointments', value: stats?.todayAppointments ?? '—', desc: 'Scheduled for today', color: 'var(--normal)' },
+    { label: 'Open Encounters', value: stats?.openEncounters ?? '—', desc: 'Pending physician sign-off', color: 'var(--urgent)' },
+    { label: 'Total Patients', value: stats?.totalPatients ?? '—', desc: 'All registered patients', color: 'var(--action)' },
+    { label: 'Pending Invoices', value: stats?.pendingInvoices ?? '—', desc: 'Awaiting payment', color: 'var(--critical)' },
+    { label: 'Expiring Stock', value: stats?.expiringStockCount ?? '—', desc: 'Items expiring in 30d', color: 'var(--urgent)' },
   ];
 
   return (
@@ -45,7 +63,9 @@ export default function Dashboard() {
       </div>
 
       <div className="grid-3 dashboard-stats">
-        {loading ? (
+        {counts.failed ? (
+          <div role="alert">Hospital counts unavailable. <button className="btn-secondary" onClick={counts.retry}>Retry hospital counts</button></div>
+        ) : counts.loading ? (
           <>
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="stat-card skeleton skeleton-stat-card" />
@@ -66,21 +86,11 @@ export default function Dashboard() {
             <h3>Quick Actions</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Link to="/patients" className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
-              ◈ Register New Patient
-            </Link>
-            <Link to="/encounters" className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
-              ◎ Start OPD Encounter
-            </Link>
-            <Link to="/admissions" className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
-              ▣ Admit / View Wards
-            </Link>
-            <Link to="/pharmacy" className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
-              ⬡ Manage Pharmacy Stock
-            </Link>
-            <Link to="/billing" className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
-              ₿ Generate Invoice
-            </Link>
+            {quickActions.filter(action => action.roles.includes(user?.role?.toUpperCase())).map(action => (
+              <Link key={action.to} to={action.to} className="btn-ghost" style={{ textDecoration: 'none', justifyContent: 'flex-start', padding: '12px 16px' }}>
+                {action.label}
+              </Link>
+            ))}
           </div>
         </div>
 
@@ -88,13 +98,17 @@ export default function Dashboard() {
           <div className="card-header">
             <h3>Recent Notifications</h3>
           </div>
-          {notifications.length === 0 ? (
+          {alerts.failed ? (
+            <div role="alert">Notifications unavailable. <button className="btn-secondary" onClick={alerts.retry}>Retry notifications</button></div>
+          ) : alerts.loading ? (
+            <p role="status">Loading notifications…</p>
+          ) : notifications.length === 0 ? (
             <div className="empty-state" style={{ padding: 20 }}>
               <p>No recent notifications</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {notifications.map((n) => (
+              {notifications.slice(0, 5).map((n) => (
                 <div key={n.id} style={{
                   padding: '12px 0',
                   borderBottom: '1px solid var(--rule)',

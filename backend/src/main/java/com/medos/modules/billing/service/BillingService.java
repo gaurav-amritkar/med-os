@@ -26,6 +26,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -55,20 +56,17 @@ public class BillingService {
         Patient patient = patientRepository.findById(request.getPatientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Patient", request.getPatientId().toString()));
 
-        List<Charge> charges;
+        List<Charge> charges = chargeRepository.findByPatientIdAndStatusForUpdate(
+                request.getPatientId(), Charge.Status.unbilled);
         if (request.getChargeIds() != null && !request.getChargeIds().isEmpty()) {
-            charges = chargeRepository.findAllById(request.getChargeIds()).stream()
-                    .filter(c -> c.getPatientId().equals(request.getPatientId()))
-                    .filter(c -> c.getStatus() == Charge.Status.unbilled)
-                    .toList();
-            if (charges.isEmpty()) {
-                throw new BusinessException("No unbilled charges found for patient");
+            var selected = new HashSet<>(request.getChargeIds());
+            charges = charges.stream().filter(charge -> selected.contains(charge.getId())).toList();
+            if (charges.size() != selected.size()) {
+                throw new BusinessException("Selected charges are no longer available. Refresh the ledger.");
             }
-        } else {
-            charges = chargeRepository.findByPatientIdAndStatusForUpdate(request.getPatientId(), Charge.Status.unbilled);
-            if (charges.isEmpty()) {
-                throw new BusinessException("No unbilled charges found for patient");
-            }
+        }
+        if (charges.isEmpty()) {
+            throw new BusinessException("No unbilled charges found for patient");
         }
 
         BigDecimal subtotal = charges.stream()

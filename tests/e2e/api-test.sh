@@ -142,20 +142,17 @@ test_patients() {
         pass "List patients ($(echo "$response" | jq '.content | length') found)"
     else fail "List patients"; fi
 
-    response=$(api_call GET "/patients/uhid/UHID000001" "" "$TOKEN_ADMIN" 200)
-    if [[ $? -eq 0 ]]; then
-        PATIENT_ID=$(echo "$response" | jq -r '.id')
-        pass "Get patient by UHID (id: $PATIENT_ID)"
-    else fail "Get patient by UHID"; fi
-
-    [[ -z "$PATIENT_ID" ]] && { skip "Remaining patient tests (no patient)"; return; }
-
-    response=$(api_call GET "/patients/$PATIENT_ID" "" "$TOKEN_ADMIN" 200) \
-        && pass "Get patient by ID" || fail "Get patient by ID"
-
     local new_patient="{\"name\":\"Test Patient\",\"age\":30,\"gender\":\"male\",\"phone\":\"9999${run_id: -6}\",\"email\":\"test-$run_id@example.com\",\"bloodGroup\":\"O+\",\"address\":\"Test Address\",\"dpdpConsent\":true}"
     response=$(api_call POST "/patients" "$new_patient" "$TOKEN_RECEPTION" 201)
-    [[ $? -eq 0 ]] && pass "Create patient (receptionist)" || fail "Create patient (receptionist)"
+    if [[ $? -ne 0 ]]; then fail "Create patient (receptionist)"; return; fi
+    PATIENT_ID=$(jq -er '.id' <<<"$response")
+    local uhid
+    uhid=$(jq -er '.uhid' <<<"$response")
+    pass "Create patient (receptionist)"
+    api_call GET "/patients/uhid/$uhid" "" "$TOKEN_ADMIN" 200 >/dev/null \
+        && pass "Get patient by UHID" || fail "Get patient by UHID"
+    api_call GET "/patients/$PATIENT_ID" "" "$TOKEN_ADMIN" 200 >/dev/null \
+        && pass "Get patient by ID" || fail "Get patient by ID"
 
     response=$(api_call POST "/patients" "$new_patient" "$TOKEN_DOCTOR" 403) \
         && pass "RBAC: Doctor cannot create patient (403)" || fail "RBAC: Doctor cannot create patient"
@@ -246,10 +243,10 @@ test_dispense() {
     # Second patient: fresh encounter + Rx + dispense, so the idempotency test
     # has its own patient with an unbilled charge (patient 1's are invoiced later).
     local p2 response2
-    p2=$(api_call GET "/patients/uhid/UHID000002" "" "$TOKEN_ADMIN" 200)
+    p2=$(api_call POST "/patients" "$(jq -nc --arg phone "8888${RUN_TS: -6}" '{name:"Second Test Patient",age:31,gender:"other",phone:$phone}')" "$TOKEN_RECEPTION" 201)
     if [[ $? -eq 0 ]]; then
         PATIENT2_ID=$(echo "$p2" | jq -r '.id')
-        pass "Get second patient by UHID (id: $PATIENT2_ID)"
+        pass "Register second test patient (id: $PATIENT2_ID)"
         response2=$(api_call POST "/encounters" "{\"patientId\":\"$PATIENT2_ID\",\"vitals\":{\"pulse\":80},\"chiefComplaint\":\"Cough\",\"diagnosis\":\"Bronchitis\"}" "$TOKEN_DOCTOR" 201)
         if [[ $? -eq 0 ]]; then
             ENCOUNTER2_ID=$(echo "$response2" | jq -r '.id')
@@ -268,7 +265,7 @@ test_dispense() {
             skip "Second patient Rx chain (encounter failed)"
         fi
     else
-        skip "Second patient chain (UHID000002 lookup failed)"
+        skip "Second patient chain (second registration failed)"
     fi
 
     # Sign LAST: a signed encounter is a closed clinical record, so no more
@@ -354,8 +351,8 @@ test_dashboard() {
     [[ $? -eq 0 ]] && pass "Get dashboard data" || fail "Get dashboard data" "$(echo "$response" | head -c 120)"
     api_call GET "/notifications?limit=10" "" "$TOKEN_ADMIN" 200 >/dev/null && pass "Get notifications" || fail "Get notifications"
     api_call GET "/notifications/unread-count" "" "$TOKEN_ADMIN" 200 >/dev/null && pass "Get unread count" || fail "Get unread count"
-    api_call PUT "/notifications/00000000-0000-0000-0000-000000000000/read" "" "$TOKEN_ADMIN" 200 >/dev/null \
-        && pass "Mark read: unknown notification is a no-op (200)" || fail "Mark read: unknown notification"
+    api_call PUT "/notifications/00000000-0000-0000-0000-000000000000/read" "" "$TOKEN_ADMIN" 404 >/dev/null \
+        && pass "Mark read: unknown notification returns 404" || fail "Mark read: unknown notification"
     response=$(api_call GET "/users/me" "" "$TOKEN_ADMIN" 200)
     [[ $? -eq 0 ]] && pass "Get current user ($(echo "$response" | jq -r '.username'))" || fail "Get current user"
 }
@@ -407,14 +404,14 @@ test_idempotency() {
     s1=$(echo "$r1" | tail -n1); body1=$(echo "$r1" | sed '$d')
     [[ "$s1" == "201" ]] && pass "Invoice with Idempotency-Key -> 201" || fail "Invoice with Idempotency-Key" "status=$s1 body=$(echo "$body1" | head -c 120)"
 
-    # Replay with SAME key -> 200 + Idempotency-Key-Replayed: true (never re-executed)
+    # Replay with SAME key -> 201 + Idempotency-Key-Replayed: true (never re-executed)
     local r2 s2 hdr2
     r2=$(curl -s -D /tmp/e2e-headers.txt -o /tmp/e2e-body.txt -w "%{http_code}" -X POST "$API_URL/billing/invoices" \
         -H "Authorization: Bearer $TOKEN_BILLING" -H "Content-Type: application/json" \
         -H "Idempotency-Key: $idem_key" -d "$invoice_data" 2>/dev/null)
     s2="$r2"; hdr2=$(grep -i "Idempotency-Key-Replayed" /tmp/e2e-headers.txt | tr -d '\r' || true)
-    if [[ "$s2" == "200" && "$hdr2" == *true* ]]; then
-        pass "Replay with same key -> 200 + Idempotency-Key-Replayed: true"
+    if [[ "$s2" == "201" && "$hdr2" == *true* ]]; then
+        pass "Replay with same key -> 201 + Idempotency-Key-Replayed: true"
     else
         fail "Replay with same key" "status=$s2 header=[$hdr2]"
     fi
