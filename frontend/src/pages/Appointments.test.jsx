@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Appointments from './Appointments';
@@ -134,6 +134,20 @@ describe('Appointments board', () => {
         reason: 'Knee pain',
       });
     });
+  });
+
+  it('ignores an in-flight patient search after clearing the query', async () => {
+    const user = userEvent.setup();
+    let finishSearch;
+    patientApi.list.mockImplementationOnce(() => new Promise(resolve => { finishSearch = resolve; }));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /book appointment/i }));
+    const search = screen.getByLabelText(/patient/i);
+    await user.type(search, 'Kavita');
+    await waitFor(() => expect(patientApi.list).toHaveBeenCalledWith({ search: 'Kavita' }));
+    await user.clear(search);
+    await act(async () => finishSearch(PATIENTS));
+    expect(screen.queryByRole('button', { name: /Kavita Nair/ })).toBeNull();
   });
 
   it('refuses to submit a booking without a patient chosen', async () => {

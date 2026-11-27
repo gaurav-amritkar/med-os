@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Patients from './Patients';
@@ -120,4 +120,25 @@ describe('Patients Hub', () => {
       expect(params.bloodGroup).toBeUndefined();
     });
   });
+});
+
+it('debounces typing and ignores a search response that arrives after clearing', async () => {
+  const user = userEvent.setup();
+  let finishSearch;
+  patientApi.list.mockReset().mockResolvedValue(PAGE);
+  renderPage();
+  await screen.findByText('Anita Sharma');
+  patientApi.list.mockImplementationOnce(() => new Promise(resolve => { finishSearch = resolve; }));
+  const search = screen.getByRole('searchbox');
+  await user.type(search, 'Sharma');
+  expect(search).toHaveValue('Sharma');
+  await waitFor(() => expect(patientApi.list).toHaveBeenLastCalledWith(
+    expect.objectContaining({ search: 'Sharma', page: 0 })
+  ));
+  expect(patientApi.list).toHaveBeenCalledTimes(2);
+  await user.click(screen.getByRole('button', { name: 'Clear' }));
+  expect(search).toHaveValue('');
+  await screen.findByText('Anita Sharma');
+  await act(async () => finishSearch({ ...PAGE, data: [] }));
+  expect(screen.getByText('Anita Sharma')).toBeVisible();
 });

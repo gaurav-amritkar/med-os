@@ -278,16 +278,22 @@ function BookAppointmentModal({ onClose, onBooked }) {
   const [errors, setErrors] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // One search per pause in typing, not one request per keystroke (front-desk
-  // performance review). The same debounce the board's other pickers use.
+  const [patientSearchError, setPatientSearchError] = useState(false);
   useEffect(() => {
-    if (!patientQuery.trim()) { setPatientResults(null); return undefined; }
-    const t = setTimeout(() => {
-      patientApi.list({ search: patientQuery.trim() })
-        .then((res) => setPatientResults(res.data || []))
-        .catch(() => setPatientResults([]));
+    setPatientResults(null);
+    setPatientSearchError(false);
+    const search = patientQuery.trim();
+    if (!search) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      patientApi.list({ search })
+        .then(({ data }) => { if (current) setPatientResults(data); })
+        .catch(() => { if (current) setPatientSearchError(true); });
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
   }, [patientQuery]);
 
   useEffect(() => {
@@ -347,6 +353,8 @@ function BookAppointmentModal({ onClose, onBooked }) {
                 onChange={(e) => setPatientQuery(e.target.value)}
               />
               {errors?.patient ? <div className="field-error">{errors.patient}</div> : null}
+              {patientSearchError && <div role="alert">Patient search unavailable.</div>}
+              {patientQuery.trim() && !patientResults && !patientSearchError && <div role="status">Searching patients…</div>}
               {patientResults ? (
                 patientResults.length > 0 ? (
                   <div className="appt-patient-results">

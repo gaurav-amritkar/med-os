@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { patientApi, encounterApi, billingApi } from '../api';
 import Modal from '../components/Modal';
 import useAuthStore from '../store/authStore';
@@ -32,7 +32,9 @@ function PatientWorkspace({ id }) {
   const [patientInvoices, setPatientInvoices] = useState(null);
   const [profileTab, setProfileTab] = useState('encounters');
   const [page, setPage] = useState(0);
-  const listRequest = useRef(0);
+  const listRequest = useRef(null);
+  const [listRevision, refreshList] = useState(0);
+  const searchTerm = search.length > 2 ? search : undefined;
   const [pageMeta, setPageMeta] = useState(null);
   // Hub state: the counter rail and the parity-spec cohort/blood filters.
   const [summary, setSummary] = useState(null);
@@ -58,10 +60,6 @@ function PatientWorkspace({ id }) {
 
   useEffect(() => { if (!id) fetchSummary(); }, [id]);
 
-  // Filter changes are a different result set — back to page 0. This effect
-  // also performs the initial load, so mount fetches the list exactly once.
-  useEffect(() => { if (!id) fetchPatients(currentSearchTerm(), 0); }, [id, typeFilter, bloodFilter]);
-
   const fetchSummary = async () => {
     try {
       const { data } = await patientApi.summary();
@@ -73,8 +71,9 @@ function PatientWorkspace({ id }) {
   // on a page the UI never shows. Every list call returns to page 0 unless it is
   // an explicit page change, because a search or a new registration is a
   // different result set.
-  const fetchPatients = async (q, nextPage = 0) => {
-    const request = ++listRequest.current;
+  const fetchPatients = useCallback(async (q, nextPage = 0) => {
+    const request = Symbol();
+    listRequest.current = request;
     setLoading(true);
     try {
       const { data, meta } = await patientApi.list({
@@ -100,9 +99,22 @@ function PatientWorkspace({ id }) {
           : 'Could not load patients. The server did not respond as expected.'
       );
     } finally { if (request === listRequest.current) setLoading(false); }
-  };
+  }, [typeFilter, bloodFilter]);
 
-  const currentSearchTerm = () => (search.length > 2 ? search : undefined);
+  useEffect(() => {
+    if (id) return;
+    setLoading(true);
+    let timer;
+    if (searchTerm) {
+      timer = setTimeout(() => fetchPatients(searchTerm), 300);
+    } else {
+      fetchPatients();
+    }
+    return () => {
+      clearTimeout(timer);
+      listRequest.current = null;
+    };
+  }, [id, searchTerm, fetchPatients, listRevision]);
 
   // A name fragment plus a filter is refused by the backend (an encrypted name
   // cannot ride a SQL filter), so the box says what the combination allows.
@@ -160,16 +172,6 @@ function PatientWorkspace({ id }) {
     },
   ];
 
-  const handleSearch = (e) => {
-    const term = e.target.value;
-    setSearch(term);
-    // Refetch for a real term, for an empty box, AND when the term shrinks back
-    // under the minimum length. The last case previously left the previous
-    // result set on screen, so deleting characters showed rows that no longer
-    // matched what was typed.
-    fetchPatients(term.length > 2 ? term : undefined, 0);
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
     if (registering) return;
@@ -192,7 +194,7 @@ function PatientWorkspace({ id }) {
       addToast(`Patient ${data.name} registered. UHID: ${data.uhid}`, 'success');
       setShowRegister(false);
       setForm({ name: '', age: '', gender: 'male', phone: '', email: '', address: '', bloodGroup: '', consent: { treatment: false, billing: false, research: false, purpose: { treatment: '', billing: '', research: '' } } });
-      fetchPatients();
+      refreshList(value => value + 1);
       fetchSummary();
     } catch (err) {
       const valErrs = err?.response?.data?.validationErrors || {};
@@ -314,17 +316,13 @@ function PatientWorkspace({ id }) {
             ? 'Search by UHID…'
             : 'Search by name or UHID…',
           value: search,
-          onChange: handleSearch,
+          onChange: setSearch,
         }}
         onClear={() => {
           setSearch('');
-          if (typeFilter || bloodFilter) {
-            // The filter effect refetches on any change from a non-empty value.
-            setTypeFilter('');
-            setBloodFilter('');
-          } else {
-            fetchPatients(undefined, 0);
-          }
+          setTypeFilter('');
+          setBloodFilter('');
+          refreshList(value => value + 1);
         }}
       >
         <div role="radiogroup" aria-label="Patient type" style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
@@ -459,7 +457,7 @@ function PatientWorkspace({ id }) {
               emptyMessage="No patients found. Register a new patient."
               error={loadError}
               pageMeta={pageMeta}
-              onPageChange={(p) => fetchPatients(currentSearchTerm(), p)}
+              onPageChange={(p) => fetchPatients(searchTerm, p)}
             />
           )}
         </div>

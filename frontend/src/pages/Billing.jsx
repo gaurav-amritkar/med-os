@@ -54,7 +54,10 @@ function invoicePreview(charges, discountValue) {
 }
 
 export default function Billing() {
-  const [patients, setPatients] = useState([]);
+  const [patients, setPatients] = useState(null);
+  const [patientQuery, setPatientQuery] = useState('');
+  const [patientSearchError, setPatientSearchError] = useState(false);
+  const search = patientQuery.trim().length > 2 ? patientQuery.trim() : undefined;
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [unbilledCharges, setUnbilledCharges] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -68,8 +71,21 @@ export default function Billing() {
   const preview = invoicePreview(selectedChargeItems, invoiceDiscount);
 
   useEffect(() => {
-    patientApi.list().then(({ data }) => setPatients(data)).catch(() => {});
-  }, []);
+    let current = true;
+    setPatients(null);
+    setPatientSearchError(false);
+    const load = () => {
+      patientApi.list(search ? { search } : undefined)
+        .then(({ data }) => { if (current) setPatients(data); })
+        .catch(() => { if (current) setPatientSearchError(true); });
+    };
+    const timer = search ? setTimeout(load, 300) : undefined;
+    if (!search) load();
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [search]);
 
   const selectPatient = async (patient) => {
     setSelectedPatient(patient);
@@ -156,16 +172,14 @@ export default function Billing() {
           <div className="card">
             <h3 style={{ marginBottom: 16, color: 'var(--ink)' }}>Patients</h3>
             <input placeholder="Search..." style={{ marginBottom: 12 }}
-              onChange={async (e) => {
-                const term = e.target.value;
-                // Refetch when the term drops under the minimum length too,
-                // otherwise the previous result set stays on screen and no
-                // longer matches what is typed.
-                const { data } = await patientApi.list({ search: term.length > 2 ? term : undefined });
-                setPatients(data);
-              }} />
+              aria-label="Search patients"
+              value={patientQuery}
+              onChange={event => setPatientQuery(event.target.value)} />
+            {patientSearchError && <p role="alert">Patient search unavailable.</p>}
+            {!patients && !patientSearchError && <p role="status">Loading patients…</p>}
+            {patients?.length === 0 && <p>No patients found.</p>}
             <div style={{ maxHeight: 500, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {patients.map((p) => (
+              {patients?.map((p) => (
                 <button key={p.id} className="btn-ghost"
                   style={{
                     justifyContent: 'flex-start',
