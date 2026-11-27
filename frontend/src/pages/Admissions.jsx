@@ -4,6 +4,8 @@ import Modal from '../components/Modal';
 import useToastStore from '../store/toastStore';
 
 export default function Admissions() {
+  const [loadState, setLoadState] = useState('loading');
+  const [revision, setRevision] = useState(0);
   const [rooms, setRooms] = useState([]);
   const [activeAdmissions, setActiveAdmissions] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -14,17 +16,28 @@ export default function Admissions() {
   const [dischargeDiagnosis, setDischargeDiagnosis] = useState('');
   const addToast = useToastStore((s) => s.addToast);
 
+  const refresh = () => {
+    setLoadState('loading');
+    setRevision(value => value + 1);
+  };
+
   useEffect(() => {
+    let current = true;
     Promise.all([
       admissionApi.rooms(),
       admissionApi.active(),
       patientApi.list(),
     ]).then(([roomsRes, admRes, patRes]) => {
+      if (!current) return;
       setRooms(roomsRes.data || []);
       setActiveAdmissions(admRes.data || []);
       setPatients(patRes.data || []);
+      setLoadState('ready');
+    }).catch(() => {
+      if (current) setLoadState('failed');
     });
-  }, []);
+    return () => { current = false; };
+  }, [revision]);
 
   const openAdmit = (room) => {
     setSelectedRoom(room);
@@ -60,17 +73,8 @@ export default function Admissions() {
     }
   };
 
-  const refresh = async () => {
-    const [roomsRes, admRes] = await Promise.all([
-      admissionApi.rooms(),
-      admissionApi.active(),
-    ]);
-    setRooms(roomsRes.data || []);
-    setActiveAdmissions(admRes.data || []);
-  };
-
   const getAdmissionPatient = (roomId) => activeAdmissions.find((a) => a.roomId === roomId);
-  const getPatientName = (patId) => patients.find((p) => p.id === patId)?.name || patId?.slice(0, 8);
+  const getPatientName = (patId) => patients.find((p) => p.id === patId)?.name || (patId == null ? 'Unknown patient' : String(patId).slice(0, 8));
 
   const roomColor = (type) => {
     const colors = {
@@ -83,6 +87,22 @@ export default function Admissions() {
     };
     return colors[type] || { bg: 'rgba(255,255,255,0.05)', border: 'var(--line)' };
   };
+
+  if (loadState !== 'ready') {
+    return (
+      <div>
+        <div className="page-header"><h1>IPD / Wards</h1></div>
+        {loadState === 'loading' ? (
+          <p role="status">Loading wards…</p>
+        ) : (
+          <div role="alert">
+            Ward information is unavailable.{' '}
+            <button type="button" className="btn-secondary" onClick={refresh}>Retry</button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
